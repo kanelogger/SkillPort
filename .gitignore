@@ -1,0 +1,54 @@
+# OS files
+.DS_Store
+
+# Dependencies
+node_modules/
+.bun/
+
+# Build and test output
+dist/
+build/
+coverage/
+tests/**/coverage/
+tests/e2e/reports/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+selenium-debug.log
+logs/
+
+# Skill optimizer eval runs
+warehouse/local/skill-optimizer/runs/
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+*.local
+
+# Package manager lockfiles
+bun.lockb
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Editor and IDE state
+.history/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Local agent tool workspaces
+.agent/
+.agents/
+.opencode/
+
+manifests/
+private-*
