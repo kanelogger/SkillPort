@@ -11,12 +11,13 @@ import { StateStore } from "../infrastructure/database.js";
 import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
-import { copySource, prepareSource } from "../infrastructure/sources.js";
+import { copySource, prepareLocalSource, prepareSource } from "../infrastructure/sources.js";
 import { globalTarget, toolKeys } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
 
 type RecoveryPayload =
   | { kind: "install"; skill: Skill; destination: string }
+  | { kind: "link"; skill: Skill; destination: string }
   | { kind: "update"; skill: Skill; destination: string; backup: string }
   | { kind: "remove"; skill: Skill; destination: string; backup: string; enablements: Enablement[] }
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
@@ -125,9 +126,63 @@ export class SkillPort {
     });
   }
 
+  link(source: string): Skill {
+    return this.mutate("link", (checkpoint) => {
+      const prepared = prepareLocalSource(source);
+      const sourceRoot = realpathSync(prepared.root);
+      const hubRoot = realpathSync(this.paths.root);
+      if (isInside(hubRoot, sourceRoot) || isInside(sourceRoot, hubRoot)) {
+        throw new CliError("Skill source and Hub must not contain one another.");
+      }
+      const metadata = readSkillMetadata(sourceRoot);
+      if (this.store.skill(metadata.name)) {
+        throw new CliError(
+          `Skill already installed: ${metadata.name}. Change the incoming Skill's SKILL.md name before linking it.`
+        );
+      }
+      const timestamp = new Date().toISOString();
+      const skill: Skill = {
+        instanceId: randomUUID(),
+        ...metadata,
+        sourceType: "local",
+        sourceLocation: sourceRoot,
+        sourceRef: null,
+        sourceRevision: null,
+        installedAt: timestamp,
+        updatedAt: timestamp
+      };
+      const destination = this.skillPath(skill);
+      if (pathExistsLexically(destination)) {
+        throw new CliError(`Hub destination already exists and is not registered: ${destination}`);
+      }
+      checkpoint({ kind: "link", skill, destination });
+      let linked = false;
+      try {
+        createDirectoryLink(sourceRoot, destination);
+        linked = true;
+        this.verifySkillEntry(destination, sourceRoot);
+        this.store.transaction(() => this.store.insertSkill(skill));
+        writeCatalogs(this.paths, this.store.skills());
+        return skill;
+      } catch (error) {
+        try {
+          if (linked && managedLinkState(destination, sourceRoot) === "correct") removeOwnedLink(destination, sourceRoot);
+          if (this.store.skill(skill.name)?.instanceId === skill.instanceId) {
+            this.store.transaction(() => this.store.deleteSkill(skill.instanceId));
+          }
+        } catch (rollbackError) {
+          throw new RecoveryPendingError("Link", rollbackError);
+        }
+        this.writeCatalogsBestEffort();
+        throw error;
+      }
+    });
+  }
+
   update(name: string): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
+      if (this.isLinkedSkill(current)) return this.updateLinkedSkill(current);
       const staged = join(this.paths.staging, `update-${randomUUID()}`);
       const backup = join(this.paths.staging, `backup-${randomUUID()}`);
       const destination = this.skillPath(current);
@@ -216,6 +271,12 @@ export class SkillPort {
         throw error;
       }
     });
+  }
+
+  unlink(name: string, force = false): void {
+    const skill = this.requireSkill(name);
+    if (!this.isLinkedSkill(skill)) throw new CliError(`Skill is not linked: ${name}`);
+    this.remove(name, force);
   }
 
   enable(name: string, options: { project?: string; global?: string }): Enablement {
@@ -345,7 +406,11 @@ export class SkillPort {
         }
       }
       const metaPath = join(root, "meta.json");
-      if (!existsSync(metaPath)) {
+      if (this.isLinkedSkill(skill)) {
+        if (skill.sourceType !== "local") {
+          diagnostics.push({ code: "LINK_SOURCE_DRIFT", severity: "error", message: `${skill.name}: linked Skill has invalid source type` });
+        }
+      } else if (!existsSync(metaPath)) {
         diagnostics.push({ code: "META_MISSING", severity: "error", message: `${skill.name}: meta.json missing` });
       } else {
         try {
@@ -476,6 +541,8 @@ export class SkillPort {
     switch (payload.kind) {
       case "install":
         return this.recoverInstall(payload);
+      case "link":
+        return this.recoverLink(payload);
       case "update":
         return this.recoverUpdate(payload);
       case "remove":
@@ -493,6 +560,21 @@ export class SkillPort {
       throw new CliError(`Interrupted install conflicts with the installed Skill: ${payload.skill.name}`);
     }
     this.removeRecoveryOwnedSkill(payload.destination, payload.skill.instanceId);
+    if (installed) this.store.transaction(() => this.store.deleteSkill(payload.skill.instanceId));
+    writeCatalogs(this.paths, this.store.skills());
+    return false;
+  }
+
+  private recoverLink(payload: Extract<RecoveryPayload, { kind: "link" }>): false {
+    const installed = this.store.skill(payload.skill.name);
+    if (installed && installed.instanceId !== payload.skill.instanceId) {
+      throw new CliError(`Interrupted link conflicts with the installed Skill: ${payload.skill.name}`);
+    }
+    if (managedLinkState(payload.destination, payload.skill.sourceLocation) === "correct") {
+      removeOwnedLink(payload.destination, payload.skill.sourceLocation);
+    } else if (pathExistsLexically(payload.destination)) {
+      throw new CliError(`Interrupted link found unmanaged Skill content: ${payload.destination}`);
+    }
     if (installed) this.store.transaction(() => this.store.deleteSkill(payload.skill.instanceId));
     writeCatalogs(this.paths, this.store.skills());
     return false;
@@ -642,6 +724,38 @@ export class SkillPort {
     return join(this.paths.skills, skill.name);
   }
 
+  private isLinkedSkill(skill: Skill): boolean {
+    try {
+      return lstatSync(this.skillPath(skill)).isSymbolicLink();
+    } catch {
+      return false;
+    }
+  }
+
+  private updateLinkedSkill(current: Skill): Skill {
+    const metadata = readSkillMetadata(this.skillPath(current));
+    if (metadata.name !== current.name) throw new CliError("Updated Skill name changed; unlink and link it again.");
+    const updated: Skill = {
+      ...current,
+      description: metadata.description,
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      this.store.transaction(() => this.store.updateSkill(updated));
+      writeCatalogs(this.paths, this.store.skills());
+      this.assertEnablementsHealthy(updated);
+      return updated;
+    } catch (error) {
+      try {
+        this.store.transaction(() => this.store.updateSkill(current));
+      } catch (rollbackError) {
+        throw new RecoveryPendingError("Update", rollbackError);
+      }
+      this.writeCatalogsBestEffort();
+      throw error;
+    }
+  }
+
   private resolveProject(explicit?: string) {
     const cwd = canonicalDirectory(explicit ?? process.cwd());
     const project = explicit
@@ -722,6 +836,9 @@ function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill,
 function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | null {
   if (!isRecord(value) || value.kind !== kind || !isSkill(value.skill)) return null;
   if (kind === "install" && typeof value.destination === "string") {
+    return { kind, skill: value.skill, destination: value.destination };
+  }
+  if (kind === "link" && typeof value.destination === "string") {
     return { kind, skill: value.skill, destination: value.destination };
   }
   if (kind === "update" && typeof value.destination === "string" && typeof value.backup === "string") {

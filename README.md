@@ -20,6 +20,7 @@ The npm package name is `skill-port-cli`. The executable name is `sklp`.
 ```bash
 sklp init
 sklp install ./path/to/a-skill
+sklp link ./path/to/a-local-skill
 sklp list
 sklp info my-skill
 sklp enable my-skill
@@ -28,6 +29,7 @@ sklp update my-skill
 sklp doctor
 sklp disable my-skill
 sklp remove my-skill
+sklp unlink my-local-skill
 ```
 
 `sklp init` registers the current directory locally. Project enablement writes a managed entry under `.agents/skills/`; no Skill Port manifest or Git configuration is added to the project.
@@ -40,6 +42,8 @@ Git repositories are also supported:
 sklp install https://github.com/example/my-skill.git
 sklp install https://github.com/example/my-skill.git --ref v1.2.0
 ```
+
+Use `sklp link <path>` for a local Skill you are actively editing. The Hub records the Skill and points its managed entry at the source directory, so edits are visible through project and global enablements without reinstalling. Use `sklp unlink <skill>` to remove that local registration; the original source directory is not deleted.
 
 Use `--project <path>` with `init`, `enable`, or `disable` to target an explicit local project. The project must be registered before enablement.
 
@@ -71,13 +75,14 @@ The Hub automatically maintains:
 
 - `catalog.json` for machines
 - `catalog.md` for people
-- `skills/<name>/meta.json` for per-Skill registration
+- `skills/<name>/meta.json` for copied installed Skills
 
-Catalog entries contain only `instanceId`, `name`, and `description`. Project associations and source locations stay in local SQLite state.
+Catalog entries contain only `instanceId`, `name`, and `description`. Project associations and source locations stay in local SQLite state. Linked local source directories are not modified by Skill Port.
 
 ## Safety
 
 - Existing unmanaged target files, directories, and links are never overwritten.
 - `remove` refuses while enablements exist; `remove --force` removes verified managed entries first.
+- `unlink` only applies to linked local Skills; `unlink --force` first removes verified managed entries.
 - `doctor` is read-only.
 - Git is invoked without a shell, and credentials are removed from persisted and displayed source URLs.

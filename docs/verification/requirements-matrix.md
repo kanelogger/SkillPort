@@ -14,18 +14,18 @@ Status keys:
 | R2 default/custom Hub | `tests/config.test.js`; `SKLP_HOME`; `sklp init --hub` | Passed |
 | R3 init creates local Hub/SQLite and registers project without project manifest | core lifecycle tests; no project-owned Skill Port manifest implemented | Passed |
 | R4 nearest registered ancestor only, no Git/language marker inference | nested project test; source search shows no Git marker discovery | Passed |
-| R5 local and Git Skill roots with `SKILL.md` | local lifecycle tests; `tests/git-source.test.js` | Passed |
+| R5 local, linked local, and Git Skill roots with `SKILL.md` | local lifecycle tests; linked local lifecycle test; `tests/git-source.test.js` | Passed |
 | R6 strict `name`/`description` frontmatter with no partial state | invalid metadata and catalog rollback tests | Passed |
 | R7 `instanceId` lifecycle | reinstall and update identity tests | Passed |
 | R8 unique normalized names, user changes incoming `SKILL.md` | duplicate install test and error assertion | Passed |
 | R9 no install-time alias/rename | command surface test | Passed |
 | R10 local source/ref/revision/timestamps through `info` | Git install test; `info` JSON includes source fields | Passed |
-| R11 no externally visible split state after install/update/catalog failures; recovery after interruption | publication rollback tests; 5 interrupted operation recovery tests; startup recovery via `list/info` | Passed |
+| R11 no externally visible split state after install/link/update/catalog failures; recovery after interruption | publication rollback tests; linked local lifecycle test; 5 interrupted operation recovery tests; startup recovery via `list/info` | Passed |
 | R12 update name change fails | lifecycle update rename test | Passed |
-| R13 per-Skill `meta.json` limited to identity fields | catalog/core tests; doctor meta drift tests | Passed |
+| R13 copied installed Skills have `meta.json` limited to identity fields | catalog/core tests; doctor meta drift tests; linked local lifecycle test verifies source is not modified | Passed |
 | R14 `catalog.json` schema and limited fields | catalog field tests | Passed |
 | R15 `catalog.md` lists names/descriptions | catalog drift tests | Passed |
-| R16 catalogs refresh after install/update/remove | lifecycle and rollback tests | Passed |
+| R16 catalogs refresh after install/link/update/remove/unlink | lifecycle and rollback tests; linked local lifecycle test | Passed |
 | R17 catalogs exclude project/source/private state | catalog field tests; package/core flow | Passed |
 | R18 no manual catalog command | command surface test | Passed |
 | R19 current project enablement to `.agents/skills` | core lifecycle test | Passed |
@@ -51,6 +51,8 @@ Status keys:
 | R39 failed mutations exit nonzero and preserve valid state | install/update/remove/catalog/target conflict tests | Passed |
 | R40 project enablement does not inspect or modify Git config | source search and absence of Git config access in runtime code | Passed |
 | R41 routine output/catalogs avoid credential and unrelated path leaks | URL redaction tests; catalog privacy tests | Passed |
+| R42 `sklp link <path>` registers an actively edited local Skill without copying or modifying the source directory | linked local lifecycle test verifies catalog/list visibility, project enablement, live source edits, and no source `meta.json` write | Passed |
+| R43 `sklp unlink <skill>` removes only linked local registrations and preserves the source directory | linked local lifecycle test verifies active enablement refusal, `--force`, catalog cleanup, Hub entry removal, and source preservation | Passed |
 
 ## External Release Gates
 

@@ -17,16 +17,7 @@ export function prepareSource(input: string, staging: string, ref?: string): Pre
   if (ref && (ref.startsWith("-") || /[\0\r\n]/.test(ref))) throw new CliError("Invalid Git ref.");
   const local = resolve(input);
   if (existsSync(local)) {
-    if (!lstatSync(local).isDirectory()) throw new CliError(`Skill source is not a directory: ${input}`);
-    validateTree(local);
-    return {
-      root: local,
-      type: "local",
-      location: local,
-      ref: null,
-      revision: null,
-      cleanup: () => undefined
-    };
+    return prepareLocalSource(input);
   }
 
   const cloneRoot = join(staging, `git-${Date.now()}-${process.pid}`);
@@ -61,6 +52,20 @@ export function prepareSource(input: string, staging: string, ref?: string): Pre
     ref: ref ?? null,
     revision: revision.status === 0 ? revision.stdout.trim() : null,
     cleanup: () => rmSync(cloneRoot, { recursive: true, force: true })
+  };
+}
+
+export function prepareLocalSource(input: string): PreparedSource {
+  const local = resolve(input);
+  if (!existsSync(local) || !lstatSync(local).isDirectory()) throw new CliError(`Skill source is not a directory: ${input}`);
+  validateTree(local);
+  return {
+    root: local,
+    type: "local",
+    location: local,
+    ref: null,
+    revision: null,
+    cleanup: () => undefined
   };
 }
 

@@ -28,6 +28,14 @@ program.command("install")
     console.log(`Installed ${skill.name}\nInstance: ${skill.instanceId}`);
   })));
 
+program.command("link")
+  .description("Link a local Skill directory into the Hub")
+  .argument("<source>")
+  .action(run((source) => withApp((app) => {
+    const skill = app.link(source);
+    console.log(`Linked ${skill.name}\nInstance: ${skill.instanceId}`);
+  })));
+
 program.command("update")
   .description("Update an installed Skill")
   .argument("<skill>")
@@ -43,6 +51,15 @@ program.command("remove")
   .action(run((skill, options) => withApp((app) => {
     app.remove(skill, Boolean(options.force));
     console.log(`Removed ${skill}`);
+  })));
+
+program.command("unlink")
+  .description("Unlink a linked Skill")
+  .argument("<skill>")
+  .option("--force", "Disable managed targets before unlinking")
+  .action(run((skill, options) => withApp((app) => {
+    app.unlink(skill, Boolean(options.force));
+    console.log(`Unlinked ${skill}`);
   })));
 
 program.command("list")
