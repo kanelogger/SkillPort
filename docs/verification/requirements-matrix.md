@@ -53,7 +53,7 @@ Status keys:
 | R41 routine output/catalogs avoid credential and unrelated path leaks | URL redaction tests; catalog privacy tests | Passed |
 | R42 `sklp link <path>` registers an actively edited local Skill without copying or modifying the source directory | linked local lifecycle test verifies catalog/list visibility, project enablement, live source edits, and no source `meta.json` write | Passed |
 | R43 `sklp unlink <skill>` removes only linked local registrations and preserves the source directory | linked local lifecycle test verifies active enablement refusal, `--force`, catalog cleanup, Hub entry removal, and source preservation | Passed |
-| R44 `sklp install <sources.json>` expands registry `local_path` entries into concrete Skill directories | registry source tests cover direct `local_path/SKILL.md`, fallback scan of `local_path/**/SKILL.md`, parent-relative warehouse paths, and empty source failure | Passed |
+| R44 `sklp install <sources.json>` expands registry `local_path` entries into concrete Skill directories | registry source tests cover direct `local_path/SKILL.md`, fallback scan of `local_path/**/SKILL.md`, parent-relative warehouse paths, empty source failure, `--dry-run`, duplicate-name preflight, and already-installed preflight | Passed |
 | R45 core automation commands expose machine-readable JSON | JSON output test covers `install --json`, `list --json`, `enable --json`, and `doctor --json`; `info` remains JSON by default | Passed |
 | R46 Chinese users have first-party onboarding documentation | `README.zh-CN.md` covers install, registry import, link, enablement, JSON output, privacy, diagnostics, and safety boundaries | Passed |
 

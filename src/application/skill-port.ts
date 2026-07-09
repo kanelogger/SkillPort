@@ -71,8 +71,23 @@ export class SkillPort {
   }
 
   installAll(source: string, ref?: string): Skill[] {
-    return prepareInstallSources(source, this.paths.staging, ref)
-      .map((prepared) => this.installPreparedSource(prepared));
+    const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
+    try {
+      this.installCandidates(preparedSources);
+      return preparedSources.map((prepared) => this.installPreparedSource(prepared));
+    } catch (error) {
+      for (const prepared of preparedSources) prepared.cleanup();
+      throw error;
+    }
+  }
+
+  previewInstall(source: string, ref?: string): Array<{ name: string; description: string }> {
+    const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
+    try {
+      return this.installCandidates(preparedSources);
+    } finally {
+      for (const prepared of preparedSources) prepared.cleanup();
+    }
   }
 
   private installPreparedSource(prepared: PreparedSource): Skill {
@@ -131,6 +146,24 @@ export class SkillPort {
         prepared.cleanup();
         rmSync(staged, { recursive: true, force: true });
       }
+    });
+  }
+
+  private installCandidates(preparedSources: PreparedSource[]): Array<{ name: string; description: string }> {
+    const seen = new Set<string>();
+    return preparedSources.map((prepared) => {
+      const metadata = readSkillMetadata(prepared.root);
+      const key = metadata.name.toLowerCase();
+      if (seen.has(key)) {
+        throw new CliError(`Duplicate Skill name in install set: ${metadata.name}. 请修改来源 Skill 的 SKILL.md name 后再安装。`);
+      }
+      seen.add(key);
+      if (this.store.skill(metadata.name)) {
+        throw new CliError(
+          `Skill already installed: ${metadata.name}. Change the incoming Skill's SKILL.md name before installing it. 请修改来源 Skill 的 SKILL.md name 后再安装。`
+        );
+      }
+      return metadata;
     });
   }
 

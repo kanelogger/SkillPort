@@ -49,9 +49,10 @@ Registry files named `sources.json` are supported for local registry imports:
 
 ```bash
 sklp install ./registry/sources.json
+sklp install ./registry/sources.json --dry-run
 ```
 
-Each registry entry must provide `local_path`. If `local_path/SKILL.md` exists, that directory is installed as one Skill. Otherwise Skill Port scans `local_path/**/SKILL.md` and installs each discovered Skill directory. Relative `local_path` values resolve from the `sources.json` directory first, then from its parent directory for registry layouts like `registry/sources.json` plus `warehouse/...`.
+Each registry entry must provide `local_path`. If `local_path/SKILL.md` exists, that directory is installed as one Skill. Otherwise Skill Port scans `local_path/**/SKILL.md` and installs each discovered Skill directory. Relative `local_path` values resolve from the `sources.json` directory first, then from its parent directory for registry layouts like `registry/sources.json` plus `warehouse/...`. Use `--dry-run` to preview the expanded Skill set without changing the Hub. Registry installs preflight duplicate names and already installed names before writing state.
 
 Use `sklp link <path>` for a local Skill you are actively editing. The Hub records the Skill and points its managed entry at the source directory, so edits are visible through project and global enablements without reinstalling. Use `sklp unlink <skill>` to remove that local registration; the original source directory is not deleted.
 

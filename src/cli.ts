@@ -7,7 +7,7 @@ import type { Skill } from "./domain/models.js";
 const program = new Command()
   .name("sklp")
   .description("Local Agent Skill hub and project binding CLI")
-  .version("0.1.2")
+  .version("0.1.3")
   .showHelpAfterError();
 
 program.command("init")
@@ -27,7 +27,14 @@ program.command("install")
   .argument("<source>")
   .option("--ref <ref>", "Git branch, tag, or commit")
   .option("--json", "Write machine-readable JSON")
+  .option("--dry-run", "Preview installable Skills without changing state")
   .action(run((source, options) => withApp((app) => {
+    if (options.dryRun) {
+      const skills = app.previewInstall(source, options.ref);
+      if (options.json) printJson({ dryRun: true, skills });
+      else for (const skill of skills) console.log(`Would install ${skill.name}\t${skill.description}`);
+      return;
+    }
     const skills = app.installAll(source, options.ref);
     if (options.json) printJson({ skills: skills.map(publicSkill) });
     else for (const skill of skills) console.log(`Installed ${skill.name}\nInstance: ${skill.instanceId}`);
