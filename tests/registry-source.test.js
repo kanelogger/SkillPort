@@ -131,3 +131,39 @@ test("registry install preflight rejects already installed names without partial
   assert.match(list, /existing-skill\s+Already here/);
   assert.doesNotMatch(list, /new-skill/);
 });
+
+test("registry install can skip already installed Skills", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-registry-skip-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  const registry = join(repo, "registry");
+  mkdirSync(project);
+  mkdirSync(registry, { recursive: true });
+  makeSkill(join(repo, "warehouse", "existing"), "existing-skill", "Already here");
+  makeSkill(join(repo, "warehouse", "new"), "new-skill", "Fresh import");
+  cli(["init"], { cwd: project, hub, home: root });
+  assert.equal(cli(["install", join(repo, "warehouse", "existing")], { cwd: project, hub, home: root }).status, 0);
+  writeFileSync(join(registry, "sources.json"), `${JSON.stringify({
+    existing: { type: "local", local_path: "warehouse/existing" },
+    next: { type: "local", local_path: "warehouse/new" }
+  }, null, 2)}\n`);
+
+  const preview = cli(["install", join(registry, "sources.json"), "--skip-existing", "--dry-run", "--json"], {
+    cwd: project,
+    hub,
+    home: root
+  });
+  assert.equal(preview.status, 0, preview.stderr);
+  const previewValue = JSON.parse(preview.stdout);
+  assert.deepEqual(previewValue.skills.map((skill) => skill.name), ["new-skill"]);
+  assert.deepEqual(previewValue.skipped, [{ name: "existing-skill", description: "Already here", reason: "already-installed" }]);
+
+  const result = cli(["install", join(registry, "sources.json"), "--skip-existing"], { cwd: project, hub, home: root });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Skipped existing existing-skill/);
+  assert.match(result.stdout, /Installed new-skill/);
+  const list = cli(["list"], { cwd: project, hub, home: root }).stdout;
+  assert.match(list, /existing-skill\s+Already here/);
+  assert.match(list, /new-skill\s+Fresh import/);
+});

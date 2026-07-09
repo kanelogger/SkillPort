@@ -23,6 +23,10 @@ type RecoveryPayload =
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
   | { kind: "disable"; skill: Skill; enablement: Enablement };
 
+type InstallMetadata = { name: string; description: string };
+type InstallSkipped = InstallMetadata & { reason: "already-installed" };
+type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
+
 class RecoveryPendingError extends Error {
   constructor(kind: string, cause: unknown) {
     super(`${kind} failed and rollback is pending: ${sanitizeError(cause)}`);
@@ -70,21 +74,27 @@ export class SkillPort {
     return this.installPreparedSource(prepareSource(source, this.paths.staging, ref));
   }
 
-  installAll(source: string, ref?: string): Skill[] {
+  installAll(source: string, ref?: string, options: { skipExisting?: boolean } = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
     const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
     try {
-      this.installCandidates(preparedSources);
-      return preparedSources.map((prepared) => this.installPreparedSource(prepared));
-    } catch (error) {
+      const plan = this.installPlan(preparedSources, options);
+      return {
+        skills: plan.candidates.map((candidate) => this.installPreparedSource(candidate.prepared)),
+        skipped: plan.skipped
+      };
+    } finally {
       for (const prepared of preparedSources) prepared.cleanup();
-      throw error;
     }
   }
 
-  previewInstall(source: string, ref?: string): Array<{ name: string; description: string }> {
+  previewInstall(source: string, ref?: string, options: { skipExisting?: boolean } = {}): { skills: InstallMetadata[]; skipped: InstallSkipped[] } {
     const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
     try {
-      return this.installCandidates(preparedSources);
+      const plan = this.installPlan(preparedSources, options);
+      return {
+        skills: plan.candidates.map((candidate) => candidate.metadata),
+        skipped: plan.skipped
+      };
     } finally {
       for (const prepared of preparedSources) prepared.cleanup();
     }
@@ -149,9 +159,14 @@ export class SkillPort {
     });
   }
 
-  private installCandidates(preparedSources: PreparedSource[]): Array<{ name: string; description: string }> {
+  private installPlan(preparedSources: PreparedSource[], options: { skipExisting?: boolean }): {
+    candidates: InstallCandidate[];
+    skipped: InstallSkipped[];
+  } {
     const seen = new Set<string>();
-    return preparedSources.map((prepared) => {
+    const candidates: InstallCandidate[] = [];
+    const skipped: InstallSkipped[] = [];
+    for (const prepared of preparedSources) {
       const metadata = readSkillMetadata(prepared.root);
       const key = metadata.name.toLowerCase();
       if (seen.has(key)) {
@@ -159,12 +174,17 @@ export class SkillPort {
       }
       seen.add(key);
       if (this.store.skill(metadata.name)) {
+        if (options.skipExisting) {
+          skipped.push({ ...metadata, reason: "already-installed" });
+          continue;
+        }
         throw new CliError(
           `Skill already installed: ${metadata.name}. Change the incoming Skill's SKILL.md name before installing it. 请修改来源 Skill 的 SKILL.md name 后再安装。`
         );
       }
-      return metadata;
-    });
+      candidates.push({ prepared, metadata });
+    }
+    return { candidates, skipped };
   }
 
   link(source: string): Skill {

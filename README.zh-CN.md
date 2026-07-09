@@ -68,9 +68,10 @@ sklp install https://github.com/example/my-skill.git --ref v1.2.0
 ```bash
 sklp install ./registry/sources.json
 sklp install ./registry/sources.json --dry-run
+sklp install ./registry/sources.json --skip-existing
 ```
 
-`sources.json` 中每个条目需要提供 `local_path`。如果 `local_path/SKILL.md` 存在，就安装这个目录；否则会扫描 `local_path/**/SKILL.md`，把每个具体 Skill 子目录逐个安装。相对 `local_path` 会先按 `sources.json` 所在目录解析；如果不存在，再按父目录解析，以兼容 `registry/sources.json` 指向 `warehouse/...` 的布局。使用 `--dry-run` 可以先预览将要安装的 Skill，不改写 Hub。registry 安装会在写入前检查同名 Skill 和已安装 Skill，避免装到一半才失败。
+`sources.json` 中每个条目需要提供 `local_path`。如果 `local_path/SKILL.md` 存在，就安装这个目录；否则会扫描 `local_path/**/SKILL.md`，把每个具体 Skill 子目录逐个安装。相对 `local_path` 会先按 `sources.json` 所在目录解析；如果不存在，再按父目录解析，以兼容 `registry/sources.json` 指向 `warehouse/...` 的布局。使用 `--dry-run` 可以先预览将要安装的 Skill，不改写 Hub。重复导入 registry 时，可以用 `--skip-existing` 跳过已安装 Skill。registry 安装会在写入前检查同一批导入里的同名 Skill，避免装到一半才失败。
 
 ## 本地开发态 link
 

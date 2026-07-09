@@ -7,7 +7,7 @@ import type { Skill } from "./domain/models.js";
 const program = new Command()
   .name("sklp")
   .description("Local Agent Skill hub and project binding CLI")
-  .version("0.1.4")
+  .version("0.1.5")
   .showHelpAfterError();
 
 program.command("init")
@@ -28,22 +28,17 @@ program.command("install")
   .option("--ref <ref>", "Git branch, tag, or commit")
   .option("--json", "Write machine-readable JSON")
   .option("--dry-run", "Preview installable Skills without changing state")
+  .option("--skip-existing", "Skip Skills that are already installed")
   .action(run((source, options) => withApp((app) => {
     if (options.dryRun) {
-      const skills = app.previewInstall(source, options.ref);
-      if (options.json) printJson({ dryRun: true, skills });
-      else for (const skill of skills) console.log(human(
-        `Would install ${skill.name}\t${skill.description}`,
-        `将安装 ${skill.name}\t${skill.description}`
-      ));
+      const result = app.previewInstall(source, options.ref, { skipExisting: Boolean(options.skipExisting) });
+      if (options.json) printJson(installPayload({ ...result, dryRun: true }));
+      else printInstallPreview(result);
       return;
     }
-    const skills = app.installAll(source, options.ref);
-    if (options.json) printJson({ skills: skills.map(publicSkill) });
-    else for (const skill of skills) console.log(human(
-      `Installed ${skill.name}\nInstance: ${skill.instanceId}`,
-      `已安装 ${skill.name}\n实例: ${skill.instanceId}`
-    ));
+    const result = app.installAll(source, options.ref, { skipExisting: Boolean(options.skipExisting) });
+    if (options.json) printJson(installPayload({ skills: result.skills.map(publicSkill), skipped: result.skipped }));
+    else printInstallResult(result);
   })));
 
 program.command("link")
@@ -206,6 +201,32 @@ function publicSkill(skill: Skill) {
     name: skill.name,
     description: skill.description
   };
+}
+
+function installPayload(value: { skills: unknown[]; skipped?: unknown[]; dryRun?: boolean }) {
+  return {
+    ...(value.dryRun ? { dryRun: true } : {}),
+    skills: value.skills,
+    ...(value.skipped && value.skipped.length > 0 ? { skipped: value.skipped } : {})
+  };
+}
+
+function printInstallPreview(result: { skills: Array<{ name: string; description: string }>; skipped: Array<{ name: string }> }): void {
+  for (const skill of result.skills) {
+    console.log(human(`Would install ${skill.name}\t${skill.description}`, `将安装 ${skill.name}\t${skill.description}`));
+  }
+  for (const skipped of result.skipped) {
+    console.log(human(`Would skip existing ${skipped.name}`, `将跳过已安装 ${skipped.name}`));
+  }
+}
+
+function printInstallResult(result: { skills: Skill[]; skipped: Array<{ name: string }> }): void {
+  for (const skipped of result.skipped) {
+    console.log(human(`Skipped existing ${skipped.name}`, `已跳过已安装 ${skipped.name}`));
+  }
+  for (const skill of result.skills) {
+    console.log(human(`Installed ${skill.name}\nInstance: ${skill.instanceId}`, `已安装 ${skill.name}\n实例: ${skill.instanceId}`));
+  }
 }
 
 function handleError(error: unknown): void {
