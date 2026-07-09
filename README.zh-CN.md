@@ -42,11 +42,12 @@ sklp unlink my-local-skill
 设置 `SKLP_LANG=zh-CN` 后，人类可读输出会优先使用中文：
 
 ```bash
+SKLP_LANG=zh-CN sklp --help
 SKLP_LANG=zh-CN sklp install ./path/to/a-skill
 SKLP_LANG=zh-CN sklp doctor
 ```
 
-`--json` 输出保持稳定，不随语言切换改变字段名，方便脚本和 Agent 调用。
+命令说明和主要操作反馈都会使用中文。`--json` 输出保持稳定，不随语言切换改变字段名，方便脚本和 Agent 调用。
 
 ## 安装 Skill
 

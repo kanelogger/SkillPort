@@ -49,3 +49,17 @@ test("JSON output stays machine-readable in Chinese mode", () => {
   assert.equal(installed.status, 0, installed.stderr);
   assert.equal(JSON.parse(installed.stdout).skills[0].name, "zh-json-skill");
 });
+
+test("Chinese help is available through SKLP_LANG", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-zh-help-"));
+  const result = cli(["--help"], {
+    cwd: root,
+    hub: join(root, "hub"),
+    home: root,
+    env: { SKLP_LANG: "zh-CN" }
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /本地 Agent Skill Hub/);
+  assert.match(result.stdout, /初始化 Skill Port/);
+  assert.match(result.stdout, /安装 Skill/);
+});

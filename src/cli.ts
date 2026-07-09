@@ -7,15 +7,15 @@ import type { Skill } from "./domain/models.js";
 
 const program = new Command()
   .name("sklp")
-  .description("Local Agent Skill hub and project binding CLI")
+  .description(human("Local Agent Skill hub and project binding CLI", "本地 Agent Skill Hub 和项目绑定 CLI"))
   .version(packageVersion())
   .showHelpAfterError();
 
 program.command("init")
-  .description("Initialize Skill Port and register the current project")
-  .option("--hub <path>", "Use a custom Hub path")
-  .option("--project <path>", "Register a project other than the current directory")
-  .option("--json", "Write machine-readable JSON")
+  .description(human("Initialize Skill Port and register the current project", "初始化 Skill Port 并注册当前项目"))
+  .option("--hub <path>", human("Use a custom Hub path", "使用自定义 Hub 路径"))
+  .option("--project <path>", human("Register a project other than the current directory", "注册非当前目录的项目"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => {
     const app = SkillPort.init(options);
     if (options.json) printJson({ hub: app.paths.root });
@@ -24,12 +24,12 @@ program.command("init")
   }));
 
 program.command("install")
-  .description("Install a Skill from a local directory or Git URL")
+  .description(human("Install a Skill from a local directory or Git URL", "从本地目录、Git URL 或 registry 安装 Skill"))
   .argument("<source>")
-  .option("--ref <ref>", "Git branch, tag, or commit")
-  .option("--json", "Write machine-readable JSON")
-  .option("--dry-run", "Preview installable Skills without changing state")
-  .option("--skip-existing", "Skip Skills that are already installed")
+  .option("--ref <ref>", human("Git branch, tag, or commit", "Git 分支、标签或提交"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .option("--dry-run", human("Preview installable Skills without changing state", "预览可安装 Skill，不改写状态"))
+  .option("--skip-existing", human("Skip Skills that are already installed", "跳过已安装的 Skill"))
   .action(run((source, options) => withApp((app) => {
     if (options.dryRun) {
       const result = app.previewInstall(source, options.ref, { skipExisting: Boolean(options.skipExisting) });
@@ -43,9 +43,9 @@ program.command("install")
   })));
 
 program.command("link")
-  .description("Link a local Skill directory into the Hub")
+  .description(human("Link a local Skill directory into the Hub", "把本地 Skill 目录链接到 Hub"))
   .argument("<source>")
-  .option("--json", "Write machine-readable JSON")
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((source, options) => withApp((app) => {
     const skill = app.link(source);
     if (options.json) printJson({ skill: publicSkill(skill) });
@@ -53,9 +53,9 @@ program.command("link")
   })));
 
 program.command("update")
-  .description("Update an installed Skill")
+  .description(human("Update an installed Skill", "更新已安装 Skill"))
   .argument("<skill>")
-  .option("--json", "Write machine-readable JSON")
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => withApp((app) => {
     const updated = app.update(skill);
     if (options.json) printJson({ skill: publicSkill(updated) });
@@ -63,10 +63,10 @@ program.command("update")
   })));
 
 program.command("remove")
-  .description("Remove an installed Skill")
+  .description(human("Remove an installed Skill", "移除已安装 Skill"))
   .argument("<skill>")
-  .option("--force", "Disable managed targets before removal")
-  .option("--json", "Write machine-readable JSON")
+  .option("--force", human("Disable managed targets before removal", "移除前先停用受管目标"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => withApp((app) => {
     app.remove(skill, Boolean(options.force));
     if (options.json) printJson({ removed: skill });
@@ -74,10 +74,10 @@ program.command("remove")
   })));
 
 program.command("unlink")
-  .description("Unlink a linked Skill")
+  .description(human("Unlink a linked Skill", "取消链接 linked Skill"))
   .argument("<skill>")
-  .option("--force", "Disable managed targets before unlinking")
-  .option("--json", "Write machine-readable JSON")
+  .option("--force", human("Disable managed targets before unlinking", "取消链接前先停用受管目标"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => withApp((app) => {
     app.unlink(skill, Boolean(options.force));
     if (options.json) printJson({ unlinked: skill });
@@ -85,8 +85,8 @@ program.command("unlink")
   })));
 
 program.command("list")
-  .description("List installed Skills")
-  .option("--json", "Write machine-readable JSON")
+  .description(human("List installed Skills", "列出已安装 Skill"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => withApp((app) => {
     const skills = app.list();
     if (options.json) printJson({ skills: skills.map(publicSkill) });
@@ -94,9 +94,9 @@ program.command("list")
   })));
 
 program.command("info")
-  .description("Show one installed Skill")
+  .description(human("Show one installed Skill", "显示单个 Skill 信息"))
   .argument("<skill>")
-  .option("--json", "Write machine-readable JSON")
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill) => withApp((app) => {
     const value = app.info(skill);
     printJson(value);
@@ -104,11 +104,13 @@ program.command("info")
 
 for (const commandName of ["enable", "disable"] as const) {
   program.command(commandName)
-    .description(`${commandName === "enable" ? "Enable" : "Disable"} a Skill for a project or global tool`)
+    .description(commandName === "enable"
+      ? human("Enable a Skill for a project or global tool", "为项目或全局工具启用 Skill")
+      : human("Disable a Skill for a project or global tool", "停用项目或全局工具中的 Skill"))
     .argument("<skill>")
-    .option("--project <path>", "Use an explicit initialized project")
-    .option("--global <tool>", "Use one supported global tool")
-    .option("--json", "Write machine-readable JSON")
+    .option("--project <path>", human("Use an explicit initialized project", "使用指定的已初始化项目"))
+    .option("--global <tool>", human("Use one supported global tool", "使用指定的受支持全局工具"))
+    .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
     .action(run((skill, options) => withApp((app) => {
       if (options.project && options.global) throw new CliError("--project and --global cannot be combined.");
       if (commandName === "enable") {
@@ -127,8 +129,11 @@ for (const commandName of ["enable", "disable"] as const) {
 }
 
 program.command("doctor")
-  .description("Diagnose Hub, catalog, and enablement drift without changing state")
-  .option("--json", "Write machine-readable JSON")
+  .description(human(
+    "Diagnose Hub, catalog, and enablement drift without changing state",
+    "只读诊断 Hub、catalog 和启用状态漂移"
+  ))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action((options) => {
     let app: SkillPort;
     try {
