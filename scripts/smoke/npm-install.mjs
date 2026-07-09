@@ -6,13 +6,18 @@ import { spawnSync } from "node:child_process";
 
 const root = mkdtempSync(join(tmpdir(), "sklp-package-"));
 const env = { ...process.env, npm_config_cache: join(root, "npm-cache") };
-const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", root], {
-  cwd: process.cwd(),
+const npmCli = process.env.npm_execpath;
+assert.ok(npmCli, "npm_execpath is required to run npm portably from this smoke test.");
+const runNpm = (args, options = {}) => spawnSync(process.execPath, [npmCli, ...args], {
+  ...options,
   encoding: "utf8",
   shell: false,
   env
 });
-assert.equal(pack.status, 0, pack.stderr);
+const pack = runNpm(["pack", "--json", "--pack-destination", root], {
+  cwd: process.cwd(),
+});
+assert.equal(pack.status, 0, pack.stderr ?? pack.error?.message);
 const packed = JSON.parse(pack.stdout)[0];
 const filename = packed.filename;
 const files = packed.files.map((file) => file.path);
@@ -20,12 +25,8 @@ assert.ok(files.includes("dist/cli.js"));
 assert.ok(files.includes("docs/supported-targets.md"));
 assert.equal(files.some((path) => path.startsWith("src/") || path.startsWith("tests/")), false);
 const prefix = join(root, "prefix");
-const install = spawnSync("npm", ["install", "--global", "--prefix", prefix, join(root, filename)], {
-  encoding: "utf8",
-  shell: false,
-  env
-});
-assert.equal(install.status, 0, install.stderr);
+const install = runNpm(["install", "--global", "--prefix", prefix, join(root, filename)]);
+assert.equal(install.status, 0, install.stderr ?? install.error?.message);
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
   : join(prefix, "bin", "sklp");
