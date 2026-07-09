@@ -98,5 +98,5 @@ Catalog entries contain only `instanceId`, `name`, and `description`. Project as
 - Existing unmanaged target files, directories, and links are never overwritten.
 - `remove` refuses while enablements exist; `remove --force` removes verified managed entries first.
 - `unlink` only applies to linked local Skills; `unlink --force` first removes verified managed entries.
-- `doctor` is read-only.
+- `doctor` is read-only and reports an actionable suggestion for each diagnostic.
 - Git is invoked without a shell, and credentials are removed from persisted and displayed source URLs.

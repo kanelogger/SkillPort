@@ -28,4 +28,5 @@ export type Diagnostic = {
   code: string;
   severity: "error" | "warning";
   message: string;
+  suggestion: string;
 };

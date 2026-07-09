@@ -141,7 +141,15 @@ program.command("doctor")
     } catch (error) {
       const code = error instanceof CliError ? "HUB_UNAVAILABLE" : "DATABASE_UNREADABLE";
       if (options.json) {
-        printJson({ healthy: false, diagnostics: [{ code, severity: "error", message: sanitizeError(error) }] });
+        printJson({
+          healthy: false,
+          diagnostics: [{
+            code,
+            severity: "error",
+            message: sanitizeError(error),
+            suggestion: "Run `sklp init` first, then rerun `sklp doctor`."
+          }]
+        });
       } else {
         console.error(`[error] ${code}: ${sanitizeError(error)}`);
       }
@@ -160,6 +168,7 @@ program.command("doctor")
             `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`,
             `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`
           ));
+          console.error(human(`Suggestion: ${diagnostic.suggestion}`, `建议: ${diagnostic.suggestion}`));
         }
       }
       process.exitCode = diagnostics.some((item) => item.severity === "error") ? 1 : 0;

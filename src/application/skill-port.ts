@@ -434,7 +434,7 @@ export class SkillPort {
   }
 
   doctor(): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
+    const diagnostics: Array<Omit<Diagnostic, "suggestion">> = [];
     const skills = this.store.skills();
     const skillsDirectoryAvailable = existsSync(this.paths.skills) && lstatSync(this.paths.skills).isDirectory();
     if (!skillsDirectoryAvailable) {
@@ -542,7 +542,7 @@ export class SkillPort {
     const knownTargets = new Set(managedTargetPaths(this.store.enablements()));
     for (const project of this.store.projects()) knownTargets.add(join(project, ".agents", "skills"));
     for (const key of toolKeys) knownTargets.add(globalTarget(key, process.env.SKLP_TEST_HOME).path);
-    if (!skillsDirectoryAvailable) return diagnostics;
+    if (!skillsDirectoryAvailable) return diagnostics.map(withDiagnosticSuggestion);
     const canonicalSkills = realpathSync(this.paths.skills);
     for (const target of knownTargets) {
       if (!existsSync(target)) continue;
@@ -560,7 +560,7 @@ export class SkillPort {
         }
       }
     }
-    return diagnostics;
+    return diagnostics.map(withDiagnosticSuggestion);
   }
 
   private requireSkill(name: string): Skill {
@@ -880,6 +880,48 @@ function enablementHealth(entryPath: string, expected: string): EnablementInfo["
   if (state === "absent") return "missing";
   if (state === "conflict" || !existsSync(join(entryPath, "SKILL.md"))) return "conflict";
   return "healthy";
+}
+
+function withDiagnosticSuggestion(diagnostic: Omit<Diagnostic, "suggestion">): Diagnostic {
+  return {
+    ...diagnostic,
+    suggestion: diagnosticSuggestion(diagnostic.code)
+  };
+}
+
+function diagnosticSuggestion(code: string): string {
+  switch (code) {
+    case "HUB_SKILLS_UNAVAILABLE":
+      return "Check that the Hub directory exists and is writable, then run `sklp init` again if the Hub was removed.";
+    case "SKILL_CONTENT_MISSING":
+    case "SKILL_METADATA_DRIFT":
+    case "SKILL_METADATA_INVALID":
+      return "Check the Skill source, then run `sklp update <skill>` or remove and install the Skill again.";
+    case "LINK_SOURCE_DRIFT":
+      return "Unlink the affected Skill with `sklp unlink <skill>` and link the local source again.";
+    case "META_MISSING":
+    case "META_DRIFT":
+    case "META_INVALID":
+      return "Check the installed Skill files, then run `sklp update <skill>` or reinstall the Skill.";
+    case "TARGET_RECORD_DRIFT":
+    case "ENABLEMENT_DRIFT":
+    case "LINK_TYPE_DRIFT":
+      return "Run `sklp info <skill>` to inspect enablements, then run `sklp disable <skill>` and `sklp enable <skill>` again if needed.";
+    case "CATALOG_MISSING":
+    case "CATALOG_DRIFT":
+    case "CATALOG_INVALID":
+    case "CATALOG_MARKDOWN_DRIFT":
+    case "CATALOG_MARKDOWN_INVALID":
+      return "Run a successful mutating command such as `sklp install`, `sklp update`, or `sklp remove` to regenerate catalogs.";
+    case "PROJECT_MISSING":
+      return "Run `sklp init` from an existing project directory to register a valid project.";
+    case "OPERATION_INTERRUPTED":
+      return "Run any normal mutating command to trigger startup recovery; inspect the Hub manually if this repeats.";
+    case "UNREGISTERED_ENTRY":
+      return "Remove the unmanaged entry manually or run `sklp enable <skill>` again after confirming the target is safe.";
+    default:
+      return "Inspect the reported path or state, then rerun `sklp doctor` after making changes.";
+  }
 }
 
 function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill, home?: string): boolean {

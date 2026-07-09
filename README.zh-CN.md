@@ -149,7 +149,7 @@ sklp doctor
 sklp doctor --json
 ```
 
-`doctor` 只读，不会修复或改写状态。它会检查 Hub、SQLite、Skill 内容、metadata、catalog、项目、启用入口和链接漂移。
+`doctor` 只读，不会修复或改写状态。它会检查 Hub、SQLite、Skill 内容、metadata、catalog、项目、启用入口和链接漂移，并为每条诊断输出可执行建议。
 
 ## 安全边界
 

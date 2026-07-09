@@ -57,6 +57,7 @@ Status keys:
 | R45 core automation commands expose machine-readable JSON | JSON output test covers `install --json`, `list --json`, `enable --json`, and `doctor --json`; `info` remains JSON by default | Passed |
 | R46 Chinese users have first-party onboarding documentation | `README.zh-CN.md` covers install, registry import, link, enablement, JSON output, privacy, diagnostics, and safety boundaries | Passed |
 | R47 Chinese users can opt into Chinese human-readable CLI output | Chinese output test covers `SKLP_LANG=zh-CN` for command help, `init`, `install`, `enable`, and `doctor`; JSON output remains stable in Chinese mode | Passed |
+| R48 doctor diagnostics include actionable suggestions | JSON output test checks diagnostic `suggestion`; Chinese output test checks human-readable `建议:` output for doctor drift | Passed |
 
 ## External Release Gates
 

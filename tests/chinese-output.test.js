@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -62,4 +62,23 @@ test("Chinese help is available through SKLP_LANG", () => {
   assert.match(result.stdout, /本地 Agent Skill Hub/);
   assert.match(result.stdout, /初始化 Skill Port/);
   assert.match(result.stdout, /安装 Skill/);
+});
+
+test("Chinese doctor output includes actionable suggestions", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-zh-doctor-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "source");
+  const env = { SKLP_LANG: "zh-CN" };
+  mkdirSync(project);
+  makeSkill(source, "drift-skill", "Drift");
+  cli(["init"], { cwd: project, hub, home: root, env });
+  cli(["install", source], { cwd: project, hub, home: root, env });
+  cli(["enable", "drift-skill"], { cwd: project, hub, home: root, env });
+  rmSync(join(project, ".agents", "skills", "drift-skill"));
+
+  const result = cli(["doctor"], { cwd: project, hub, home: root, env });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /建议:/);
+  assert.match(result.stderr, /sklp disable/);
 });

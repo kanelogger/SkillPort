@@ -42,4 +42,5 @@ test("machine-readable output is available for core automation commands", () => 
   const unhealthyValue = JSON.parse(unhealthy.stdout);
   assert.equal(unhealthyValue.healthy, false);
   assert.equal(unhealthyValue.diagnostics[0].code, "ENABLEMENT_DRIFT");
+  assert.match(unhealthyValue.diagnostics[0].suggestion, /sklp disable/);
 });
