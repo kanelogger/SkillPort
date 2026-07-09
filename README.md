@@ -83,6 +83,10 @@ sklp enable my-skill --global claude
 sklp disable my-skill --global claude
 ```
 
+## Exit codes
+
+See [exit codes](docs/exit-codes.md). Skill Port CLI uses `0` for successful commands and warning-only doctor results, and `1` for command failures or error-severity doctor diagnostics.
+
 ## Catalogs and privacy
 
 The Hub automatically maintains:

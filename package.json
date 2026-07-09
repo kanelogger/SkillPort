@@ -1,6 +1,6 @@
 {
   "name": "skill-port-cli",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Local Agent Skill hub and project binding CLI",
   "type": "module",
   "bin": {
@@ -9,6 +9,7 @@
   "files": [
     "dist",
     "docs/supported-targets.md",
+    "docs/exit-codes.md",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"

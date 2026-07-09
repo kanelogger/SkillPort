@@ -118,6 +118,13 @@ sklp disable my-skill --global claude
 
 全局启用总是只作用于指定工具，不会同时写多个 Agent 目录。
 
+## 退出码
+
+查看完整说明：[exit codes](docs/exit-codes.md)。
+
+- `0`：命令成功；`doctor` 只有 warning 时也返回 `0`。
+- `1`：命令失败；或 `doctor` 发现至少一个 error 级诊断。
+
 ## 机器可读输出
 
 面向脚本和 Agent，可以使用 `--json`：
