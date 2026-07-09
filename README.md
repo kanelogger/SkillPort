@@ -38,6 +38,8 @@ sklp unlink my-local-skill
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
 
+Set `SKLP_LANG=zh-CN` to use Chinese human-readable command output. JSON output remains stable and language-independent.
+
 Git repositories are also supported:
 
 ```bash

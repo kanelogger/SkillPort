@@ -7,7 +7,7 @@ import type { Skill } from "./domain/models.js";
 const program = new Command()
   .name("sklp")
   .description("Local Agent Skill hub and project binding CLI")
-  .version("0.1.3")
+  .version("0.1.4")
   .showHelpAfterError();
 
 program.command("init")
@@ -18,7 +18,7 @@ program.command("init")
   .action(run((options) => {
     const app = SkillPort.init(options);
     if (options.json) printJson({ hub: app.paths.root });
-    else console.log(`Initialized Skill Port\nHub: ${app.paths.root}`);
+    else console.log(human(`Initialized Skill Port\nHub: ${app.paths.root}`, `已初始化 Skill Port\nHub: ${app.paths.root}`));
     app.close();
   }));
 
@@ -32,12 +32,18 @@ program.command("install")
     if (options.dryRun) {
       const skills = app.previewInstall(source, options.ref);
       if (options.json) printJson({ dryRun: true, skills });
-      else for (const skill of skills) console.log(`Would install ${skill.name}\t${skill.description}`);
+      else for (const skill of skills) console.log(human(
+        `Would install ${skill.name}\t${skill.description}`,
+        `将安装 ${skill.name}\t${skill.description}`
+      ));
       return;
     }
     const skills = app.installAll(source, options.ref);
     if (options.json) printJson({ skills: skills.map(publicSkill) });
-    else for (const skill of skills) console.log(`Installed ${skill.name}\nInstance: ${skill.instanceId}`);
+    else for (const skill of skills) console.log(human(
+      `Installed ${skill.name}\nInstance: ${skill.instanceId}`,
+      `已安装 ${skill.name}\n实例: ${skill.instanceId}`
+    ));
   })));
 
 program.command("link")
@@ -47,7 +53,7 @@ program.command("link")
   .action(run((source, options) => withApp((app) => {
     const skill = app.link(source);
     if (options.json) printJson({ skill: publicSkill(skill) });
-    else console.log(`Linked ${skill.name}\nInstance: ${skill.instanceId}`);
+    else console.log(human(`Linked ${skill.name}\nInstance: ${skill.instanceId}`, `已链接 ${skill.name}\n实例: ${skill.instanceId}`));
   })));
 
 program.command("update")
@@ -57,7 +63,7 @@ program.command("update")
   .action(run((skill, options) => withApp((app) => {
     const updated = app.update(skill);
     if (options.json) printJson({ skill: publicSkill(updated) });
-    else console.log(`Updated ${updated.name}`);
+    else console.log(human(`Updated ${updated.name}`, `已更新 ${updated.name}`));
   })));
 
 program.command("remove")
@@ -68,7 +74,7 @@ program.command("remove")
   .action(run((skill, options) => withApp((app) => {
     app.remove(skill, Boolean(options.force));
     if (options.json) printJson({ removed: skill });
-    else console.log(`Removed ${skill}`);
+    else console.log(human(`Removed ${skill}`, `已移除 ${skill}`));
   })));
 
 program.command("unlink")
@@ -79,7 +85,7 @@ program.command("unlink")
   .action(run((skill, options) => withApp((app) => {
     app.unlink(skill, Boolean(options.force));
     if (options.json) printJson({ unlinked: skill });
-    else console.log(`Unlinked ${skill}`);
+    else console.log(human(`Unlinked ${skill}`, `已取消链接 ${skill}`));
   })));
 
 program.command("list")
@@ -112,11 +118,14 @@ for (const commandName of ["enable", "disable"] as const) {
       if (commandName === "enable") {
         const record = app.enable(skill, options);
         if (options.json) printJson({ enablement: record });
-        else console.log(`Enabled ${skill}\nTarget: ${record.targetKey}\nEntry: ${record.entryPath}`);
+        else console.log(human(
+          `Enabled ${skill}\nTarget: ${record.targetKey}\nEntry: ${record.entryPath}`,
+          `已启用 ${skill}\n目标: ${record.targetKey}\n入口: ${record.entryPath}`
+        ));
       } else {
         app.disable(skill, options);
         if (options.json) printJson({ disabled: skill });
-        else console.log(`Disabled ${skill}`);
+        else console.log(human(`Disabled ${skill}`, `已停用 ${skill}`));
       }
     })));
 }
@@ -143,10 +152,13 @@ program.command("doctor")
       if (options.json) {
         printJson({ healthy: diagnostics.length === 0, diagnostics });
       } else if (diagnostics.length === 0) {
-        console.log("Skill Port is healthy.");
+        console.log(human("Skill Port is healthy.", "Skill Port 状态正常。"));
       } else {
         for (const diagnostic of diagnostics) {
-          console.error(`[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`);
+          console.error(human(
+            `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`,
+            `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`
+          ));
         }
       }
       process.exitCode = diagnostics.some((item) => item.severity === "error") ? 1 : 0;
@@ -180,6 +192,14 @@ function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function human(english: string, chinese: string): string {
+  return isChineseOutput() ? chinese : english;
+}
+
+function isChineseOutput(): boolean {
+  return /^zh\b|^zh[-_]/i.test(process.env.SKLP_LANG ?? "");
+}
+
 function publicSkill(skill: Skill) {
   return {
     instanceId: skill.instanceId,
@@ -189,6 +209,7 @@ function publicSkill(skill: Skill) {
 }
 
 function handleError(error: unknown): void {
-  console.error(sanitizeError(error));
+  const message = sanitizeError(error);
+  console.error(isChineseOutput() ? `错误: ${message}` : message);
   process.exitCode = error instanceof CliError ? error.exitCode : 1;
 }

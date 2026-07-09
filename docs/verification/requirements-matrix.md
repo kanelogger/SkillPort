@@ -56,6 +56,7 @@ Status keys:
 | R44 `sklp install <sources.json>` expands registry `local_path` entries into concrete Skill directories | registry source tests cover direct `local_path/SKILL.md`, fallback scan of `local_path/**/SKILL.md`, parent-relative warehouse paths, empty source failure, `--dry-run`, duplicate-name preflight, and already-installed preflight | Passed |
 | R45 core automation commands expose machine-readable JSON | JSON output test covers `install --json`, `list --json`, `enable --json`, and `doctor --json`; `info` remains JSON by default | Passed |
 | R46 Chinese users have first-party onboarding documentation | `README.zh-CN.md` covers install, registry import, link, enablement, JSON output, privacy, diagnostics, and safety boundaries | Passed |
+| R47 Chinese users can opt into Chinese human-readable CLI output | Chinese output test covers `SKLP_LANG=zh-CN` for `init`, `install`, `enable`, and `doctor`; JSON output remains stable in Chinese mode | Passed |
 
 ## External Release Gates
 

@@ -37,6 +37,17 @@ sklp unlink my-local-skill
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
 
+## 中文输出
+
+设置 `SKLP_LANG=zh-CN` 后，人类可读输出会优先使用中文：
+
+```bash
+SKLP_LANG=zh-CN sklp install ./path/to/a-skill
+SKLP_LANG=zh-CN sklp doctor
+```
+
+`--json` 输出保持稳定，不随语言切换改变字段名，方便脚本和 Agent 调用。
+
 ## 安装 Skill
 
 安装单个本地 Skill：
