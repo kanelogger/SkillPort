@@ -1,5 +1,7 @@
 # Skill Port CLI
 
+[中文文档](README.zh-CN.md)
+
 Skill Port CLI keeps Agent Skills in one local Hub and enables them into projects or supported global Agent directories.
 
 ## Requirements
