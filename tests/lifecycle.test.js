@@ -73,7 +73,7 @@ test("force remove disables all managed entries first", () => {
   const result = cli(["remove", "sample-skill", "--force"], { cwd: project, hub, home: root });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(join(project, ".agents", "skills", "sample-skill")), false);
-  assert.equal(existsSync(join(root, ".codex", "skills", "sample-skill")), false);
+  assert.equal(existsSync(join(root, ".agents", "skills", "sample-skill")), false);
 });
 
 test("update rejects a changed name and restores previous content", () => {

@@ -49,7 +49,8 @@ test("global enablement changes only the selected tool", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(cli(["enable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root }).status, 0);
   assert.equal(cli(["enable", "sample-skill", "--global", "claude"], { cwd: project, hub, home: root }).status, 0);
-  assert.equal(existsSync(join(root, ".codex", "skills", "sample-skill", "SKILL.md")), true);
+  assert.equal(existsSync(join(root, ".agents", "skills", "sample-skill", "SKILL.md")), true);
+  assert.equal(existsSync(join(root, ".codex", "skills", "sample-skill")), false);
   assert.equal(existsSync(join(root, ".claude", "skills", "sample-skill", "SKILL.md")), true);
   const info = JSON.parse(cli(["info", "sample-skill"], { cwd: project, hub, home: root }).stdout);
   assert.equal(info.enablements.length, 2);
@@ -258,7 +259,7 @@ test("global target validation fails before creating entries", () => {
 
   assert.equal(cli(["enable", "sample-skill", "--global"], { cwd: project, hub, home: root }).status, 1);
   assert.equal(cli(["enable", "sample-skill", "--global", "codex,claude"], { cwd: project, hub, home: root }).status, 1);
-  assert.equal(existsSync(join(root, ".codex", "skills", "sample-skill")), false);
+  assert.equal(existsSync(join(root, ".agents", "skills", "sample-skill")), false);
   assert.equal(existsSync(join(root, ".claude", "skills", "sample-skill")), false);
 });
 

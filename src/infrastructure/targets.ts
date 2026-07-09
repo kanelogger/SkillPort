@@ -10,7 +10,7 @@ export function globalTarget(key: string, home = homedir()): { key: ToolKey; pat
   if (!toolKeys.includes(key as ToolKey)) throw new CliError(`Unsupported global tool: ${key}`);
   const paths: Record<ToolKey, string> = {
     claude: join(home, ".claude", "skills"),
-    codex: join(home, ".codex", "skills"),
+    codex: join(home, ".agents", "skills"),
     cursor: join(home, ".cursor", "skills"),
     agents: join(home, ".agents", "skills"),
     pi: join(home, ".pi", "agent", "skills"),

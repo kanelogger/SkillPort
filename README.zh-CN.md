@@ -36,6 +36,8 @@ sklp unlink my-local-skill
 
 `sklp init` 会初始化本地 Hub，并把当前目录注册为项目。项目启用会在 `.agents/skills/` 下创建受管入口，不会在项目里写 Skill Port 配置文件，也不会读取或修改 Git 配置。
 
+Codex 的项目和全局启用都使用 Agent Skill 目录：项目内是 `<project>/.agents/skills/`，全局是 `~/.agents/skills/`。
+
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
 
 ## 中文输出
@@ -75,6 +77,8 @@ Skill Port 会在 `~/work/billing-service/.agents/skills/` 下创建受管入口
 ```bash
 sklp enable debugging-playbook --global codex
 ```
+
+对 Codex 来说，这个全局受管入口会写到 `~/.agents/skills/`。
 
 项目启用和全局启用会分别记录，因此可以只移除其中一个目标，不影响另一个：
 

@@ -9,7 +9,7 @@ test("all advertised tool keys resolve beneath the supplied home", () => {
   const home = mkdtempSync(join(tmpdir(), "sklp-tools-"));
   const expected = {
     claude: ".claude/skills",
-    codex: ".codex/skills",
+    codex: ".agents/skills",
     cursor: ".cursor/skills",
     agents: ".agents/skills",
     pi: ".pi/agent/skills",

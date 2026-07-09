@@ -36,6 +36,8 @@ sklp unlink my-local-skill
 
 `sklp init` registers the current directory locally. Project enablement writes a managed entry under `.agents/skills/`; no Skill Port manifest or Git configuration is added to the project.
 
+Codex project and global enablements use Agent skill directories: `<project>/.agents/skills/` for a project and `~/.agents/skills/` globally.
+
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
 
 Set `SKLP_LANG=zh-CN` to use Chinese command help and human-readable command output. JSON output remains stable and language-independent.
@@ -65,6 +67,8 @@ Later, the same developer wants Codex to use the Skill in every workspace:
 ```bash
 sklp enable debugging-playbook --global codex
 ```
+
+For Codex, this writes the global managed entry under `~/.agents/skills/`.
 
 Project enablement and global enablement are tracked separately, so the Skill can be removed from one target without disturbing the other:
 
