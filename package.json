@@ -1,0 +1,44 @@
+{
+  "name": "skill-port-cli",
+  "version": "0.1.0",
+  "description": "Local Agent Skill hub and project binding CLI",
+  "type": "module",
+  "bin": {
+    "sklp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "docs/supported-targets.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src tests scripts",
+    "test": "npm run build && node --test \"tests/**/*.test.js\"",
+    "test:package": "node scripts/smoke/npm-install.mjs",
+    "test:platform": "npm run build && node --test tests/core-loop.test.js tests/link-adapter.test.js tests/target-conflict.test.js tests/tool-registry.test.js",
+    "test:discovery": "npm run build && node scripts/smoke/agent-discovery.mjs"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/node": "^24.0.15",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.38.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "license": "Apache-2.0"
+}

@@ -12,6 +12,7 @@ coverage/
 tests/**/coverage/
 tests/e2e/reports/
 *.tsbuildinfo
+*.tgz
 
 # Logs
 *.log
@@ -32,7 +33,6 @@ warehouse/local/skill-optimizer/runs/
 
 # Package manager lockfiles
 bun.lockb
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
