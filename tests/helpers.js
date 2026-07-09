@@ -12,6 +12,8 @@ export function cli(args, options) {
     cwd: options.cwd,
     env: {
       ...process.env,
+      HOME: options.home,
+      USERPROFILE: options.home,
       SKLP_HOME: options.hub,
       SKLP_TEST_HOME: options.home,
       ...options.env

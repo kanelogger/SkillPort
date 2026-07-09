@@ -193,7 +193,7 @@ test("doctor reports an invalid recorded link type", () => {
   cli(["install", source], { cwd: project, hub, home: root });
   cli(["enable", "sample-skill"], { cwd: project, hub, home: root });
   const db = new DatabaseSync(join(hub, "state.db"));
-  db.exec("UPDATE enablements SET link_type='junction'");
+  db.exec("UPDATE enablements SET link_type='bogus'");
   db.close();
 
   const result = cli(["doctor"], { cwd: project, hub, home: root });
