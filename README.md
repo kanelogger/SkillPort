@@ -40,6 +40,62 @@ The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hu
 
 Set `SKLP_LANG=zh-CN` to use Chinese command help and human-readable command output. JSON output remains stable and language-independent.
 
+## Practical journey: share one Skill across projects
+
+Imagine a team keeps a `debugging-playbook` Skill in a shared Git repository. One developer wants to use it in a backend service today, make it available to Codex globally tomorrow, and keep the Skill easy to update when the team improves it.
+
+First, register the service project and install the shared Skill into the local Hub:
+
+```bash
+cd ~/work/billing-service
+sklp init
+sklp install https://github.com/example/debugging-playbook.git --ref v1.0.0
+```
+
+Now the Skill is stored once under `~/.skill-port`, and the current service project is known to Skill Port. Enable it in the project:
+
+```bash
+sklp enable debugging-playbook
+```
+
+Skill Port creates a managed entry under `~/work/billing-service/.agents/skills/`. The project can now use the Skill without copying the source into the repository, adding a manifest, or touching Git configuration.
+
+Later, the same developer wants Codex to use the Skill in every workspace:
+
+```bash
+sklp enable debugging-playbook --global codex
+```
+
+Project enablement and global enablement are tracked separately, so the Skill can be removed from one target without disturbing the other:
+
+```bash
+sklp disable debugging-playbook --global codex
+sklp disable debugging-playbook
+```
+
+When the team publishes a new version, update the Hub copy and check for drift:
+
+```bash
+sklp update debugging-playbook
+sklp info debugging-playbook
+sklp doctor
+```
+
+`sklp info` shows where the Skill is enabled. `sklp doctor` is read-only and reports missing files, unmanaged target entries, broken links, or catalog drift with a concrete suggestion for each diagnostic.
+
+If the developer is actively editing the Skill locally instead of consuming a released copy, use `link`:
+
+```bash
+sklp link ~/work/skills/debugging-playbook
+sklp enable debugging-playbook
+```
+
+The Hub records the Skill, but project and global enablements point back to the local source directory. Edits to `~/work/skills/debugging-playbook/SKILL.md` are visible immediately to enabled Agents. When local development is done:
+
+```bash
+sklp unlink debugging-playbook
+```
+
 Git repositories are also supported:
 
 ```bash

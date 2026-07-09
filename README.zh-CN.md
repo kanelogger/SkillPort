@@ -27,6 +27,7 @@ sklp list
 sklp info my-skill
 sklp enable my-skill
 sklp enable my-skill --global codex
+sklp update my-skill
 sklp doctor
 sklp disable my-skill
 sklp remove my-skill
@@ -48,6 +49,62 @@ SKLP_LANG=zh-CN sklp doctor
 ```
 
 命令说明和主要操作反馈都会使用中文。`--json` 输出保持稳定，不随语言切换改变字段名，方便脚本和 Agent 调用。
+
+## 实用案例：一个 Skill 在多个项目里复用
+
+假设团队把 `debugging-playbook` Skill 放在一个共享 Git 仓库里。某个开发者今天要在后端服务项目里使用它，明天想让 Codex 全局可用，同时还要在团队更新 Skill 后能方便同步。
+
+先注册服务项目，并把共享 Skill 安装到本机 Hub：
+
+```bash
+cd ~/work/billing-service
+sklp init
+sklp install https://github.com/example/debugging-playbook.git --ref v1.0.0
+```
+
+此时 Skill 只存放在 `~/.skill-port` 里一份，当前服务项目也已经被 Skill Port 记录。接着在项目里启用它：
+
+```bash
+sklp enable debugging-playbook
+```
+
+Skill Port 会在 `~/work/billing-service/.agents/skills/` 下创建受管入口。项目可以使用这个 Skill，但不会把 Skill 源码复制进仓库，也不会添加 Skill Port manifest 或修改 Git 配置。
+
+之后，如果开发者希望 Codex 在所有工作区都能使用这个 Skill，可以启用到 Codex 全局目录：
+
+```bash
+sklp enable debugging-playbook --global codex
+```
+
+项目启用和全局启用会分别记录，因此可以只移除其中一个目标，不影响另一个：
+
+```bash
+sklp disable debugging-playbook --global codex
+sklp disable debugging-playbook
+```
+
+团队发布新版本后，更新 Hub 里的 Skill，并检查启用位置和状态漂移：
+
+```bash
+sklp update debugging-playbook
+sklp info debugging-playbook
+sklp doctor
+```
+
+`sklp info` 会显示 Skill 当前启用到哪里。`sklp doctor` 是只读诊断，会检查缺失文件、非受管目标入口、断开的链接或 catalog 漂移，并为每条诊断给出可执行建议。
+
+如果开发者正在本地编辑这个 Skill，使用 `link` 更合适：
+
+```bash
+sklp link ~/work/skills/debugging-playbook
+sklp enable debugging-playbook
+```
+
+Hub 会记录这个 Skill，但项目和全局启用入口会指回本地源目录。修改 `~/work/skills/debugging-playbook/SKILL.md` 后，已启用的 Agent 能立即看到变化。本地开发结束后：
+
+```bash
+sklp unlink debugging-playbook
+```
 
 ## 安装 Skill
 
