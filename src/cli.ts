@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
 import { CliError, sanitizeError } from "./domain/errors.js";
 import { SkillPort } from "./application/skill-port.js";
 import type { Skill } from "./domain/models.js";
@@ -7,7 +8,7 @@ import type { Skill } from "./domain/models.js";
 const program = new Command()
   .name("sklp")
   .description("Local Agent Skill hub and project binding CLI")
-  .version("0.1.5")
+  .version(packageVersion())
   .showHelpAfterError();
 
 program.command("init")
@@ -193,6 +194,11 @@ function human(english: string, chinese: string): string {
 
 function isChineseOutput(): boolean {
   return /^zh\b|^zh[-_]/i.test(process.env.SKLP_LANG ?? "");
+}
+
+function packageVersion(): string {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  return typeof manifest.version === "string" ? manifest.version : "0.0.0";
 }
 
 function publicSkill(skill: Skill) {
