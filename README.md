@@ -43,6 +43,14 @@ sklp install https://github.com/example/my-skill.git
 sklp install https://github.com/example/my-skill.git --ref v1.2.0
 ```
 
+Registry files named `sources.json` are supported for local registry imports:
+
+```bash
+sklp install ./registry/sources.json
+```
+
+Each registry entry must provide `local_path`. If `local_path/SKILL.md` exists, that directory is installed as one Skill. Otherwise Skill Port scans `local_path/**/SKILL.md` and installs each discovered Skill directory. Relative `local_path` values resolve from the `sources.json` directory first, then from its parent directory for registry layouts like `registry/sources.json` plus `warehouse/...`.
+
 Use `sklp link <path>` for a local Skill you are actively editing. The Hub records the Skill and points its managed entry at the source directory, so edits are visible through project and global enablements without reinstalling. Use `sklp unlink <skill>` to remove that local registration; the original source directory is not deleted.
 
 Use `--project <path>` with `init`, `enable`, or `disable` to target an explicit local project. The project must be registered before enablement.

@@ -11,7 +11,7 @@ import { StateStore } from "../infrastructure/database.js";
 import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
-import { copySource, prepareLocalSource, prepareSource } from "../infrastructure/sources.js";
+import { copySource, prepareInstallSources, prepareLocalSource, prepareSource, type PreparedSource } from "../infrastructure/sources.js";
 import { globalTarget, toolKeys } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
 
@@ -67,8 +67,16 @@ export class SkillPort {
   }
 
   install(source: string, ref?: string): Skill {
+    return this.installPreparedSource(prepareSource(source, this.paths.staging, ref));
+  }
+
+  installAll(source: string, ref?: string): Skill[] {
+    return prepareInstallSources(source, this.paths.staging, ref)
+      .map((prepared) => this.installPreparedSource(prepared));
+  }
+
+  private installPreparedSource(prepared: PreparedSource): Skill {
     return this.mutate("install", (checkpoint) => {
-      const prepared = prepareSource(source, this.paths.staging, ref);
       const staged = join(this.paths.staging, `install-${randomUUID()}`);
       try {
         if (prepared.type === "local") {

@@ -24,8 +24,8 @@ program.command("install")
   .argument("<source>")
   .option("--ref <ref>", "Git branch, tag, or commit")
   .action(run((source, options) => withApp((app) => {
-    const skill = app.install(source, options.ref);
-    console.log(`Installed ${skill.name}\nInstance: ${skill.instanceId}`);
+    const skills = app.installAll(source, options.ref);
+    for (const skill of skills) console.log(`Installed ${skill.name}\nInstance: ${skill.instanceId}`);
   })));
 
 program.command("link")
