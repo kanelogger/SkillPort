@@ -29,7 +29,12 @@ assert.equal(install.status, 0, install.stderr);
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
   : join(prefix, "bin", "sklp");
-const help = spawnSync(executable, ["--help"], { encoding: "utf8", shell: false });
+const runExecutable = (args, options = {}) => spawnSync(executable, args, {
+  ...options,
+  encoding: "utf8",
+  shell: process.platform === "win32"
+});
+const help = runExecutable(["--help"]);
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /Local Agent Skill hub/);
 
@@ -43,10 +48,8 @@ writeFileSync(
   "---\nname: package-smoke\ndescription: Packed CLI core loop fixture\n---\n"
 );
 const smokeEnv = { ...process.env, SKLP_HOME: hub, SKLP_TEST_HOME: root };
-const run = (args) => spawnSync(executable, args, {
+const run = (args) => runExecutable(args, {
   cwd: project,
-  encoding: "utf8",
-  shell: false,
   env: smokeEnv
 });
 
