@@ -105,7 +105,11 @@ Git repositories are also supported:
 ```bash
 sklp install https://github.com/example/my-skill.git
 sklp install https://github.com/example/my-skill.git --ref v1.2.0
+sklp install https://github.com/example/skills.git --ref main --path skills/review-animations
+sklp install https://github.com/example/skills/tree/main/skills/review-animations
 ```
+
+Use `--path` when a Git repository keeps the Skill below the repository root. GitHub `tree/<ref>/<path>` URLs copied from the browser are also accepted. If the selected Git path does not contain `SKILL.md` directly, Skill Port scans that path for multiple Skill directories. `--dry-run --json` lists installable, skipped, and failed entries; real installs still preflight duplicate names before writing state.
 
 Registry files named `sources.json` are supported for local registry imports:
 

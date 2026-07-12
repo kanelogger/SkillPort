@@ -33,8 +33,21 @@ export function readSkillMetadata(root: string): SkillMetadata {
   const name = typeof value?.name === "string" ? value.name.trim() : "";
   const description = typeof value?.description === "string" ? value.description.trim() : "";
   if (!isValidSkillName(name)) {
-    throw new CliError("Skill name must use lowercase letters, digits, and single hyphens.");
+    const suggestion = suggestedSkillName(name);
+    throw new CliError(
+      `Skill name must use lowercase letters, digits, and single hyphens.${suggestion ? ` Suggested name: ${suggestion}.` : ""}`
+    );
   }
   if (!description) throw new CliError("Skill description is required.");
   return { name, description };
+}
+
+function suggestedSkillName(name: string): string | null {
+  const suggestion = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return suggestion && suggestion !== name && isValidSkillName(suggestion) ? suggestion : null;
 }

@@ -14,8 +14,8 @@ Status keys:
 | R2 default/custom Hub | `tests/config.test.js`; `SKLP_HOME`; `sklp init --hub` | Passed |
 | R3 init creates local Hub/SQLite and registers project without project manifest | core lifecycle tests; no project-owned Skill Port manifest implemented | Passed |
 | R4 nearest registered ancestor only, no Git/language marker inference | nested project test; source search shows no Git marker discovery | Passed |
-| R5 local, linked local, and Git Skill roots with `SKILL.md` | local lifecycle tests; linked local lifecycle test; `tests/git-source.test.js` | Passed |
-| R6 strict `name`/`description` frontmatter with no partial state | invalid metadata and catalog rollback tests | Passed |
+| R5 local, linked local, and Git Skill roots with `SKILL.md` | local lifecycle tests; linked local lifecycle test; `tests/git-source.test.js` covers Git roots, Git subdirectory installs with `--path`, subdirectory update, GitHub tree URLs, multi-Skill Git path scanning, and dry-run failed entries | Passed |
+| R6 strict `name`/`description` frontmatter with no partial state | invalid metadata and catalog rollback tests; invalid name errors include a suggested lowercase kebab-case name when one can be derived | Passed |
 | R7 `instanceId` lifecycle | reinstall and update identity tests | Passed |
 | R8 unique normalized names, user changes incoming `SKILL.md` | duplicate install test and error assertion | Passed |
 | R9 no install-time alias/rename | command surface test | Passed |

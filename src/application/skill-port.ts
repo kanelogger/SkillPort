@@ -25,7 +25,9 @@ type RecoveryPayload =
 
 type InstallMetadata = { name: string; description: string };
 type InstallSkipped = InstallMetadata & { reason: "already-installed" };
+type InstallFailed = Partial<InstallMetadata> & { path: string; reason: string };
 type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
+type InstallOptions = { skipExisting?: boolean; gitPath?: string };
 
 class RecoveryPendingError extends Error {
   constructor(kind: string, cause: unknown) {
@@ -74,8 +76,8 @@ export class SkillPort {
     return this.installPreparedSource(prepareSource(source, this.paths.staging, ref));
   }
 
-  installAll(source: string, ref?: string, options: { skipExisting?: boolean } = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
-    const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
+  installAll(source: string, ref?: string, options: InstallOptions = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
+    const preparedSources = prepareInstallSources(source, this.paths.staging, { ref, gitPath: options.gitPath });
     try {
       const plan = this.installPlan(preparedSources, options);
       return {
@@ -87,13 +89,18 @@ export class SkillPort {
     }
   }
 
-  previewInstall(source: string, ref?: string, options: { skipExisting?: boolean } = {}): { skills: InstallMetadata[]; skipped: InstallSkipped[] } {
-    const preparedSources = prepareInstallSources(source, this.paths.staging, ref);
+  previewInstall(source: string, ref?: string, options: InstallOptions = {}): {
+    skills: InstallMetadata[];
+    skipped: InstallSkipped[];
+    failed: InstallFailed[];
+  } {
+    const preparedSources = prepareInstallSources(source, this.paths.staging, { ref, gitPath: options.gitPath });
     try {
-      const plan = this.installPlan(preparedSources, options);
+      const plan = this.installPreviewPlan(preparedSources, options);
       return {
         skills: plan.candidates.map((candidate) => candidate.metadata),
-        skipped: plan.skipped
+        skipped: plan.skipped,
+        failed: plan.failed
       };
     } finally {
       for (const prepared of preparedSources) prepared.cleanup();
@@ -185,6 +192,39 @@ export class SkillPort {
       candidates.push({ prepared, metadata });
     }
     return { candidates, skipped };
+  }
+
+  private installPreviewPlan(preparedSources: PreparedSource[], options: { skipExisting?: boolean }): {
+    candidates: InstallCandidate[];
+    skipped: InstallSkipped[];
+    failed: InstallFailed[];
+  } {
+    const seen = new Set<string>();
+    const candidates: InstallCandidate[] = [];
+    const skipped: InstallSkipped[] = [];
+    const failed: InstallFailed[] = [];
+    for (const prepared of preparedSources) {
+      let metadata: InstallMetadata;
+      try {
+        metadata = readSkillMetadata(prepared.root);
+      } catch (error) {
+        failed.push({ path: prepared.root, reason: sanitizeError(error) });
+        continue;
+      }
+      const key = metadata.name.toLowerCase();
+      if (seen.has(key)) {
+        failed.push({ ...metadata, path: prepared.root, reason: `Duplicate Skill name in install set: ${metadata.name}` });
+        continue;
+      }
+      seen.add(key);
+      if (this.store.skill(metadata.name)) {
+        if (options.skipExisting) skipped.push({ ...metadata, reason: "already-installed" });
+        else failed.push({ ...metadata, path: prepared.root, reason: `Skill already installed: ${metadata.name}` });
+        continue;
+      }
+      candidates.push({ prepared, metadata });
+    }
+    return { candidates, skipped, failed };
   }
 
   link(source: string): Skill {

@@ -27,17 +27,24 @@ program.command("install")
   .description(human("Install a Skill from a local directory or Git URL", "从本地目录、Git URL 或 registry 安装 Skill"))
   .argument("<source>")
   .option("--ref <ref>", human("Git branch, tag, or commit", "Git 分支、标签或提交"))
+  .option("--path <path>", human("Install a Skill from a path inside a Git repository", "安装 Git 仓库内指定路径的 Skill"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .option("--dry-run", human("Preview installable Skills without changing state", "预览可安装 Skill，不改写状态"))
   .option("--skip-existing", human("Skip Skills that are already installed", "跳过已安装的 Skill"))
   .action(run((source, options) => withApp((app) => {
     if (options.dryRun) {
-      const result = app.previewInstall(source, options.ref, { skipExisting: Boolean(options.skipExisting) });
+      const result = app.previewInstall(source, options.ref, {
+        skipExisting: Boolean(options.skipExisting),
+        gitPath: options.path
+      });
       if (options.json) printJson(installPayload({ ...result, dryRun: true }));
       else printInstallPreview(result);
       return;
     }
-    const result = app.installAll(source, options.ref, { skipExisting: Boolean(options.skipExisting) });
+    const result = app.installAll(source, options.ref, {
+      skipExisting: Boolean(options.skipExisting),
+      gitPath: options.path
+    });
     if (options.json) printJson(installPayload({ skills: result.skills.map(publicSkill), skipped: result.skipped }));
     else printInstallResult(result);
   })));
@@ -223,20 +230,31 @@ function publicSkill(skill: Skill) {
   };
 }
 
-function installPayload(value: { skills: unknown[]; skipped?: unknown[]; dryRun?: boolean }) {
+function installPayload(value: { skills: unknown[]; skipped?: unknown[]; failed?: unknown[]; dryRun?: boolean }) {
   return {
     ...(value.dryRun ? { dryRun: true } : {}),
     skills: value.skills,
-    ...(value.skipped && value.skipped.length > 0 ? { skipped: value.skipped } : {})
+    ...(value.skipped && value.skipped.length > 0 ? { skipped: value.skipped } : {}),
+    ...(value.failed && value.failed.length > 0 ? { failed: value.failed } : {})
   };
 }
 
-function printInstallPreview(result: { skills: Array<{ name: string; description: string }>; skipped: Array<{ name: string }> }): void {
+function printInstallPreview(result: {
+  skills: Array<{ name: string; description: string }>;
+  skipped: Array<{ name: string }>;
+  failed: Array<{ name?: string; reason: string }>;
+}): void {
   for (const skill of result.skills) {
     console.log(human(`Would install ${skill.name}\t${skill.description}`, `将安装 ${skill.name}\t${skill.description}`));
   }
   for (const skipped of result.skipped) {
     console.log(human(`Would skip existing ${skipped.name}`, `将跳过已安装 ${skipped.name}`));
+  }
+  for (const failed of result.failed) {
+    console.log(human(
+      `Would fail ${failed.name ?? "source"}\t${failed.reason}`,
+      `将失败 ${failed.name ?? "来源"}\t${failed.reason}`
+    ));
   }
 }
 

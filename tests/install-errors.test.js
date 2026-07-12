@@ -21,6 +21,21 @@ test("invalid metadata leaves no partial registration", () => {
   assert.deepEqual(JSON.parse(String(cli(["list"], { cwd: project, hub, home: root }).stdout || "\"\"")), "");
 });
 
+test("invalid names include a slug suggestion when one is available", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-invalid-suggestion-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "source");
+  mkdirSync(project);
+  mkdirSync(source);
+  writeFileSync(join(source, "SKILL.md"), "---\nname: yixueAIganhuo-PPT\ndescription: Invalid name\n---\n");
+  cli(["init"], { cwd: project, hub, home: root });
+
+  const result = cli(["install", source], { cwd: project, hub, home: root });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Suggested name: yixueaiganhuo-ppt/);
+});
+
 test("duplicate name preserves the original installation", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-duplicate-"));
   const hub = join(root, "hub");

@@ -123,7 +123,11 @@ sklp install ./path/to/a-skill
 ```bash
 sklp install https://github.com/example/my-skill.git
 sklp install https://github.com/example/my-skill.git --ref v1.2.0
+sklp install https://github.com/example/skills.git --ref main --path skills/review-animations
+sklp install https://github.com/example/skills/tree/main/skills/review-animations
 ```
+
+当 Git 仓库里的 Skill 不在仓库根目录时，用 `--path` 指定仓库内路径。也可以直接粘贴 GitHub 浏览器里的 `tree/<ref>/<path>` URL。若选中的 Git 路径本身没有 `SKILL.md`，Skill Port 会扫描该路径下的多个 Skill 目录；`--dry-run --json` 会列出可安装、已跳过和会失败的条目，真实安装写入前仍会先检查同一批导入里的同名 Skill。
 
 安装 registry 文件：
 
