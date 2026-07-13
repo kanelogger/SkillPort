@@ -3,7 +3,6 @@ import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { toolKeys } from "../../dist/infrastructure/targets.js";
 
 const root = mkdtempSync(join(tmpdir(), "sklp-discovery-"));
 const project = join(root, "project");
@@ -23,11 +22,9 @@ const run = (args) => spawnSync(process.execPath, [join(process.cwd(), "dist", "
 
 assert.equal(run(["init"]).status, 0);
 assert.equal(run(["install", source]).status, 0);
-for (const key of toolKeys) {
-  const result = run(["enable", "discovery-skill", "--global", key]);
-  assert.equal(result.status, 0, `${key}: ${result.stderr}`);
-  const entry = result.stdout.match(/Entry: (.+)/)?.[1]?.trim();
-  assert.ok(entry && existsSync(join(entry, "SKILL.md")), `${key}: missing discoverable SKILL.md`);
-  assert.equal(run(["disable", "discovery-skill", "--global", key]).status, 0);
-}
-console.log(`Verified ${toolKeys.length} Agent target contracts.`);
+const result = run(["enable", "discovery-skill", "--global"]);
+assert.equal(result.status, 0, result.stderr);
+const entry = result.stdout.match(/Entry: (.+)/)?.[1]?.trim();
+assert.ok(entry && existsSync(join(entry, "SKILL.md")), "missing discoverable SKILL.md");
+assert.equal(run(["disable", "discovery-skill", "--global"]).status, 0);
+console.log("Verified the shared Agent target contract.");

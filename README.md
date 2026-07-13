@@ -2,7 +2,7 @@
 
 [中文文档](README.zh-CN.md)
 
-Skill Port CLI keeps Agent Skills in one local Hub and enables them into projects or supported global Agent directories.
+Skill Port CLI keeps Agent Skills in one local Hub and enables them into projects or the shared global Agent directory.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ sklp link ./path/to/a-local-skill
 sklp list
 sklp info my-skill
 sklp enable my-skill
-sklp enable my-skill --global codex
+sklp enable my-skill --global
 sklp update my-skill
 sklp doctor
 sklp disable my-skill
@@ -36,7 +36,7 @@ sklp unlink my-local-skill
 
 `sklp init` registers the current directory locally. Project enablement writes a managed entry under `.agents/skills/`; no Skill Port manifest or Git configuration is added to the project.
 
-Codex project and global enablements use Agent skill directories: `<project>/.agents/skills/` for a project and `~/.agents/skills/` globally.
+Project enablement uses `<project>/.agents/skills/`; the only global target is `~/.agents/skills/`.
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
 
@@ -44,7 +44,7 @@ Set `SKLP_LANG=zh-CN` to use Chinese command help and human-readable command out
 
 ## Practical journey: share one Skill across projects
 
-Imagine a team keeps a `debugging-playbook` Skill in a shared Git repository. One developer wants to use it in a backend service today, make it available to Codex globally tomorrow, and keep the Skill easy to update when the team improves it.
+Imagine a team keeps a `debugging-playbook` Skill in a shared Git repository. One developer wants to use it in a backend service today, make it available through the shared global Agent directory tomorrow, and keep the Skill easy to update when the team improves it.
 
 First, register the service project and install the shared Skill into the local Hub:
 
@@ -62,18 +62,18 @@ sklp enable debugging-playbook
 
 Skill Port creates a managed entry under `~/work/billing-service/.agents/skills/`. The project can now use the Skill without copying the source into the repository, adding a manifest, or touching Git configuration.
 
-Later, the same developer wants Codex to use the Skill in every workspace:
+Later, the same developer wants the Skill in the shared global Agent directory:
 
 ```bash
-sklp enable debugging-playbook --global codex
+sklp enable debugging-playbook --global
 ```
 
-For Codex, this writes the global managed entry under `~/.agents/skills/`.
+This writes the global managed entry under `~/.agents/skills/`.
 
 Project enablement and global enablement are tracked separately, so the Skill can be removed from one target without disturbing the other:
 
 ```bash
-sklp disable debugging-playbook --global codex
+sklp disable debugging-playbook --global
 sklp disable debugging-playbook
 ```
 
@@ -153,7 +153,7 @@ Some Skills depend on a machine-level runtime or a user-managed browser integrat
 
 ```bash
 sklp install https://github.com/Tencent/BrowserSkill.git --path skill
-sklp enable browser-skill --global codex
+sklp enable browser-skill --global
 ```
 
 Install the `bsk` runtime and the browser extension by following BrowserSkill's [official setup guide](https://github.com/Tencent/BrowserSkill#quick-start). Skill Port does not run third-party remote installer scripts and cannot install or configure a browser extension. A project that needs the Skill explicitly can then add its own managed entry:
@@ -177,11 +177,11 @@ Names use lowercase letters, digits, and single hyphens. Installed names are uni
 
 ## Global targets
 
-See [supported targets](docs/supported-targets.md). Global enablement always names one tool:
+See [supported targets](docs/supported-targets.md). Global enablement always uses the shared Agent directory:
 
 ```bash
-sklp enable my-skill --global claude
-sklp disable my-skill --global claude
+sklp enable my-skill --global
+sklp disable my-skill --global
 ```
 
 ## Exit codes

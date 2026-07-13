@@ -26,7 +26,7 @@ sklp link ./path/to/a-local-skill
 sklp list
 sklp info my-skill
 sklp enable my-skill
-sklp enable my-skill --global codex
+sklp enable my-skill --global
 sklp update my-skill
 sklp doctor
 sklp disable my-skill
@@ -36,7 +36,7 @@ sklp unlink my-local-skill
 
 `sklp init` 会初始化本地 Hub，并把当前目录注册为项目。项目启用会在 `.agents/skills/` 下创建受管入口，不会在项目里写 Skill Port 配置文件，也不会读取或修改 Git 配置。
 
-Codex 的项目和全局启用都使用 Agent Skill 目录：项目内是 `<project>/.agents/skills/`，全局是 `~/.agents/skills/`。
+项目启用使用 `<project>/.agents/skills/`；唯一的全局目标是 `~/.agents/skills/`。
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
 
@@ -54,7 +54,7 @@ SKLP_LANG=zh-CN sklp doctor
 
 ## 实用案例：一个 Skill 在多个项目里复用
 
-假设团队把 `debugging-playbook` Skill 放在一个共享 Git 仓库里。某个开发者今天要在后端服务项目里使用它，明天想让 Codex 全局可用，同时还要在团队更新 Skill 后能方便同步。
+假设团队把 `debugging-playbook` Skill 放在一个共享 Git 仓库里。某个开发者今天要在后端服务项目里使用它，明天想让它在共享全局 Agent 目录可用，同时还要在团队更新 Skill 后能方便同步。
 
 先注册服务项目，并把共享 Skill 安装到本机 Hub：
 
@@ -72,18 +72,18 @@ sklp enable debugging-playbook
 
 Skill Port 会在 `~/work/billing-service/.agents/skills/` 下创建受管入口。项目可以使用这个 Skill，但不会把 Skill 源码复制进仓库，也不会添加 Skill Port manifest 或修改 Git 配置。
 
-之后，如果开发者希望 Codex 在所有工作区都能使用这个 Skill，可以启用到 Codex 全局目录：
+之后，如果开发者希望共享全局 Agent 目录可用这个 Skill，可以这样启用：
 
 ```bash
-sklp enable debugging-playbook --global codex
+sklp enable debugging-playbook --global
 ```
 
-对 Codex 来说，这个全局受管入口会写到 `~/.agents/skills/`。
+这个全局受管入口会写到 `~/.agents/skills/`。
 
 项目启用和全局启用会分别记录，因此可以只移除其中一个目标，不影响另一个：
 
 ```bash
-sklp disable debugging-playbook --global codex
+sklp disable debugging-playbook --global
 sklp disable debugging-playbook
 ```
 
@@ -197,11 +197,11 @@ description: 这个 Skill 能帮助 Agent 做什么。
 查看支持的目标：[supported targets](docs/supported-targets.md)。
 
 ```bash
-sklp enable my-skill --global claude
-sklp disable my-skill --global claude
+sklp enable my-skill --global
+sklp disable my-skill --global
 ```
 
-全局启用总是只作用于指定工具，不会同时写多个 Agent 目录。
+全局启用只作用于共享的 `~/.agents/skills/`，不会写入其他 Agent 目录。
 
 ## 退出码
 

@@ -15,7 +15,7 @@ import {
   copySource, inspectGitSource, prepareInstallSources, prepareLocalSource, prepareSource,
   type GitUpdateInspection, type PreparedSource
 } from "../infrastructure/sources.js";
-import { globalTarget, toolKeys } from "../infrastructure/targets.js";
+import { globalTarget } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
 
 type RecoveryPayload =
@@ -499,11 +499,11 @@ export class SkillPort {
     this.remove(name, force);
   }
 
-  enable(name: string, options: { project?: string; global?: string }): Enablement {
+  enable(name: string, options: { project?: string; global?: boolean }): Enablement {
     return this.mutate("enable", (checkpoint) => {
       const skill = this.requireSkill(name);
       const target = options.global
-        ? this.resolveGlobal(options.global)
+        ? this.resolveGlobal()
         : this.resolveProject(options.project);
       const entryPath = join(target.path, skill.name);
       const expected = this.skillPath(skill);
@@ -556,11 +556,11 @@ export class SkillPort {
     });
   }
 
-  disable(name: string, options: { project?: string; global?: string }): void {
+  disable(name: string, options: { project?: string; global?: boolean }): void {
     this.mutate("disable", (checkpoint) => {
       const skill = this.requireSkill(name);
       const target = options.global
-        ? this.resolveGlobal(options.global)
+        ? this.resolveGlobal()
         : this.resolveProject(options.project);
       const record = this.store.enablements(skill.instanceId)
         .find((item) => item.targetType === target.type && item.targetKey === target.key);
@@ -700,7 +700,7 @@ export class SkillPort {
     }
     const knownTargets = new Set(managedTargetPaths(this.store.enablements()));
     for (const project of this.store.projects()) knownTargets.add(join(project, ".agents", "skills"));
-    for (const key of toolKeys) knownTargets.add(globalTarget(key, process.env.SKLP_TEST_HOME).path);
+    knownTargets.add(globalTarget(process.env.SKLP_TEST_HOME).path);
     if (!skillsDirectoryAvailable) return diagnostics.map(withDiagnosticSuggestion);
     const canonicalSkills = realpathSync(this.paths.skills);
     for (const target of knownTargets) {
@@ -998,8 +998,8 @@ export class SkillPort {
     return { type: "project" as const, key: project, path: join(project, ".agents", "skills") };
   }
 
-  private resolveGlobal(key: string) {
-    const target = globalTarget(key, process.env.SKLP_TEST_HOME);
+  private resolveGlobal() {
+    const target = globalTarget(process.env.SKLP_TEST_HOME);
     return { type: "global" as const, key: target.key, path: target.path };
   }
 
@@ -1100,7 +1100,7 @@ function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill,
   try {
     const targetPath = item.targetType === "project"
       ? join(item.targetKey, ".agents", "skills")
-      : globalTarget(item.targetKey, home).path;
+      : globalTarget(home).path;
     return samePath(item.targetPath, targetPath)
       && samePath(item.entryPath, join(targetPath, skill.name));
   } catch {

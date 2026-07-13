@@ -142,11 +142,11 @@ program.command("info")
 for (const commandName of ["enable", "disable"] as const) {
   program.command(commandName)
     .description(commandName === "enable"
-      ? human("Enable a Skill for a project or global tool", "为项目或全局工具启用 Skill")
-      : human("Disable a Skill for a project or global tool", "停用项目或全局工具中的 Skill"))
+      ? human("Enable a Skill for a project or the shared global Agent directory", "为项目或共享全局 Agent 目录启用 Skill")
+      : human("Disable a Skill for a project or the shared global Agent directory", "停用项目或共享全局 Agent 目录中的 Skill"))
     .argument("<skill>")
     .option("--project <path>", human("Use an explicit initialized project", "使用指定的已初始化项目"))
-    .option("--global <tool>", human("Use one supported global tool", "使用指定的受支持全局工具"))
+    .option("--global", human("Use ~/.agents/skills as the global target", "使用 ~/.agents/skills 作为全局目标"))
     .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
     .action(run((skill, options) => withApp((app) => {
       if (options.project && options.global) throw new CliError("--project and --global cannot be combined.");

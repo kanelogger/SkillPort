@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -35,7 +35,7 @@ test("core project lifecycle and catalogs", () => {
   assert.equal(existsSync(join(hub, "skills", "sample-skill")), false);
 });
 
-test("global enablement changes only the selected tool", () => {
+test("global enablement uses the shared Agent directory", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-global-"));
   const hub = join(root, "hub");
   const project = join(root, "project");
@@ -45,23 +45,21 @@ test("global enablement changes only the selected tool", () => {
   cli(["init"], { cwd: project, hub, home: root });
   cli(["install", source], { cwd: project, hub, home: root });
 
-  const result = cli(["enable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root });
+  const result = cli(["enable", "sample-skill", "--global"], { cwd: project, hub, home: root });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(cli(["enable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root }).status, 0);
-  assert.equal(cli(["enable", "sample-skill", "--global", "claude"], { cwd: project, hub, home: root }).status, 0);
+  assert.equal(cli(["enable", "sample-skill", "--global"], { cwd: project, hub, home: root }).status, 0);
   assert.equal(existsSync(join(root, ".agents", "skills", "sample-skill", "SKILL.md")), true);
   assert.equal(existsSync(join(root, ".codex", "skills", "sample-skill")), false);
-  assert.equal(existsSync(join(root, ".claude", "skills", "sample-skill", "SKILL.md")), true);
   const info = JSON.parse(cli(["info", "sample-skill"], { cwd: project, hub, home: root }).stdout);
-  assert.equal(info.enablements.length, 2);
+  assert.equal(info.enablements.length, 1);
+  assert.equal(info.enablements[0].targetKey, "agents");
   assert.equal(info.enablements.every((item) => item.linkType === "symlink"), true);
   assert.equal(info.enablements.every((item) => item.health === "healthy"), true);
-  rmSync(join(root, ".claude", "skills", "sample-skill"));
+  rmSync(join(root, ".agents", "skills", "sample-skill"));
   const driftedInfo = JSON.parse(cli(["info", "sample-skill"], { cwd: project, hub, home: root }).stdout);
-  assert.equal(driftedInfo.enablements.find((item) => item.targetKey === "claude").health, "missing");
-  assert.equal(cli(["disable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root }).status, 0);
-  assert.equal(cli(["disable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root }).status, 0);
-  assert.equal(cli(["disable", "sample-skill", "--global", "claude"], { cwd: project, hub, home: root }).status, 0);
+  assert.equal(driftedInfo.enablements[0].health, "missing");
+  assert.equal(cli(["disable", "sample-skill", "--global"], { cwd: project, hub, home: root }).status, 0);
+  assert.equal(cli(["disable", "sample-skill", "--global"], { cwd: project, hub, home: root }).status, 0);
 });
 
 test("doctor reports a removed managed link without repairing it", () => {
@@ -240,14 +238,14 @@ test("explicit project targeting requires registration and cannot combine with g
   assert.equal(enabled.status, 0, enabled.stderr);
   assert.equal(existsSync(join(second, ".agents", "skills", "sample-skill")), true);
   assert.equal(cli(["enable", "sample-skill", "--project", unregistered], { cwd: first, hub, home: root }).status, 1);
-  assert.equal(cli(["enable", "sample-skill", "--project", second, "--global", "codex"], {
+  assert.equal(cli(["enable", "sample-skill", "--project", second, "--global"], {
     cwd: first,
     hub,
     home: root
   }).status, 1);
 });
 
-test("global target validation fails before creating entries", () => {
+test("global enablement rejects a target name before creating entries", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-global-errors-"));
   const hub = join(root, "hub");
   const project = join(root, "project");
@@ -257,10 +255,39 @@ test("global target validation fails before creating entries", () => {
   cli(["init"], { cwd: project, hub, home: root });
   cli(["install", source], { cwd: project, hub, home: root });
 
-  assert.equal(cli(["enable", "sample-skill", "--global"], { cwd: project, hub, home: root }).status, 1);
-  assert.equal(cli(["enable", "sample-skill", "--global", "codex,claude"], { cwd: project, hub, home: root }).status, 1);
+  assert.equal(cli(["enable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root }).status, 1);
+  assert.equal(cli(["enable", "sample-skill", "--global", "claude"], { cwd: project, hub, home: root }).status, 1);
   assert.equal(existsSync(join(root, ".agents", "skills", "sample-skill")), false);
   assert.equal(existsSync(join(root, ".claude", "skills", "sample-skill")), false);
+});
+
+test("force removal safely cleans up a legacy global entry", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-legacy-global-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "source");
+  const legacyTarget = join(root, ".claude", "skills");
+  const legacyEntry = join(legacyTarget, "sample-skill");
+  mkdirSync(project);
+  makeSkill(source);
+  cli(["init"], { cwd: project, hub, home: root });
+  cli(["install", source], { cwd: project, hub, home: root });
+  const skill = JSON.parse(cli(["info", "sample-skill"], { cwd: project, hub, home: root }).stdout).skill;
+  mkdirSync(legacyTarget, { recursive: true });
+  symlinkSync(join(hub, "skills", "sample-skill"), legacyEntry, "dir");
+  const db = new DatabaseSync(join(hub, "state.db"));
+  db.prepare(`
+    INSERT INTO enablements(skill_id,target_type,target_key,target_path,entry_path,link_type,created_at)
+    VALUES(?,?,?,?,?,?,?)
+  `).run(skill.instanceId, "global", "claude", legacyTarget, legacyEntry, "symlink", new Date().toISOString());
+  db.close();
+
+  const doctor = cli(["doctor"], { cwd: project, hub, home: root });
+  assert.equal(doctor.status, 1);
+  assert.match(doctor.stderr, /TARGET_RECORD_DRIFT/);
+  const removed = cli(["remove", "sample-skill", "--force"], { cwd: project, hub, home: root });
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.equal(existsSync(legacyEntry), false);
 });
 
 test("doctor reports a Hub link with no enablement record", () => {

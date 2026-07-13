@@ -1,18 +1,13 @@
 # Supported Skill Targets
 
-| Tool key | Global directory |
+Skill Port has one global target:
+
+| Target | Global directory |
 | --- | --- |
-| `claude` | `~/.claude/skills/` |
-| `codex` | `~/.agents/skills/` |
-| `cursor` | `~/.cursor/skills/` |
-| `agents` | `~/.agents/skills/` |
-| `pi` | `~/.pi/agent/skills/` |
-| `opencode` | `~/.config/opencode/skills/` |
-| `trae` | `~/.trae/skills/` |
-| `trae-cn` | `~/.trae-cn/skills/` |
+| Shared Agent directory | `~/.agents/skills/` |
 
-OpenCode uses an existing `~/.opencode/skills/` directory only when the primary directory does not exist. When neither exists, Skill Port creates the primary directory.
+Use `sklp enable <skill> --global` or `sklp disable <skill> --global`. Project enablement uses `<project>/.agents/skills/`.
 
-Codex uses the shared global Agent directory, so `codex` and `agents` resolve to the same `~/.agents/skills/` location. Project enablement uses `<project>/.agents/skills/`.
+Existing records for retired global Agent directories are never removed automatically. `sklp remove <skill> --force` and `sklp unlink <skill> --force` remove only verified managed entries while cleaning up a Skill.
 
 macOS and Linux use directory symlinks. Windows first attempts a directory symlink and falls back to a junction.

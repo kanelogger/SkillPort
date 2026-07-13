@@ -68,7 +68,7 @@ test("force remove disables all managed entries first", () => {
   cli(["init"], { cwd: project, hub, home: root });
   cli(["install", source], { cwd: project, hub, home: root });
   cli(["enable", "sample-skill"], { cwd: project, hub, home: root });
-  cli(["enable", "sample-skill", "--global", "codex"], { cwd: project, hub, home: root });
+  cli(["enable", "sample-skill", "--global"], { cwd: project, hub, home: root });
 
   const result = cli(["remove", "sample-skill", "--force"], { cwd: project, hub, home: root });
   assert.equal(result.status, 0, result.stderr);

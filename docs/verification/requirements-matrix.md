@@ -32,10 +32,10 @@ Status keys:
 | R20 project disable removes managed entry only | core lifecycle test | Passed |
 | R21 explicit initialized project target | explicit project test | Passed |
 | R22 repeated enable/disable idempotent | global/project lifecycle tests | Passed |
-| R23 global enable/disable syntax | global lifecycle tests | Passed |
-| R24 invalid global syntax fails before mutation | global validation test | Passed |
-| R25 independent multi-tool enablement | global lifecycle test | Passed |
-| R26 all explicit global target paths | target registry tests; discovery contract tests for 8 keys | Passed |
+| R23 global enable/disable syntax | global lifecycle tests cover the `--global` flag | Passed |
+| R24 global target names fail before mutation | global validation test | Passed |
+| R25 one canonical global target | global lifecycle test records the `agents` key only | Passed |
+| R26 global target path is `~/.agents/skills/` | target registry test; discovery contract smoke test | Passed |
 | R27 Unix symlink; Windows symlink then junction fallback | macOS/Linux native tests; simulated Windows symlink/junction adapter; native Windows pending | Partial |
 | R28 actual entry path and link type recorded | `info` assertions; link adapter tests; Windows native link type pending | Partial |
 | R29 enable verifies entry resolves to Hub content and has `SKILL.md` | lifecycle, conflict, discovery contract tests | Passed |
@@ -67,7 +67,7 @@ Status keys:
 | Gate | Evidence needed | Status |
 | --- | --- | --- |
 | Windows native support | GitHub Actions or another native Windows runner must pass `npm ci`, lint, typecheck, tests, `test:platform`, `test:discovery`, and packed install | External |
-| Remaining Agent runtime loading | Claude Code, Cursor, Agents-compatible target, OpenCode, Trae, and Trae CN must each load the smoke Skill from the advertised directory, or the release docs must narrow advertised runtime support | External |
+| Shared-directory runtime loading | An Agent consuming `~/.agents/skills/` must load the smoke Skill from the advertised directory | External |
 | Latest packed install | Latest macOS and Linux clean-prefix tarball installs passed | Passed |
 | Dependency audit | `npm audit --omit=dev` completed with 0 vulnerabilities | Passed |
 | GitHub CI | `gh` auth or a pushed branch is required to observe real workflow results | External |
