@@ -205,8 +205,15 @@ export class SkillPort {
     const seen = new Set<string>();
     const candidates: InstallCandidate[] = [];
     const skipped: InstallSkipped[] = [];
+    let metadataError: unknown;
     for (const prepared of preparedSources) {
-      const metadata = readSkillMetadata(prepared.root);
+      let metadata: InstallMetadata;
+      try {
+        metadata = readSkillMetadata(prepared.root);
+      } catch (error) {
+        metadataError ??= error;
+        continue;
+      }
       const key = metadata.name.toLowerCase();
       if (seen.has(key)) {
         throw new CliError(`Duplicate Skill name in install set: ${metadata.name}. 请修改来源 Skill 的 SKILL.md name 后再安装。`);
@@ -223,6 +230,7 @@ export class SkillPort {
       }
       candidates.push({ prepared, metadata });
     }
+    if (candidates.length === 0 && skipped.length === 0 && metadataError) throw metadataError;
     return { candidates, skipped };
   }
 

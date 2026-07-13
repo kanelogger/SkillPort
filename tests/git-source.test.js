@@ -426,6 +426,30 @@ test("Git dry-run lists invalid Skills without installing valid siblings", () =>
   assert.equal(cli(["list"], { cwd: project, hub, home: root }).stdout, "");
 });
 
+test("GitHub imports install and tag valid siblings when one Skill is invalid", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-github-invalid-sibling-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(source, "skills", "first"), "valid-first", "First valid Skill");
+  makeSkill(join(source, "skills", "second"), "valid-second", "Second valid Skill");
+  mkdirSync(join(source, "skills", "invalid"), { recursive: true });
+  writeFileSync(join(source, "skills", "invalid", "SKILL.md"), "---\nname: InvalidSkill\ndescription: Invalid Skill\n---\n");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = https://github.com/JimLiu/mixed-skills.git\n`);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+
+  const result = cli(["install", "https://github.com/JimLiu/mixed-skills.git", "--path", "skills", "--json"], options);
+  assert.equal(result.status, 0, result.stderr);
+  const installed = JSON.parse(result.stdout).skills;
+  assert.deepEqual(installed.map((skill) => skill.name), ["valid-first", "valid-second"]);
+  assert.deepEqual(installed.map((skill) => skill.tags), [["JimLiu"], ["JimLiu"]]);
+});
+
 test("Git installs disable interactive credential prompts", { skip: process.platform === "win32" }, () => {
   const fixture = gitFixture("prompt");
   const fakePath = fakeGit(fixture.root, "process.stderr.write(`prompt=${process.env.GIT_TERMINAL_PROMPT}\\n`); process.exit(1);");
