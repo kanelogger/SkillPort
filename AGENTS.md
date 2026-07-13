@@ -92,3 +92,17 @@
 - Agent 发现目录或目标别名。
 
 当证据状态或行为保证变化时，同步更新 `docs/verification/requirements-matrix.md`。
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues；外部 PR 不作为分诊需求入口。See `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用 `needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`wontfix`。See `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+single-context：根目录 `CONTEXT.md` 与 `docs/adr/`。See `docs/agents/domain.md`。

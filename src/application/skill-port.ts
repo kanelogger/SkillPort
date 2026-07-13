@@ -19,6 +19,7 @@ type RecoveryPayload =
   | { kind: "install"; skill: Skill; destination: string }
   | { kind: "link"; skill: Skill; destination: string }
   | { kind: "update"; skill: Skill; destination: string; backup: string }
+  | { kind: "update"; skill: Skill; destination: string; linked: true }
   | { kind: "remove"; skill: Skill; destination: string; backup: string; enablements: Enablement[] }
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
   | { kind: "disable"; skill: Skill; enablement: Enablement };
@@ -283,10 +284,13 @@ export class SkillPort {
   update(name: string): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
-      if (this.isLinkedSkill(current)) return this.updateLinkedSkill(current);
       const staged = join(this.paths.staging, `update-${randomUUID()}`);
       const backup = join(this.paths.staging, `backup-${randomUUID()}`);
       const destination = this.skillPath(current);
+      if (this.isLinkedSkill(current)) {
+        checkpoint({ kind: "update", skill: current, destination, linked: true });
+        return this.updateLinkedSkill(current);
+      }
       checkpoint({ kind: "update", skill: current, destination, backup });
       const prepared = prepareSource(current.sourceLocation, this.paths.staging, current.sourceRef ?? undefined);
       try {
@@ -682,6 +686,7 @@ export class SkillPort {
   }
 
   private recoverUpdate(payload: Extract<RecoveryPayload, { kind: "update" }>): boolean {
+    if ("linked" in payload) return this.recoverLinkedUpdate(payload);
     if (existsSync(payload.backup)) {
       this.removeRecoveryOwnedSkill(payload.destination, payload.skill.instanceId);
       renameSync(payload.backup, payload.destination);
@@ -709,6 +714,18 @@ export class SkillPort {
       return true;
     }
     return false;
+  }
+
+  private recoverLinkedUpdate(payload: Extract<RecoveryPayload, { kind: "update"; linked: true }>): boolean {
+    const current = this.store.skill(payload.skill.name);
+    if (!current || current.instanceId !== payload.skill.instanceId) {
+      throw new CliError(`Interrupted linked update conflicts with the installed Skill: ${payload.skill.name}`);
+    }
+    if (managedLinkState(payload.destination, current.sourceLocation) !== "correct") {
+      throw new CliError(`Interrupted linked update cannot verify Skill content: ${payload.skill.name}`);
+    }
+    writeCatalogs(this.paths, this.store.skills());
+    return true;
   }
 
   private recoverRemove(payload: Extract<RecoveryPayload, { kind: "remove" }>): boolean {
@@ -986,6 +1003,9 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
   }
   if (kind === "update" && typeof value.destination === "string" && typeof value.backup === "string") {
     return { kind, skill: value.skill, destination: value.destination, backup: value.backup };
+  }
+  if (kind === "update" && typeof value.destination === "string" && value.linked === true) {
+    return { kind, skill: value.skill, destination: value.destination, linked: true };
   }
   if (kind === "remove" && typeof value.destination === "string" && typeof value.backup === "string"
     && Array.isArray(value.enablements) && value.enablements.every((item) => isEnablement(item))) {

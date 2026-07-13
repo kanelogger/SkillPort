@@ -109,7 +109,7 @@ sklp install https://github.com/example/skills.git --ref main --path skills/revi
 sklp install https://github.com/example/skills/tree/main/skills/review-animations
 ```
 
-Use `--path` when a Git repository keeps the Skill below the repository root. GitHub `tree/<ref>/<path>` URLs copied from the browser are also accepted. If the selected Git path does not contain `SKILL.md` directly, Skill Port scans that path for multiple Skill directories. `--dry-run --json` lists installable, skipped, and failed entries; real installs still preflight duplicate names before writing state.
+Use `--path` when a Git repository keeps the Skill below the repository root. GitHub `tree/<ref>/<path>` URLs copied from the browser are also accepted. If the selected Git path does not contain `SKILL.md` directly, Skill Port scans that path for multiple Skill directories. `--dry-run --json` lists installable, skipped, and failed entries; real installs still preflight duplicate names before writing state. Git commands disable terminal credential prompts and time out after 30 seconds by default; set `SKLP_GIT_TIMEOUT_MS` to use a different positive millisecond limit.
 
 Registry files named `sources.json` are supported for local registry imports:
 
@@ -124,6 +124,23 @@ Each registry entry must provide `local_path`. If `local_path/SKILL.md` exists, 
 Use `sklp link <path>` for a local Skill you are actively editing. The Hub records the Skill and points its managed entry at the source directory, so edits are visible through project and global enablements without reinstalling. Use `sklp unlink <skill>` to remove that local registration; the original source directory is not deleted.
 
 Use `--project <path>` with `init`, `enable`, or `disable` to target an explicit local project. The project must be registered before enablement.
+
+## Global integrations with local runtimes
+
+Some Skills depend on a machine-level runtime or a user-managed browser integration. Install and enable these Skills globally first; use project enablement only when a project needs an explicit entry point.
+
+[BrowserSkill](https://github.com/Tencent/BrowserSkill) is the reference case: its `browser-skill` teaches an Agent to use the `bsk` CLI, but it also requires the `bsk` CLI/daemon and a BrowserSkill browser extension connected to the user's browser. Install the Skill from its repository and enable it globally:
+
+```bash
+sklp install https://github.com/Tencent/BrowserSkill.git --path skill
+sklp enable browser-skill --global codex
+```
+
+Install the `bsk` runtime and the browser extension by following BrowserSkill's [official setup guide](https://github.com/Tencent/BrowserSkill#quick-start). Skill Port does not run third-party remote installer scripts and cannot install or configure a browser extension. A project that needs the Skill explicitly can then add its own managed entry:
+
+```bash
+sklp enable browser-skill --project ~/work/browser-automation
+```
 
 ## Skill metadata
 
@@ -150,6 +167,21 @@ sklp disable my-skill --global claude
 ## Exit codes
 
 See [exit codes](docs/exit-codes.md). Skill Port CLI uses `0` for successful commands and warning-only doctor results, and `1` for command failures or error-severity doctor diagnostics.
+
+## Machine-readable output
+
+Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
+
+```json
+{
+  "error": {
+    "code": "COMMAND_FAILED",
+    "message": "Skill not installed: example-skill"
+  }
+}
+```
+
+`doctor --json` keeps its diagnostic payload so automation can inspect individual health findings.
 
 ## Catalogs and privacy
 

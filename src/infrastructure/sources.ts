@@ -23,6 +23,8 @@ type GitSourceSpec = {
   path: string | null;
 };
 
+const defaultGitTimeoutMs = 30_000;
+
 export function prepareInstallSources(input: string, staging: string, options: PrepareOptions = {}): PreparedSource[] {
   const local = resolve(input);
   if (existsSync(local) && lstatSync(local).isFile() && basename(local) === "sources.json") {
@@ -60,25 +62,23 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
   const args = ["clone"];
   if (!spec.ref) args.push("--depth", "1");
   args.push("--", spec.cloneUrl, cloneRoot);
-  const result = spawnSync("git", args, { encoding: "utf8", shell: false });
+  const result = runGit(args);
   if (result.error || result.status !== 0) {
     rmSync(cloneRoot, { recursive: true, force: true });
-    throw new CliError(`Git source failed: ${sanitizeError(result.stderr || result.error)}`);
+    throw gitCommandError("Git source", result);
   }
   if (spec.ref) {
-    const checkout = spawnSync("git", ["-C", cloneRoot, "checkout", "--detach", spec.ref], {
-      encoding: "utf8",
-      shell: false
-    });
+    const checkout = runGit(["-C", cloneRoot, "checkout", "--detach", spec.ref]);
     if (checkout.error || checkout.status !== 0) {
       rmSync(cloneRoot, { recursive: true, force: true });
-      throw new CliError(`Git ref failed: ${sanitizeError(checkout.stderr || checkout.error)}`);
+      throw gitCommandError("Git ref", checkout);
     }
   }
-  const revision = spawnSync("git", ["-C", cloneRoot, "rev-parse", "HEAD"], {
-    encoding: "utf8",
-    shell: false
-  });
+  const revision = runGit(["-C", cloneRoot, "rev-parse", "HEAD"]);
+  if (revision.error || revision.status !== 0) {
+    rmSync(cloneRoot, { recursive: true, force: true });
+    throw gitCommandError("Git revision", revision);
+  }
   try {
     const selectedRoot = spec.path ? join(cloneRoot, spec.path) : cloneRoot;
     const roots = skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`);
@@ -113,6 +113,26 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
     rmSync(cloneRoot, { recursive: true, force: true });
     throw error;
   }
+}
+
+function runGit(args: string[]) {
+  return spawnSync("git", args, {
+    encoding: "utf8",
+    shell: false,
+    timeout: gitTimeoutMs(),
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+  });
+}
+
+function gitCommandError(action: string, result: ReturnType<typeof spawnSync>): CliError {
+  const error = result.error as NodeJS.ErrnoException | undefined;
+  if (error?.code === "ETIMEDOUT") return new CliError(`${action} timed out after ${gitTimeoutMs()}ms.`);
+  return new CliError(`${action} failed: ${sanitizeError(result.stderr || result.error)}`);
+}
+
+function gitTimeoutMs(): number {
+  const value = Number(process.env.SKLP_GIT_TIMEOUT_MS ?? defaultGitTimeoutMs);
+  return Number.isInteger(value) && value > 0 ? value : defaultGitTimeoutMs;
 }
 
 function prepareRegistrySources(path: string): PreparedSource[] {

@@ -25,6 +25,8 @@ The JSON payload includes:
 - `healthy`: `true` when there are no diagnostics.
 - `diagnostics`: diagnostic objects with `code`, `severity`, `message`, and `suggestion`.
 
+For other runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
+
 ## 中文说明
 
 Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
@@ -35,3 +37,5 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 | `1` | 命令失败，或 `sklp doctor` 发现至少一个 error 级诊断。 | 参数错误、不支持的目标、Skill 同名、Hub 缺失、启用入口损坏、数据库损坏。 |
 
 `sklp doctor --json` 适合自动化，字段名不会因为 `SKLP_LANG=zh-CN` 改变。
+
+其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

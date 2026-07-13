@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, mkdtempSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { cli, makeSkill } from "./helpers.js";
 
 test("install expands registry local paths into concrete Skill directories", () => {
@@ -166,4 +167,28 @@ test("registry install can skip already installed Skills", () => {
   const list = cli(["list"], { cwd: project, hub, home: root }).stdout;
   assert.match(list, /existing-skill\s+Already here/);
   assert.match(list, /new-skill\s+Fresh import/);
+});
+
+test("dry-run does not recover interrupted operations", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-registry-dry-run-state-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const installed = join(root, "installed");
+  const preview = join(root, "preview");
+  mkdirSync(project);
+  makeSkill(installed, "installed-skill", "Already installed");
+  makeSkill(preview, "preview-skill", "Preview only");
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", installed], options).status, 0);
+  const db = new DatabaseSync(join(hub, "state.db"));
+  db.exec("UPDATE operations SET status='started', finished_at=NULL WHERE kind='install'");
+  db.close();
+
+  const result = cli(["install", preview, "--dry-run"], options);
+  assert.equal(result.status, 0, result.stderr);
+  const after = new DatabaseSync(join(hub, "state.db"));
+  const operation = after.prepare("SELECT status FROM operations WHERE kind='install'").get();
+  after.close();
+  assert.equal(operation.status, "started");
 });

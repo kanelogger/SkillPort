@@ -14,13 +14,13 @@ Status keys:
 | R2 default/custom Hub | `tests/config.test.js`; `SKLP_HOME`; `sklp init --hub` | Passed |
 | R3 init creates local Hub/SQLite and registers project without project manifest | core lifecycle tests; no project-owned Skill Port manifest implemented | Passed |
 | R4 nearest registered ancestor only, no Git/language marker inference | nested project test; source search shows no Git marker discovery | Passed |
-| R5 local, linked local, and Git Skill roots with `SKILL.md` | local lifecycle tests; linked local lifecycle test; `tests/git-source.test.js` covers Git roots, Git subdirectory installs with `--path`, subdirectory update, GitHub tree URLs, multi-Skill Git path scanning, and dry-run failed entries | Passed |
+| R5 local, linked local, and Git Skill roots with `SKILL.md` | local lifecycle tests; linked local lifecycle test; `tests/git-source.test.js` covers Git roots, Git subdirectory installs with `--path`, subdirectory update, GitHub tree URLs, multi-Skill Git path scanning, dry-run failed entries, disabled terminal prompts, and timeout handling | Passed |
 | R6 strict `name`/`description` frontmatter with no partial state | invalid metadata and catalog rollback tests; invalid name errors include a suggested lowercase kebab-case name when one can be derived | Passed |
 | R7 `instanceId` lifecycle | reinstall and update identity tests | Passed |
 | R8 unique normalized names, user changes incoming `SKILL.md` | duplicate install test and error assertion | Passed |
 | R9 no install-time alias/rename | command surface test | Passed |
 | R10 local source/ref/revision/timestamps through `info` | Git install test; `info` JSON includes source fields | Passed |
-| R11 no externally visible split state after install/link/update/catalog failures; recovery after interruption | publication rollback tests; linked local lifecycle test; 5 interrupted operation recovery tests; startup recovery via `list/info` | Passed |
+| R11 no externally visible split state after install/link/update/catalog failures; recovery after interruption | publication rollback tests; linked local lifecycle test; interrupted copied and linked update recovery tests; startup recovery via `list/info` | Passed |
 | R12 update name change fails | lifecycle update rename test | Passed |
 | R13 copied installed Skills have `meta.json` limited to identity fields | catalog/core tests; doctor meta drift tests; linked local lifecycle test verifies source is not modified | Passed |
 | R14 `catalog.json` schema and limited fields | catalog field tests | Passed |
@@ -50,11 +50,11 @@ Status keys:
 | R38 info shows identity/source/timestamps/enablements/health | global lifecycle and health drift tests | Passed |
 | R39 failed mutations exit nonzero and preserve valid state | install/update/remove/catalog/target conflict tests | Passed |
 | R40 project enablement does not inspect or modify Git config | source search and absence of Git config access in runtime code | Passed |
-| R41 routine output/catalogs avoid credential and unrelated path leaks | URL redaction tests; catalog privacy tests | Passed |
+| R41 routine output/catalogs avoid credential and unrelated path leaks | HTTP(S) and SSH URL redaction tests; catalog privacy tests | Passed |
 | R42 `sklp link <path>` registers an actively edited local Skill without copying or modifying the source directory | linked local lifecycle test verifies catalog/list visibility, project enablement, live source edits, and no source `meta.json` write | Passed |
 | R43 `sklp unlink <skill>` removes only linked local registrations and preserves the source directory | linked local lifecycle test verifies active enablement refusal, `--force`, catalog cleanup, Hub entry removal, and source preservation | Passed |
-| R44 `sklp install <sources.json>` expands registry `local_path` entries into concrete Skill directories | registry source tests cover direct `local_path/SKILL.md`, fallback scan of `local_path/**/SKILL.md`, parent-relative warehouse paths, empty source failure, `--dry-run`, duplicate-name preflight, already-installed preflight, and `--skip-existing` | Passed |
-| R45 core automation commands expose machine-readable JSON | JSON output test covers `install --json`, `list --json`, `enable --json`, and `doctor --json`; `info` remains JSON by default | Passed |
+| R44 `sklp install <sources.json>` expands registry `local_path` entries into concrete Skill directories | registry source tests cover direct `local_path/SKILL.md`, fallback scan of `local_path/**/SKILL.md`, parent-relative warehouse paths, empty source failure, non-mutating `--dry-run`, duplicate-name preflight, already-installed preflight, and `--skip-existing` | Passed |
+| R45 core automation commands expose machine-readable JSON | JSON output test covers successful `install/list/enable/doctor`, `info` default JSON, and stable `--json` runtime error envelopes | Passed |
 | R46 Chinese users have first-party onboarding documentation | `README.zh-CN.md` covers install, registry import, link, enablement, JSON output, privacy, diagnostics, and safety boundaries | Passed |
 | R47 Chinese users can opt into Chinese human-readable CLI output | Chinese output test covers `SKLP_LANG=zh-CN` for command help, `init`, `install`, `enable`, and `doctor`; JSON output remains stable in Chinese mode | Passed |
 | R48 doctor diagnostics include actionable suggestions | JSON output test checks diagnostic `suggestion`; Chinese output test checks human-readable `建议:` output for doctor drift | Passed |

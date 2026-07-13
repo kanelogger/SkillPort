@@ -47,7 +47,7 @@ program.command("install")
     });
     if (options.json) printJson(installPayload({ skills: result.skills.map(publicSkill), skipped: result.skipped }));
     else printInstallResult(result);
-  })));
+  }, options.dryRun ? { recover: false } : undefined)));
 
 program.command("link")
   .description(human("Link a local Skill directory into the Hub", "把本地 Skill 目录链接到 Hub"))
@@ -186,8 +186,8 @@ program.command("doctor")
 
 program.parseAsync().catch(handleError);
 
-function withApp<T>(fn: (app: SkillPort) => T): T {
-  const app = SkillPort.open();
+function withApp<T>(fn: (app: SkillPort) => T, options?: { recover?: boolean }): T {
+  const app = SkillPort.open(options);
   try {
     return fn(app);
   } finally {
@@ -200,7 +200,7 @@ function run<T extends unknown[]>(fn: (...args: T) => unknown) {
     try {
       await fn(...args);
     } catch (error) {
-      handleError(error);
+      handleError(error, args.some((value) => isJsonOption(value)));
     }
   };
 }
@@ -267,8 +267,13 @@ function printInstallResult(result: { skills: Skill[]; skipped: Array<{ name: st
   }
 }
 
-function handleError(error: unknown): void {
+function handleError(error: unknown, json = false): void {
   const message = sanitizeError(error);
-  console.error(isChineseOutput() ? `错误: ${message}` : message);
+  if (json) printJson({ error: { code: error instanceof CliError ? "COMMAND_FAILED" : "INTERNAL_ERROR", message } });
+  else console.error(isChineseOutput() ? `错误: ${message}` : message);
   process.exitCode = error instanceof CliError ? error.exitCode : 1;
+}
+
+function isJsonOption(value: unknown): value is { json: boolean } {
+  return value !== null && typeof value === "object" && "json" in value && value.json === true;
 }

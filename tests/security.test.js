@@ -16,6 +16,12 @@ test("credential-bearing URLs are redacted", () => {
   assert.equal(message.includes("api_key=ghi"), false);
 });
 
+test("credential-bearing SSH URLs are redacted", () => {
+  const message = sanitizeError("failed ssh://user:secret@example.com/repo.git");
+  assert.equal(message.includes("secret"), false);
+  assert.equal(message.includes("ssh://[redacted]@example.com"), true);
+});
+
 test("path traversal names are rejected", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-name-"));
   const hub = join(root, "hub");

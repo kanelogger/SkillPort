@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Port CLI 真实 GitHub 安装测试报告</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f6f8fb; }
+    body { max-width: 900px; margin: 48px auto; padding: 0 24px; }
+    article { background: #fff; border: 1px solid #dfe5ef; border-radius: 12px; padding: 32px; box-shadow: 0 8px 28px #1720330c; }
+    h1 { margin: 0; font-size: 28px; }
+    h2 { margin-top: 32px; font-size: 19px; }
+    p, li { line-height: 1.6; }
+    .pass { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #dff7e9; color: #0b6b37; font-weight: 700; }
+    .meta { color: #5c667a; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { padding: 12px; border-bottom: 1px solid #e6ebf2; text-align: left; vertical-align: top; }
+    th { color: #4d5970; font-size: 13px; }
+    code { padding: 2px 5px; border-radius: 4px; background: #f0f3f8; }
+    .skills { columns: 2; padding-left: 20px; }
+    @media (max-width: 640px) { .skills { columns: 1; } body { margin: 20px auto; } article { padding: 22px; } }
+  </style>
+</head>
+<body>
+  <article>
+    <p class="meta">2026-07-13 · 真实 GitHub 仓库 · 隔离临时 Hub</p>
+    <h1>Skill Port CLI 安装测试报告</h1>
+    <p><span class="pass">通过</span> 单 Skill 与多 Skill Git 仓库均成功安装；最终 Hub 健康，无诊断项。</p>
+
+    <h2>测试方法</h2>
+    <ol>
+      <li>创建临时项目与 <code>SKLP_HOME</code>，执行 <code>sklp init --json</code>。</li>
+      <li>对两个公开 GitHub 仓库执行 <code>sklp install &lt;url&gt; --json</code>。</li>
+      <li>通过 <code>sklp list --json</code>、<code>sklp info &lt;skill&gt;</code> 和 <code>sklp doctor --json</code> 验证结果。</li>
+      <li>删除整个临时项目和 Hub；未改动用户 Hub、项目目录或 Git 配置。</li>
+    </ol>
+
+    <h2>结果</h2>
+    <table>
+      <thead><tr><th>场景</th><th>来源</th><th>结果</th><th>证据</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>单个 Skill</td>
+          <td><a href="https://github.com/op7418/guizang-social-card-skill">op7418/guizang-social-card-skill</a></td>
+          <td>通过，安装 1 个 Skill</td>
+          <td><code>guizang-social-card-skill</code><br>revision <code>cf4b810fac1c73fb65a2bb31d8c9278d82cbc4c5</code></td>
+        </tr>
+        <tr>
+          <td>多个 Skill</td>
+          <td><a href="https://github.com/JimLiu/baoyu-skills">JimLiu/baoyu-skills</a></td>
+          <td>通过，安装 22 个 Skill</td>
+          <td>抽样 <code>release-skills</code><br>revision <code>6b7a2e417500561a5ecdd0b168332f4142584617</code></td>
+        </tr>
+        <tr>
+          <td>最终 Hub</td>
+          <td>两次安装后</td>
+          <td>通过，共 23 个 Skill</td>
+          <td><code>sklp doctor --json</code> 返回 <code>{"healthy":true,"diagnostics":[]}</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>多 Skill 安装清单（22 个）</h2>
+    <ul class="skills">
+      <li>release-skills</li><li>baoyu-article-illustrator</li><li>baoyu-comic</li><li>baoyu-compress-image</li>
+      <li>baoyu-cover-image</li><li>baoyu-danger-gemini-web</li><li>baoyu-danger-x-to-markdown</li><li>baoyu-diagram</li>
+      <li>baoyu-electron-extract</li><li>baoyu-format-markdown</li><li>baoyu-image-gen</li><li>baoyu-infographic</li>
+      <li>baoyu-markdown-to-html</li><li>baoyu-post-to-wechat</li><li>baoyu-post-to-weibo</li><li>baoyu-post-to-x</li>
+      <li>baoyu-slide-deck</li><li>baoyu-translate</li><li>baoyu-url-to-markdown</li><li>baoyu-wechat-summary</li>
+      <li>baoyu-xhs-images</li><li>baoyu-youtube-transcript</li>
+    </ul>
+
+    <h2>限制</h2>
+    <p>这是一次实时网络测试，仓库默认分支和 commit 会随时间变化。报告保留了本次实际安装的 revision；未执行 enable、update 或 Agent 运行时发现测试。</p>
+  </article>
+</body>
+</html>

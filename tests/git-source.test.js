@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -179,6 +179,51 @@ test("Git dry-run lists invalid Skills without installing valid siblings", () =>
   assert.match(value.failed[0].reason, /Suggested name: invalidgitskill/);
   assert.equal(cli(["list"], { cwd: project, hub, home: root }).stdout, "");
 });
+
+test("Git installs disable interactive credential prompts", { skip: process.platform === "win32" }, () => {
+  const fixture = gitFixture("prompt");
+  const fakePath = fakeGit(fixture.root, "process.stderr.write(`prompt=${process.env.GIT_TERMINAL_PROMPT}\\n`); process.exit(1);");
+
+  const result = cli(["install", "https://example.invalid/skill.git"], {
+    ...fixture.options,
+    env: { PATH: fakePath }
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /prompt=0/);
+});
+
+test("Git installs honor the configured command timeout", { skip: process.platform === "win32" }, () => {
+  const fixture = gitFixture("timeout");
+  const fakePath = fakeGit(fixture.root, "setTimeout(() => { process.stderr.write('late\\n'); process.exit(1); }, 500);");
+  const started = Date.now();
+  const result = cli(["install", "https://example.invalid/skill.git"], {
+    ...fixture.options,
+    env: { PATH: fakePath, SKLP_GIT_TIMEOUT_MS: "50" }
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Git source timed out after 50ms/);
+  assert.ok(Date.now() - started < 350);
+});
+
+function gitFixture(name) {
+  const root = mkdtempSync(join(tmpdir(), `sklp-git-${name}-`));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  mkdirSync(project);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  return { root, options };
+}
+
+function fakeGit(root, body) {
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  const executable = join(bin, "git");
+  writeFileSync(executable, `#!/usr/bin/env node\n${body}\n`);
+  chmodSync(executable, 0o755);
+  return `${bin}:${process.env.PATH}`;
+}
 
 function git(args, cwd) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8", shell: false });

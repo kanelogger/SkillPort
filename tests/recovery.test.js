@@ -45,6 +45,27 @@ test("an interrupted update restores its backup before enabling", () => {
   assert.equal(existsSync(backup), false);
 });
 
+test("an interrupted linked update republishes catalogs from committed state", () => {
+  const fixture = setup("linked-update");
+  assert.equal(cli(["link", fixture.source], fixture.options).status, 0);
+  const before = JSON.parse(cli(["info", "sample-skill"], fixture.options).stdout).skill;
+  makeSkill(fixture.source, "sample-skill", "Updated linked description");
+  assert.equal(cli(["update", "sample-skill"], fixture.options).status, 0);
+  const current = JSON.parse(cli(["info", "sample-skill"], fixture.options).stdout).skill;
+  writeFileSync(join(fixture.hub, "catalog.json"), "{\"skills\":[]}\n");
+  writeFileSync(join(fixture.hub, "catalog.md"), "# Skill Port Catalog\n\n");
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("crashed-linked-update", "update", "started", JSON.stringify({
+      kind: "update", skill: before, destination: join(fixture.hub, "skills", "sample-skill"), linked: true
+    }), new Date().toISOString());
+  db.close();
+
+  assert.equal(cli(["list"], fixture.options).status, 0);
+  const catalog = JSON.parse(readFileSync(join(fixture.hub, "catalog.json"), "utf8"));
+  assert.equal(catalog.skills[0].description, current.description);
+});
+
 test("an interrupted disable restores the recorded managed entry", () => {
   const fixture = setup("disable");
   cli(["install", fixture.source], fixture.options);

@@ -11,6 +11,6 @@ export class CliError extends Error {
 export function sanitizeError(value: unknown): string {
   const message = value instanceof Error ? value.message : String(value);
   return message
-    .replace(/(https?:\/\/)[^/@\s]+@/g, "$1[redacted]@")
+    .replace(/([a-z][a-z\d+.-]*:\/\/)[^/@\s]+@/gi, "$1[redacted]@")
     .replace(/([?&][^=&\s]*(?:token|key|password|secret)[^=&\s]*=)[^&\s]+/gi, "$1[redacted]");
 }

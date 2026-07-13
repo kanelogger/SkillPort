@@ -44,3 +44,18 @@ test("machine-readable output is available for core automation commands", () => 
   assert.equal(unhealthyValue.diagnostics[0].code, "ENABLEMENT_DRIFT");
   assert.match(unhealthyValue.diagnostics[0].suggestion, /sklp disable/);
 });
+
+test("JSON commands return a stable JSON error envelope", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-json-error-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  mkdirSync(project);
+  assert.equal(cli(["init"], { cwd: project, hub, home: root }).status, 0);
+
+  const result = cli(["enable", "missing-skill", "--json"], { cwd: project, hub, home: root });
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  assert.deepEqual(JSON.parse(result.stdout), {
+    error: { code: "COMMAND_FAILED", message: "Skill not installed: missing-skill" }
+  });
+});
