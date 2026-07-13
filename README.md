@@ -87,6 +87,15 @@ sklp doctor
 
 `sklp info` shows where the Skill is enabled. `sklp doctor` is read-only and reports missing files, unmanaged target entries, broken links, or catalog drift with a concrete suggestion for each diagnostic.
 
+Check a copied Git Skill before updating it:
+
+```bash
+sklp update debugging-playbook --check
+sklp update debugging-playbook --check --json
+```
+
+Default-branch and branch-tracked Skills report `up-to-date` or `outdated`. Commit and tag selections report `pinned` and are never advanced by an update check. An inaccessible or ambiguous legacy source reports `unknown` and exits nonzero. Checks are read-only: they do not change the Hub, catalog, SQLite state, or managed entries.
+
 If the developer is actively editing the Skill locally instead of consuming a released copy, use `link`:
 
 ```bash

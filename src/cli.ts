@@ -62,12 +62,22 @@ program.command("link")
 program.command("update")
   .description(human("Update an installed Skill", "更新已安装 Skill"))
   .argument("<skill>")
+  .option("--check", human("Check whether a Git Skill has a remote update", "检查 Git Skill 是否有远程更新"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
-  .action(run((skill, options) => withApp((app) => {
+  .action(run((skill, options) => {
+    if (options.check) {
+      const update = withApp((app) => app.checkUpdate(skill), { recover: false, readOnly: true });
+      if (options.json) printJson({ update });
+      else printUpdateCheck(update);
+      if (update.status === "unknown") process.exitCode = 1;
+      return;
+    }
+    return withApp((app) => {
     const updated = app.update(skill);
     if (options.json) printJson({ skill: publicSkill(updated) });
     else console.log(human(`Updated ${updated.name}`, `已更新 ${updated.name}`));
-  })));
+    });
+  }));
 
 program.command("remove")
   .description(human("Remove an installed Skill", "移除已安装 Skill"))
@@ -186,7 +196,7 @@ program.command("doctor")
 
 program.parseAsync().catch(handleError);
 
-function withApp<T>(fn: (app: SkillPort) => T, options?: { recover?: boolean }): T {
+function withApp<T>(fn: (app: SkillPort) => T, options?: { recover?: boolean; readOnly?: boolean }): T {
   const app = SkillPort.open(options);
   try {
     return fn(app);
@@ -265,6 +275,24 @@ function printInstallResult(result: { skills: Skill[]; skipped: Array<{ name: st
   for (const skill of result.skills) {
     console.log(human(`Installed ${skill.name}\nInstance: ${skill.instanceId}`, `已安装 ${skill.name}\n实例: ${skill.instanceId}`));
   }
+}
+
+function printUpdateCheck(update: {
+  name: string;
+  status: string;
+  sourceTracking: string;
+  currentRevision: string | null;
+  remoteRevision: string | null;
+  reason?: string;
+}): void {
+  const lines = [
+    human(`Update check for ${update.name}: ${update.status}`, `更新检查 ${update.name}: ${update.status}`),
+    human(`Tracking: ${update.sourceTracking}`, `跟踪类型: ${update.sourceTracking}`),
+    human(`Current revision: ${update.currentRevision ?? "unknown"}`, `当前 revision: ${update.currentRevision ?? "未知"}`)
+  ];
+  if (update.remoteRevision) lines.push(human(`Remote revision: ${update.remoteRevision}`, `远程 revision: ${update.remoteRevision}`));
+  if (update.reason) lines.push(human(`Reason: ${update.reason}`, `原因: ${update.reason}`));
+  console.log(lines.join("\n"));
 }
 
 function handleError(error: unknown, json = false): void {

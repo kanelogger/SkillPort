@@ -97,6 +97,15 @@ sklp doctor
 
 `sklp info` 会显示 Skill 当前启用到哪里。`sklp doctor` 是只读诊断，会检查缺失文件、非受管目标入口、断开的链接或 catalog 漂移，并为每条诊断给出可执行建议。
 
+更新前可以检查复制安装的 Git Skill：
+
+```bash
+sklp update debugging-playbook --check
+sklp update debugging-playbook --check --json
+```
+
+默认分支和分支跟踪的 Skill 会报告 `up-to-date` 或 `outdated`。commit 和 tag 选择会报告 `pinned`，检查不会推进它们。无法访问或无法可靠判定的 legacy source 会报告 `unknown` 并以非零退出。检查完全只读：不会修改 Hub、catalog、SQLite 状态或受管入口。
+
 如果开发者正在本地编辑这个 Skill，使用 `link` 更合适：
 
 ```bash

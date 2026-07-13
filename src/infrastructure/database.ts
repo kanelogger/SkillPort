@@ -98,6 +98,16 @@ export class StateStore {
         this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(2, ?)").run(now());
       });
     }
+    if (version < 3 && this.hasTable("skills")) {
+      this.transaction(() => {
+        this.db.exec("ALTER TABLE skills ADD COLUMN source_tracking TEXT");
+        this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(3, ?)").run(now());
+      });
+    }
+  }
+
+  private hasTable(name: string): boolean {
+    return this.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?").get(name) !== undefined;
   }
 
   addProject(path: string): void {
@@ -120,17 +130,17 @@ export class StateStore {
 
   insertSkill(skill: Skill): void {
     this.db.prepare(`
-      INSERT INTO skills(instance_id,name,description,source_type,source_location,source_ref,source_revision,installed_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?)
+      INSERT INTO skills(instance_id,name,description,source_type,source_location,source_ref,source_revision,source_tracking,installed_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?)
     `).run(skill.instanceId, skill.name, skill.description, skill.sourceType, skill.sourceLocation,
-      skill.sourceRef, skill.sourceRevision, skill.installedAt, skill.updatedAt);
+      skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.installedAt, skill.updatedAt);
   }
 
   updateSkill(skill: Skill): void {
     this.db.prepare(`
-      UPDATE skills SET description=?,source_location=?,source_ref=?,source_revision=?,updated_at=?
+      UPDATE skills SET description=?,source_location=?,source_ref=?,source_revision=?,source_tracking=?,updated_at=?
       WHERE instance_id=?
-    `).run(skill.description, skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.updatedAt, skill.instanceId);
+    `).run(skill.description, skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.updatedAt, skill.instanceId);
   }
 
   deleteSkill(id: string): void {
@@ -205,6 +215,7 @@ function toSkill(row: Row): Skill {
     sourceLocation: String(row.source_location),
     sourceRef: row.source_ref == null ? null : String(row.source_ref),
     sourceRevision: row.source_revision == null ? null : String(row.source_revision),
+    sourceTracking: row.source_tracking == null ? null : row.source_tracking as Skill["sourceTracking"],
     installedAt: String(row.installed_at),
     updatedAt: String(row.updated_at)
   };

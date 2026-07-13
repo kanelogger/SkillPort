@@ -59,6 +59,7 @@ Status keys:
 | R47 Chinese users can opt into Chinese human-readable CLI output | Chinese output test covers `SKLP_LANG=zh-CN` for command help, `init`, `install`, `enable`, and `doctor`; JSON output remains stable in Chinese mode | Passed |
 | R48 doctor diagnostics include actionable suggestions | JSON output test checks diagnostic `suggestion`; Chinese output test checks human-readable `建议:` output for doctor drift | Passed |
 | R49 exit codes are documented for scripts and Agents | `docs/exit-codes.md` documents command failure semantics, doctor warning/error behavior, JSON automation fields, and Chinese notes; existing tests cover success, warning-only doctor, and error doctor statuses | Passed |
+| R50 single Git Skill update checks are read-only and report stable tracking status | `tests/git-source.test.js` covers default branch, named branch, commit pin, stored source tracking, and Hub state snapshots; README and exit-code docs define the contract | Passed |
 
 ## External Release Gates
 

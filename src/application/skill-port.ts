@@ -11,7 +11,9 @@ import { StateStore } from "../infrastructure/database.js";
 import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
-import { copySource, prepareInstallSources, prepareLocalSource, prepareSource, type PreparedSource } from "../infrastructure/sources.js";
+import {
+  copySource, inspectGitSource, prepareInstallSources, prepareLocalSource, prepareSource, type PreparedSource
+} from "../infrastructure/sources.js";
 import { globalTarget, toolKeys } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
 
@@ -134,6 +136,7 @@ export class SkillPort {
           sourceLocation: prepared.location,
           sourceRef: prepared.ref,
           sourceRevision: prepared.revision,
+          sourceTracking: prepared.sourceTracking,
           installedAt: timestamp,
           updatedAt: timestamp
         };
@@ -250,6 +253,7 @@ export class SkillPort {
         sourceLocation: sourceRoot,
         sourceRef: null,
         sourceRevision: null,
+        sourceTracking: null,
         installedAt: timestamp,
         updatedAt: timestamp
       };
@@ -330,6 +334,20 @@ export class SkillPort {
         rmSync(staged, { recursive: true, force: true });
       }
     });
+  }
+
+  checkUpdate(name: string): {
+    name: string;
+    status: "up-to-date" | "outdated" | "pinned" | "unknown";
+    sourceTracking: "default-branch" | "branch" | "tag" | "commit" | "unknown";
+    currentRevision: string | null;
+    remoteRevision: string | null;
+    reason?: string;
+  } {
+    const skill = this.requireSkill(name);
+    if (skill.sourceType !== "git") throw new CliError("Update checks are only available for Git-installed Skills.");
+    const inspection = inspectGitSource(skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking);
+    return { name: skill.name, currentRevision: skill.sourceRevision, ...inspection };
   }
 
   remove(name: string, force = false): void {
@@ -1027,14 +1045,16 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
 }
 
 function isSkill(value: unknown): value is Skill {
-  return isRecord(value)
-    && typeof value.instanceId === "string"
+  if (!isRecord(value)) return false;
+  if (!("sourceTracking" in value)) value.sourceTracking = null;
+  return typeof value.instanceId === "string"
     && typeof value.name === "string"
     && typeof value.description === "string"
     && (value.sourceType === "local" || value.sourceType === "git")
     && typeof value.sourceLocation === "string"
     && (value.sourceRef === null || typeof value.sourceRef === "string")
     && (value.sourceRevision === null || typeof value.sourceRevision === "string")
+    && (value.sourceTracking === null || ["default-branch", "branch", "tag", "commit"].includes(String(value.sourceTracking)))
     && typeof value.installedAt === "string"
     && typeof value.updatedAt === "string";
 }

@@ -7,6 +7,8 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 | `0` | The command completed successfully. `sklp doctor` also returns `0` when it finds warnings only. | Successful install, healthy doctor result, warning-only doctor drift such as an unregistered entry. |
 | `1` | The command failed, or `sklp doctor` found at least one error-severity diagnostic. | Invalid arguments, unsupported target, duplicate Skill name, missing Hub, broken enablement, corrupt database. |
 
+`sklp update <skill> --check` exits `0` for `up-to-date`, `outdated`, and `pinned`. It exits `1` for `unknown`, which means the remote source could not be checked or classified safely.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:

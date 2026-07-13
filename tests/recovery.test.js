@@ -230,6 +230,38 @@ test("a version 1 database migrates the operation journal payload column once", 
   reopened.close();
 });
 
+test("a version 2 database preserves legacy Skills while adding source tracking", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-migration-v2-"));
+  const paths = resolveHub(join(root, "hub"));
+  mkdirSync(paths.root, { recursive: true });
+  const db = new DatabaseSync(paths.database);
+  db.exec(`
+    CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+    CREATE TABLE skills (
+      instance_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      description TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_location TEXT NOT NULL,
+      source_ref TEXT,
+      source_revision TEXT,
+      installed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO schema_migrations(version, applied_at) VALUES(2, 'test');
+    INSERT INTO skills(instance_id,name,description,source_type,source_location,source_ref,source_revision,installed_at,updated_at)
+    VALUES('legacy-id','legacy-skill','Legacy Git Skill','git','https://example.invalid/repo.git','main','abc','test','test');
+  `);
+  db.close();
+
+  const store = new StateStore(paths);
+  const columns = store.db.prepare("PRAGMA table_info(skills)").all().map((column) => column.name);
+  assert.equal(columns.includes("source_tracking"), true);
+  assert.equal(store.skill("legacy-skill")?.sourceTracking, null);
+  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3]);
+  store.close();
+});
+
 function setup(name) {
   const root = mkdtempSync(join(tmpdir(), `sklp-recovery-${name}-`));
   const hub = join(root, "hub");

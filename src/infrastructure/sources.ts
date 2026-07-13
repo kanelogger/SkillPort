@@ -4,6 +4,7 @@ import {
 import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, posix, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
+import type { GitSourceTracking } from "../domain/models.js";
 import { isInside } from "./filesystem.js";
 
 export type PreparedSource = {
@@ -12,7 +13,15 @@ export type PreparedSource = {
   location: string;
   ref: string | null;
   revision: string | null;
+  sourceTracking: GitSourceTracking | null;
   cleanup: () => void;
+};
+
+export type GitUpdateInspection = {
+  status: "up-to-date" | "outdated" | "pinned" | "unknown";
+  sourceTracking: GitSourceTracking | "unknown";
+  remoteRevision: string | null;
+  reason?: string;
 };
 
 type PrepareOptions = { ref?: string; gitPath?: string };
@@ -42,6 +51,158 @@ export function prepareSource(input: string, staging: string, ref?: string): Pre
     throw new CliError("Skill source must contain exactly one Skill.");
   }
   return sources[0]!;
+}
+
+export function inspectGitSource(
+  source: string,
+  ref: string | null,
+  currentRevision: string | null,
+  sourceTracking: GitSourceTracking | null
+): GitUpdateInspection {
+  if (sourceTracking === "commit" || isCommitRef(ref)) {
+    return { status: "pinned", sourceTracking: "commit", remoteRevision: null };
+  }
+  if (sourceTracking === "tag") return { status: "pinned", sourceTracking: "tag", remoteRevision: null };
+  if (sourceTracking === "branch") return inspectBranchGitRef(source, ref, currentRevision);
+  if (sourceTracking === "default-branch") return inspectDefaultBranch(source, currentRevision);
+
+  if (ref) {
+    return inspectNamedGitRef(source, ref, currentRevision);
+  }
+  return inspectDefaultBranch(source, currentRevision);
+}
+
+function inspectDefaultBranch(source: string, currentRevision: string | null): GitUpdateInspection {
+  if (!currentRevision) {
+    return {
+      status: "unknown",
+      sourceTracking: "default-branch",
+      remoteRevision: null,
+      reason: "Git source has no stored revision. Reinstall the Skill."
+    };
+  }
+  try {
+    const spec = gitSourceSpec(source, {});
+    const result = runGit(["ls-remote", "--symref", "--", spec.cloneUrl, "HEAD"]);
+    if (result.error || result.status !== 0) throw gitCommandError("Git update check", result);
+    const remoteRevision = remoteHeadRevision(result.stdout);
+    if (!remoteRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "default-branch",
+        remoteRevision: null,
+        reason: "Git update check did not return a default branch revision."
+      };
+    }
+    return {
+      status: remoteRevision === currentRevision ? "up-to-date" : "outdated",
+      sourceTracking: "default-branch",
+      remoteRevision
+    };
+  } catch (error) {
+    return {
+      status: "unknown",
+      sourceTracking: "default-branch",
+      remoteRevision: null,
+      reason: sanitizeError(error)
+    };
+  }
+}
+
+function inspectNamedGitRef(source: string, ref: string, currentRevision: string | null): GitUpdateInspection {
+  if (!isValidRemoteRef(ref)) {
+    return {
+      status: "unknown",
+      sourceTracking: "unknown",
+      remoteRevision: null,
+      reason: "Git source ref is invalid. Reinstall the Skill."
+    };
+  }
+  try {
+    const spec = gitSourceSpec(source, {});
+    const branchRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref));
+    const tagRevision = remoteRefRevision(spec.cloneUrl, tagRef(ref));
+    if (branchRevision && tagRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "unknown",
+        remoteRevision: null,
+        reason: "Git source ref matches both a branch and a tag. Reinstall the Skill with an unambiguous ref."
+      };
+    }
+    if (tagRevision) return { status: "pinned", sourceTracking: "tag", remoteRevision: null };
+    if (!branchRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "unknown",
+        remoteRevision: null,
+        reason: "Git source ref was not found on the remote."
+      };
+    }
+    if (!currentRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "branch",
+        remoteRevision: branchRevision,
+        reason: "Git source has no stored revision. Reinstall the Skill."
+      };
+    }
+    return {
+      status: branchRevision === currentRevision ? "up-to-date" : "outdated",
+      sourceTracking: "branch",
+      remoteRevision: branchRevision
+    };
+  } catch (error) {
+    return {
+      status: "unknown",
+      sourceTracking: "unknown",
+      remoteRevision: null,
+      reason: sanitizeError(error)
+    };
+  }
+}
+
+function inspectBranchGitRef(source: string, ref: string | null, currentRevision: string | null): GitUpdateInspection {
+  if (!ref || !isValidRemoteRef(ref)) {
+    return {
+      status: "unknown",
+      sourceTracking: "branch",
+      remoteRevision: null,
+      reason: "Git source branch ref is invalid. Reinstall the Skill."
+    };
+  }
+  try {
+    const spec = gitSourceSpec(source, {});
+    const remoteRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref));
+    if (!remoteRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "branch",
+        remoteRevision: null,
+        reason: "Git source branch was not found on the remote."
+      };
+    }
+    if (!currentRevision) {
+      return {
+        status: "unknown",
+        sourceTracking: "branch",
+        remoteRevision,
+        reason: "Git source has no stored revision. Reinstall the Skill."
+      };
+    }
+    return {
+      status: remoteRevision === currentRevision ? "up-to-date" : "outdated",
+      sourceTracking: "branch",
+      remoteRevision
+    };
+  } catch (error) {
+    return {
+      status: "unknown",
+      sourceTracking: "branch",
+      remoteRevision: null,
+      reason: sanitizeError(error)
+    };
+  }
 }
 
 function prepareSources(input: string, staging: string, options: PrepareOptions): PreparedSource[] {
@@ -90,6 +251,7 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
         location: spec.location,
         ref: spec.ref,
         revision: revision.status === 0 ? revision.stdout.trim() : null,
+        sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
         cleanup: () => rmSync(cloneRoot, { recursive: true, force: true })
       }];
     }
@@ -103,6 +265,7 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
         location: spec.location,
         ref: spec.ref,
         revision: revision.status === 0 ? revision.stdout.trim() : null,
+        sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
         cleanup: () => rmSync(stagedRoot, { recursive: true, force: true })
       };
     });
@@ -133,6 +296,51 @@ function gitCommandError(action: string, result: ReturnType<typeof spawnSync>): 
 function gitTimeoutMs(): number {
   const value = Number(process.env.SKLP_GIT_TIMEOUT_MS ?? defaultGitTimeoutMs);
   return Number.isInteger(value) && value > 0 ? value : defaultGitTimeoutMs;
+}
+
+function isCommitRef(ref: string | null): boolean {
+  return ref !== null && /^[0-9a-f]{40,64}$/i.test(ref);
+}
+
+function sourceTrackingForGitRef(ref: string | null, cloneRoot: string): GitSourceTracking | null {
+  if (!ref) return "default-branch";
+  if (isCommitRef(ref)) return "commit";
+  if (ref.startsWith("refs/heads/")) return "branch";
+  if (ref.startsWith("refs/tags/")) return "tag";
+  const branch = runGit(["-C", cloneRoot, "show-ref", "--verify", "--quiet", `refs/remotes/origin/${ref}`]).status === 0;
+  const tag = runGit(["-C", cloneRoot, "show-ref", "--verify", "--quiet", `refs/tags/${ref}`]).status === 0;
+  if (branch === tag) return null;
+  return branch ? "branch" : "tag";
+}
+
+function remoteHeadRevision(output: string): string | null {
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^([0-9a-f]{40,64})\tHEAD$/i.exec(line);
+    if (match) return match[1]!;
+  }
+  return null;
+}
+
+function remoteRefRevision(source: string, ref: string): string | null {
+  const result = runGit(["ls-remote", "--refs", "--", source, ref]);
+  if (result.error || result.status !== 0) throw gitCommandError("Git update check", result);
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const match = /^([0-9a-f]{40,64})\t/.exec(line);
+    if (match) return match[1]!;
+  }
+  return null;
+}
+
+function branchRef(ref: string): string {
+  return ref.startsWith("refs/heads/") ? ref : `refs/heads/${ref}`;
+}
+
+function tagRef(ref: string): string {
+  return ref.startsWith("refs/tags/") ? ref : `refs/tags/${ref}`;
+}
+
+function isValidRemoteRef(ref: string): boolean {
+  return !ref.startsWith("-") && !/[\0\r\n]/.test(ref);
 }
 
 function prepareRegistrySources(path: string): PreparedSource[] {
@@ -198,6 +406,7 @@ export function prepareLocalSource(input: string): PreparedSource {
     location: local,
     ref: null,
     revision: null,
+    sourceTracking: null,
     cleanup: () => undefined
   };
 }
