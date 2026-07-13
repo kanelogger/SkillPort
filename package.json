@@ -1,6 +1,6 @@
 {
   "name": "skill-port-cli",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Local Agent Skill hub and project binding CLI",
   "type": "module",
   "bin": {
@@ -10,6 +10,7 @@
     "dist",
     "docs/supported-targets.md",
     "docs/exit-codes.md",
+    "CHANGELOG.md",
     "README.md",
     "README.zh-CN.md",
     "LICENSE"
@@ -39,8 +40,7 @@
     "typescript-eslint": "^8.38.0"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "license": "Apache-2.0"
 }
