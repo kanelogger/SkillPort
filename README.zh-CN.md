@@ -106,6 +106,17 @@ sklp update debugging-playbook --check --json
 
 默认分支和分支跟踪的 Skill 会报告 `up-to-date` 或 `outdated`。commit 和 tag 选择会报告 `pinned`，检查不会推进它们。无法访问或无法可靠判定的 legacy source 会报告 `unknown` 并以非零退出。检查完全只读：不会修改 Hub、catalog、SQLite 状态或受管入口。
 
+可以先查看或预览全部已安装 Skill，再决定批量更新：
+
+```bash
+sklp update --all --check
+sklp update my-skill --dry-run --json
+sklp update --all --dry-run --json
+sklp update --all --json
+```
+
+批量检查按名称排序。本地复制和 linked Skill 会以稳定原因跳过；tag 与 commit 固定版本会以 `pinned` 跳过。`--dry-run` 会解析将要更新的精确 revision，但不修改 Hub。`--all` 只更新复制安装的 Git Skill；单个 Skill 失败不会回滚已经完成的更新，也不会阻止后续 Skill，并在 JSON 中输出 `updated`、`skipped` 和 `failed` 数组。
+
 如果开发者正在本地编辑这个 Skill，使用 `link` 更合适：
 
 ```bash

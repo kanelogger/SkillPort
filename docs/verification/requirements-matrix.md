@@ -60,6 +60,7 @@ Status keys:
 | R48 doctor diagnostics include actionable suggestions | JSON output test checks diagnostic `suggestion`; Chinese output test checks human-readable `建议:` output for doctor drift | Passed |
 | R49 exit codes are documented for scripts and Agents | `docs/exit-codes.md` documents command failure semantics, doctor warning/error behavior, JSON automation fields, and Chinese notes; existing tests cover success, warning-only doctor, and error doctor statuses | Passed |
 | R50 single Git Skill update checks are read-only and report stable tracking status | `tests/git-source.test.js` covers default branch, named branch, commit pin, stored source tracking, and Hub state snapshots; README and exit-code docs define the contract | Passed |
+| R51 fleet Git update checks, previews, and batch updates are deterministic and isolated | `tests/batch-update.test.js` covers name order, local/linked/tag skips, Chinese human output, JSON contracts, immutable Hub/managed-entry snapshots, resolved revisions, partial failure continuation, and preserved enablements; README and exit-code docs define the contract | Passed |
 
 ## External Release Gates
 

@@ -12,7 +12,8 @@ import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
 import {
-  copySource, inspectGitSource, prepareInstallSources, prepareLocalSource, prepareSource, type PreparedSource
+  copySource, inspectGitSource, prepareInstallSources, prepareLocalSource, prepareSource,
+  type GitUpdateInspection, type PreparedSource
 } from "../infrastructure/sources.js";
 import { globalTarget, toolKeys } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
@@ -31,6 +32,31 @@ type InstallSkipped = InstallMetadata & { reason: "already-installed" };
 type InstallFailed = Partial<InstallMetadata> & { path: string; reason: string };
 type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
 type InstallOptions = { skipExisting?: boolean; gitPath?: string };
+type UpdateSkipReason = "linked" | "local-copied" | "pinned" | "up-to-date";
+
+export type UpdateCheck = GitUpdateInspection & {
+  name: string;
+  currentRevision: string | null;
+};
+
+export type FleetUpdateCheck = UpdateCheck | {
+  name: string;
+  status: "skipped";
+  sourceTracking: "linked" | "local";
+  currentRevision: null;
+  remoteRevision: null;
+  reason: "linked" | "local-copied";
+};
+
+export type UpdateSummary = {
+  planned: Array<{ name: string; revision: string }>;
+  skipped: Array<{ name: string; reason: UpdateSkipReason }>;
+  failed: Array<{ name: string; reason: string }>;
+};
+
+export type BatchUpdateSummary = Omit<UpdateSummary, "planned"> & {
+  updated: Array<{ name: string; revision: string }>;
+};
 
 class RecoveryPendingError extends Error {
   constructor(kind: string, cause: unknown) {
@@ -285,7 +311,7 @@ export class SkillPort {
     });
   }
 
-  update(name: string): Skill {
+  update(name: string, revision?: string): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
       const staged = join(this.paths.staging, `update-${randomUUID()}`);
@@ -296,7 +322,7 @@ export class SkillPort {
         return this.updateLinkedSkill(current);
       }
       checkpoint({ kind: "update", skill: current, destination, backup });
-      const prepared = prepareSource(current.sourceLocation, this.paths.staging, current.sourceRef ?? undefined);
+      const prepared = prepareSource(current.sourceLocation, this.paths.staging, revision ?? current.sourceRef ?? undefined);
       try {
         const metadata = readSkillMetadata(prepared.root);
         if (metadata.name !== current.name) throw new CliError("Updated Skill name changed; remove and reinstall it.");
@@ -336,18 +362,89 @@ export class SkillPort {
     });
   }
 
-  checkUpdate(name: string): {
-    name: string;
-    status: "up-to-date" | "outdated" | "pinned" | "unknown";
-    sourceTracking: "default-branch" | "branch" | "tag" | "commit" | "unknown";
-    currentRevision: string | null;
-    remoteRevision: string | null;
-    reason?: string;
-  } {
+  checkUpdate(name: string): UpdateCheck {
     const skill = this.requireSkill(name);
     if (skill.sourceType !== "git") throw new CliError("Update checks are only available for Git-installed Skills.");
+    return this.checkGitUpdate(skill);
+  }
+
+  checkAllUpdates(): FleetUpdateCheck[] {
+    return this.store.skills().map((skill) => this.checkFleetUpdate(skill));
+  }
+
+  previewUpdate(name: string): UpdateSummary {
+    return this.planUpdates([this.requireSkill(name)]);
+  }
+
+  previewAllUpdates(): UpdateSummary {
+    return this.planUpdates(this.store.skills());
+  }
+
+  updateAll(): BatchUpdateSummary {
+    const plan = this.previewAllUpdates();
+    const updated: BatchUpdateSummary["updated"] = [];
+    const failed = [...plan.failed];
+    for (const item of plan.planned) {
+      try {
+        const skill = this.update(item.name, item.revision);
+        updated.push({ name: skill.name, revision: skill.sourceRevision ?? item.revision });
+      } catch (error) {
+        failed.push({ name: item.name, reason: sanitizeError(error) });
+      }
+    }
+    return {
+      updated: updated.sort(byName),
+      skipped: plan.skipped.sort(byName),
+      failed: failed.sort(byName)
+    };
+  }
+
+  private checkGitUpdate(skill: Skill): UpdateCheck {
     const inspection = inspectGitSource(skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking);
     return { name: skill.name, currentRevision: skill.sourceRevision, ...inspection };
+  }
+
+  private checkFleetUpdate(skill: Skill): FleetUpdateCheck {
+    if (this.isLinkedSkill(skill)) {
+      return {
+        name: skill.name,
+        status: "skipped",
+        sourceTracking: "linked",
+        currentRevision: null,
+        remoteRevision: null,
+        reason: "linked"
+      };
+    }
+    if (skill.sourceType !== "git") {
+      return {
+        name: skill.name,
+        status: "skipped",
+        sourceTracking: "local",
+        currentRevision: null,
+        remoteRevision: null,
+        reason: "local-copied"
+      };
+    }
+    return this.checkGitUpdate(skill);
+  }
+
+  private planUpdates(skills: Skill[]): UpdateSummary {
+    const planned: UpdateSummary["planned"] = [];
+    const skipped: UpdateSummary["skipped"] = [];
+    const failed: UpdateSummary["failed"] = [];
+    for (const check of skills.map((skill) => this.checkFleetUpdate(skill))) {
+      if (check.status === "skipped") {
+        skipped.push({ name: check.name, reason: check.reason });
+      } else if (check.status === "outdated") {
+        if (check.remoteRevision) planned.push({ name: check.name, revision: check.remoteRevision });
+        else failed.push({ name: check.name, reason: "Git update check returned no remote revision." });
+      } else if (check.status === "unknown") {
+        failed.push({ name: check.name, reason: check.reason ?? "Git update check failed." });
+      } else if (check.status === "up-to-date" || check.status === "pinned") {
+        skipped.push({ name: check.name, reason: check.status });
+      }
+    }
+    return { planned, skipped, failed };
   }
 
   remove(name: string, force = false): void {
@@ -1009,6 +1106,10 @@ function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill,
   } catch {
     return false;
   }
+}
+
+function byName(left: { name: string }, right: { name: string }): number {
+  return left.name.localeCompare(right.name);
 }
 
 function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | null {

@@ -9,6 +9,8 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp update <skill> --check` exits `0` for `up-to-date`, `outdated`, and `pinned`. It exits `1` for `unknown`, which means the remote source could not be checked or classified safely.
 
+`sklp update --all --check` exits `1` when any Git source is `unknown`. `sklp update <skill> --dry-run`, `sklp update --all --dry-run`, and `sklp update --all` exit `1` when their `failed` array is non-empty; skipped entries do not make the command fail.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:
@@ -39,5 +41,7 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 | `1` | 命令失败，或 `sklp doctor` 发现至少一个 error 级诊断。 | 参数错误、不支持的目标、Skill 同名、Hub 缺失、启用入口损坏、数据库损坏。 |
 
 `sklp doctor --json` 适合自动化，字段名不会因为 `SKLP_LANG=zh-CN` 改变。
+
+`sklp update --all --check` 只要有任一 Git source 为 `unknown` 就返回 `1`。`sklp update <skill> --dry-run`、`sklp update --all --dry-run` 和 `sklp update --all` 只要 `failed` 数组非空就返回 `1`；跳过条目不会导致失败。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

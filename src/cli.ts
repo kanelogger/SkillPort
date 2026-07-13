@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { CliError, sanitizeError } from "./domain/errors.js";
-import { SkillPort } from "./application/skill-port.js";
+import { SkillPort, type BatchUpdateSummary, type FleetUpdateCheck, type UpdateSummary } from "./application/skill-port.js";
 import type { Skill } from "./domain/models.js";
 
 const program = new Command()
@@ -61,15 +61,35 @@ program.command("link")
 
 program.command("update")
   .description(human("Update an installed Skill", "更新已安装 Skill"))
-  .argument("<skill>")
+  .argument("[skill]")
+  .option("--all", human("Check, preview, or update every installed Skill", "检查、预览或更新所有已安装 Skill"))
   .option("--check", human("Check whether a Git Skill has a remote update", "检查 Git Skill 是否有远程更新"))
+  .option("--dry-run", human("Preview update results without changing state", "预览更新结果，不改写状态"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => {
+    validateUpdateTarget(skill, options);
+    if (options.check && options.dryRun) {
+      throw new CliError(human("Choose either --check or --dry-run.", "请选择 --check 或 --dry-run 其中之一。"));
+    }
     if (options.check) {
-      const update = withApp((app) => app.checkUpdate(skill), { recover: false, readOnly: true });
-      if (options.json) printJson({ update });
-      else printUpdateCheck(update);
-      if (update.status === "unknown") process.exitCode = 1;
+      const updates = withApp((app) => options.all ? app.checkAllUpdates() : [app.checkUpdate(skill)], { recover: false, readOnly: true });
+      if (options.json) printJson(options.all ? { updates } : { update: updates[0] });
+      else for (const update of updates) printUpdateCheck(update);
+      if (updates.some((update) => update.status === "unknown")) process.exitCode = 1;
+      return;
+    }
+    if (options.dryRun) {
+      const preview = withApp((app) => options.all ? app.previewAllUpdates() : app.previewUpdate(skill), { recover: false, readOnly: true });
+      if (options.json) printJson(preview);
+      else printUpdateSummary(preview);
+      if (preview.failed.length > 0) process.exitCode = 1;
+      return;
+    }
+    if (options.all) {
+      const result = withApp((app) => app.updateAll());
+      if (options.json) printJson(result);
+      else printBatchUpdateSummary(result);
+      if (result.failed.length > 0) process.exitCode = 1;
       return;
     }
     return withApp((app) => {
@@ -277,14 +297,7 @@ function printInstallResult(result: { skills: Skill[]; skipped: Array<{ name: st
   }
 }
 
-function printUpdateCheck(update: {
-  name: string;
-  status: string;
-  sourceTracking: string;
-  currentRevision: string | null;
-  remoteRevision: string | null;
-  reason?: string;
-}): void {
+function printUpdateCheck(update: FleetUpdateCheck): void {
   const lines = [
     human(`Update check for ${update.name}: ${update.status}`, `更新检查 ${update.name}: ${update.status}`),
     human(`Tracking: ${update.sourceTracking}`, `跟踪类型: ${update.sourceTracking}`),
@@ -293,6 +306,29 @@ function printUpdateCheck(update: {
   if (update.remoteRevision) lines.push(human(`Remote revision: ${update.remoteRevision}`, `远程 revision: ${update.remoteRevision}`));
   if (update.reason) lines.push(human(`Reason: ${update.reason}`, `原因: ${update.reason}`));
   console.log(lines.join("\n"));
+}
+
+function printUpdateSummary(summary: UpdateSummary): void {
+  console.log(human("Update preview", "更新预览"));
+  for (const item of summary.planned) console.log(human(`Update ${item.name} to ${item.revision}`, `更新 ${item.name} 至 ${item.revision}`));
+  printSkippedAndFailed(summary);
+}
+
+function printBatchUpdateSummary(summary: BatchUpdateSummary): void {
+  console.log(human("Batch update summary", "批量更新汇总"));
+  for (const item of summary.updated) console.log(human(`Updated ${item.name} to ${item.revision}`, `已更新 ${item.name} 至 ${item.revision}`));
+  printSkippedAndFailed(summary);
+}
+
+function printSkippedAndFailed(summary: Pick<UpdateSummary, "skipped" | "failed">): void {
+  for (const item of summary.skipped) console.log(human(`Skipped ${item.name}: ${item.reason}`, `已跳过 ${item.name}: ${item.reason}`));
+  for (const item of summary.failed) console.log(human(`Failed ${item.name}: ${item.reason}`, `失败 ${item.name}: ${item.reason}`));
+}
+
+function validateUpdateTarget(skill: string | undefined, options: { all?: boolean }): void {
+  if (Boolean(skill) === Boolean(options.all)) {
+    throw new CliError(human("Specify exactly one Skill name or --all.", "请仅指定一个 Skill 名称或 --all。"));
+  }
 }
 
 function handleError(error: unknown, json = false): void {

@@ -1,3 +1,6 @@
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Enablement, Skill } from "../domain/models.js";
 import type { HubPaths } from "./config.js";
@@ -13,10 +16,15 @@ export type InterruptedOperation = {
 export class StateStore {
   readonly db: DatabaseSync;
   readonly readOnly: boolean;
+  private readonly readOnlySnapshot: string | null;
 
   constructor(paths: HubPaths, options: { readOnly?: boolean } = {}) {
     this.readOnly = options.readOnly === true;
-    this.db = new DatabaseSync(paths.database, { timeout: 5_000, readOnly: this.readOnly });
+    this.readOnlySnapshot = this.readOnly ? snapshotDatabase(paths.database) : null;
+    this.db = new DatabaseSync(this.readOnlySnapshot ? join(this.readOnlySnapshot, "state.db") : paths.database, {
+      timeout: 5_000,
+      readOnly: this.readOnly
+    });
     if (this.readOnly) {
       this.db.prepare("SELECT name FROM sqlite_schema LIMIT 1").get();
     } else {
@@ -27,6 +35,7 @@ export class StateStore {
 
   close(): void {
     this.db.close();
+    if (this.readOnlySnapshot) rmSync(this.readOnlySnapshot, { recursive: true, force: true });
   }
 
   transaction<T>(fn: () => T): T {
@@ -200,6 +209,16 @@ export class StateStore {
         payload: parsePayload(row.payload_json)
       }));
   }
+}
+
+function snapshotDatabase(database: string): string {
+  const snapshot = mkdtempSync(join(tmpdir(), "sklp-readonly-"));
+  copyFileSync(database, join(snapshot, "state.db"));
+  for (const suffix of ["-wal", "-shm"]) {
+    const source = `${database}${suffix}`;
+    if (existsSync(source)) copyFileSync(source, join(snapshot, `state.db${suffix}`));
+  }
+  return snapshot;
 }
 
 function now(): string {

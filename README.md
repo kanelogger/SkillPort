@@ -96,6 +96,17 @@ sklp update debugging-playbook --check --json
 
 Default-branch and branch-tracked Skills report `up-to-date` or `outdated`. Commit and tag selections report `pinned` and are never advanced by an update check. An inaccessible or ambiguous legacy source reports `unknown` and exits nonzero. Checks are read-only: they do not change the Hub, catalog, SQLite state, or managed entries.
 
+Inspect or preview the complete installed fleet before updating it:
+
+```bash
+sklp update --all --check
+sklp update my-skill --dry-run --json
+sklp update --all --dry-run --json
+sklp update --all --json
+```
+
+Fleet checks run in name order. Copied local Skills and linked Skills are reported as skips; tag and commit pins are skipped as `pinned`. `--dry-run` resolves the exact revisions that would be updated without changing the Hub. `--all` updates only copied Git Skills, keeps completed updates when another Skill fails, and returns `updated`, `skipped`, and `failed` arrays in JSON.
+
 If the developer is actively editing the Skill locally instead of consuming a released copy, use `link`:
 
 ```bash
