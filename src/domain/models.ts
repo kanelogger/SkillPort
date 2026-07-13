@@ -9,6 +9,7 @@ export type Skill = {
   sourceRef: string | null;
   sourceRevision: string | null;
   sourceTracking: GitSourceTracking | null;
+  tags: string[];
   installedAt: string;
   updatedAt: string;
 };

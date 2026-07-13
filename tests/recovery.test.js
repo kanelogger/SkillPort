@@ -135,6 +135,7 @@ test("an interrupted forced removal restores content, state, and managed entries
     backup,
     enablements: info.enablements
   };
+  delete payload.skill.tags;
   const db = new DatabaseSync(join(fixture.hub, "state.db"));
   db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
     .run("crashed-remove", "remove", "started", JSON.stringify(payload), new Date().toISOString());
@@ -258,7 +259,9 @@ test("a version 2 database preserves legacy Skills while adding source tracking"
   const columns = store.db.prepare("PRAGMA table_info(skills)").all().map((column) => column.name);
   assert.equal(columns.includes("source_tracking"), true);
   assert.equal(store.skill("legacy-skill")?.sourceTracking, null);
-  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3]);
+  assert.deepEqual(store.skill("legacy-skill")?.tags, []);
+  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3, 4, 5]);
+  assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='index' AND name='skill_tags_tag_skill_id'").get() !== undefined, true);
   store.close();
 });
 

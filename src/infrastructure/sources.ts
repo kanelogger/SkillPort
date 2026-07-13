@@ -2,7 +2,7 @@ import {
   cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
 } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { basename, dirname, isAbsolute, join, posix, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import type { GitSourceTracking } from "../domain/models.js";
 import { isInside } from "./filesystem.js";
@@ -14,6 +14,7 @@ export type PreparedSource = {
   ref: string | null;
   revision: string | null;
   sourceTracking: GitSourceTracking | null;
+  publisher: string | null;
   cleanup: () => void;
 };
 
@@ -217,6 +218,7 @@ function prepareSources(input: string, staging: string, options: PrepareOptions)
 
 function prepareGitSources(input: string, staging: string, options: PrepareOptions): PreparedSource[] {
   const spec = gitSourceSpec(input, options);
+  const publisher = githubOwner(input);
   const cloneRoot = join(staging, `git-${Date.now()}-${process.pid}`);
   const stagedRoots: string[] = [];
   mkdirSync(cloneRoot, { recursive: true });
@@ -252,6 +254,7 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
         ref: spec.ref,
         revision: revision.status === 0 ? revision.stdout.trim() : null,
         sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
+        publisher,
         cleanup: () => rmSync(cloneRoot, { recursive: true, force: true })
       }];
     }
@@ -262,10 +265,11 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
       return {
         root: stagedRoot,
         type: "git" as const,
-        location: spec.location,
+        location: sourceWithPathFragment(spec.cloneUrl, relative(cloneRoot, root).replaceAll("\\", "/")),
         ref: spec.ref,
         revision: revision.status === 0 ? revision.stdout.trim() : null,
         sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
+        publisher,
         cleanup: () => rmSync(stagedRoot, { recursive: true, force: true })
       };
     });
@@ -407,6 +411,7 @@ export function prepareLocalSource(input: string): PreparedSource {
     ref: null,
     revision: null,
     sourceTracking: null,
+    publisher: null,
     cleanup: () => undefined
   };
 }
@@ -474,6 +479,17 @@ function githubTreeSpec(input: string): GitSourceSpec | null {
     ref,
     path
   };
+}
+
+function githubOwner(input: string): string | null {
+  try {
+    const url = new URL(input);
+    if (url.hostname.toLowerCase() !== "github.com") return null;
+    return url.pathname.split("/").filter(Boolean).map(decodeURIComponent)[0] ?? null;
+  } catch {
+    const match = /^git@github\.com:([^/]+)\/[^/]+(?:\.git)?(?:#.*)?$/i.exec(input);
+    return match?.[1] ?? null;
+  }
 }
 
 function validateGitRef(ref: string | undefined): void {

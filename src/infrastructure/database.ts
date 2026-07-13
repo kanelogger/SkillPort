@@ -17,6 +17,7 @@ export class StateStore {
   readonly db: DatabaseSync;
   readonly readOnly: boolean;
   private readonly readOnlySnapshot: string | null;
+  private readonly hasSkillTagsTable: boolean;
 
   constructor(paths: HubPaths, options: { readOnly?: boolean } = {}) {
     this.readOnly = options.readOnly === true;
@@ -31,6 +32,7 @@ export class StateStore {
       this.db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
       this.migrate();
     }
+    this.hasSkillTagsTable = this.hasTable("skill_tags");
   }
 
   close(): void {
@@ -113,10 +115,42 @@ export class StateStore {
         this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(3, ?)").run(now());
       });
     }
+    if (version < 4 && this.hasTable("skills")) {
+      this.transaction(() => {
+        this.db.exec(`
+          CREATE TABLE skill_tags (
+            skill_id TEXT NOT NULL REFERENCES skills(instance_id) ON DELETE CASCADE,
+            tag TEXT NOT NULL COLLATE NOCASE,
+            PRIMARY KEY (skill_id, tag)
+          );
+        `);
+        this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(4, ?)").run(now());
+      });
+    }
+    if (version < 5 && this.hasTable("skill_tags")) {
+      this.transaction(() => {
+        this.db.exec("CREATE INDEX skill_tags_tag_skill_id ON skill_tags(tag COLLATE NOCASE, skill_id)");
+        this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(5, ?)").run(now());
+      });
+    }
   }
 
   private hasTable(name: string): boolean {
     return this.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?").get(name) !== undefined;
+  }
+
+  private hydrateSkills(rows: Row[]): Skill[] {
+    const skills = rows.map(toSkill);
+    if (!this.hasSkillTagsTable || skills.length === 0) return skills;
+    const tagsBySkill = new Map(skills.map((skill) => [skill.instanceId, [] as string[]]));
+    const placeholders = skills.map(() => "?").join(",");
+    const tags = this.db.prepare(`
+      SELECT skill_id,tag FROM skill_tags
+      WHERE skill_id IN (${placeholders})
+      ORDER BY tag COLLATE NOCASE
+    `).all(...skills.map((skill) => skill.instanceId)) as Row[];
+    for (const tag of tags) tagsBySkill.get(String(tag.skill_id))?.push(String(tag.tag));
+    return skills.map((skill) => ({ ...skill, tags: tagsBySkill.get(skill.instanceId) ?? [] }));
   }
 
   addProject(path: string): void {
@@ -129,12 +163,22 @@ export class StateStore {
   }
 
   skills(): Skill[] {
-    return (this.db.prepare("SELECT * FROM skills ORDER BY name COLLATE NOCASE").all() as Row[]).map(toSkill);
+    return this.hydrateSkills(this.db.prepare("SELECT * FROM skills ORDER BY name COLLATE NOCASE").all() as Row[]);
   }
 
   skill(name: string): Skill | null {
     const row = this.db.prepare("SELECT * FROM skills WHERE name = ? COLLATE NOCASE").get(name) as Row | undefined;
-    return row ? toSkill(row) : null;
+    return row ? this.hydrateSkills([row])[0]! : null;
+  }
+
+  skillsWithTag(tag: string): Skill[] {
+    if (!this.hasSkillTagsTable) return [];
+    return this.hydrateSkills(this.db.prepare(`
+      SELECT skills.* FROM skills
+      JOIN skill_tags ON skill_tags.skill_id=skills.instance_id
+      WHERE skill_tags.tag=? COLLATE NOCASE
+      ORDER BY skills.name COLLATE NOCASE
+    `).all(tag) as Row[]);
   }
 
   insertSkill(skill: Skill): void {
@@ -143,6 +187,9 @@ export class StateStore {
       VALUES(?,?,?,?,?,?,?,?,?,?)
     `).run(skill.instanceId, skill.name, skill.description, skill.sourceType, skill.sourceLocation,
       skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.installedAt, skill.updatedAt);
+    for (const tag of skill.tags) {
+      this.db.prepare("INSERT INTO skill_tags(skill_id,tag) VALUES(?,?)").run(skill.instanceId, tag);
+    }
   }
 
   updateSkill(skill: Skill): void {
@@ -235,6 +282,7 @@ function toSkill(row: Row): Skill {
     sourceRef: row.source_ref == null ? null : String(row.source_ref),
     sourceRevision: row.source_revision == null ? null : String(row.source_revision),
     sourceTracking: row.source_tracking == null ? null : row.source_tracking as Skill["sourceTracking"],
+    tags: [],
     installedAt: String(row.installed_at),
     updatedAt: String(row.updated_at)
   };

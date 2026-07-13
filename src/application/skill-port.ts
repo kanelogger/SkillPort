@@ -109,8 +109,9 @@ export class SkillPort {
     const preparedSources = prepareInstallSources(source, this.paths.staging, { ref, gitPath: options.gitPath });
     try {
       const plan = this.installPlan(preparedSources, options);
+      const publisher = plan.candidates.length >= 2 ? plan.candidates[0]?.prepared.publisher : null;
       return {
-        skills: plan.candidates.map((candidate) => this.installPreparedSource(candidate.prepared)),
+        skills: plan.candidates.map((candidate) => this.installPreparedSource(candidate.prepared, publisher ? [publisher] : [])),
         skipped: plan.skipped
       };
     } finally {
@@ -136,7 +137,7 @@ export class SkillPort {
     }
   }
 
-  private installPreparedSource(prepared: PreparedSource): Skill {
+  private installPreparedSource(prepared: PreparedSource, tags: string[] = []): Skill {
     return this.mutate("install", (checkpoint) => {
       const staged = join(this.paths.staging, `install-${randomUUID()}`);
       try {
@@ -163,6 +164,7 @@ export class SkillPort {
           sourceRef: prepared.ref,
           sourceRevision: prepared.revision,
           sourceTracking: prepared.sourceTracking,
+          tags,
           installedAt: timestamp,
           updatedAt: timestamp
         };
@@ -280,6 +282,7 @@ export class SkillPort {
         sourceRef: null,
         sourceRevision: null,
         sourceTracking: null,
+        tags: [],
         installedAt: timestamp,
         updatedAt: timestamp
       };
@@ -578,8 +581,8 @@ export class SkillPort {
     });
   }
 
-  list(): Skill[] {
-    return this.store.skills();
+  list(tag?: string): Skill[] {
+    return tag ? this.store.skillsWithTag(tag) : this.store.skills();
   }
 
   info(name: string): { skill: Skill; enablements: EnablementInfo[] } {
@@ -1148,6 +1151,7 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
 function isSkill(value: unknown): value is Skill {
   if (!isRecord(value)) return false;
   if (!("sourceTracking" in value)) value.sourceTracking = null;
+  if (!("tags" in value)) value.tags = [];
   return typeof value.instanceId === "string"
     && typeof value.name === "string"
     && typeof value.description === "string"
@@ -1156,6 +1160,7 @@ function isSkill(value: unknown): value is Skill {
     && (value.sourceRef === null || typeof value.sourceRef === "string")
     && (value.sourceRevision === null || typeof value.sourceRevision === "string")
     && (value.sourceTracking === null || ["default-branch", "branch", "tag", "commit"].includes(String(value.sourceTracking)))
+    && Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === "string")
     && typeof value.installedAt === "string"
     && typeof value.updatedAt === "string";
 }

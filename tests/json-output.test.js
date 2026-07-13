@@ -19,8 +19,9 @@ test("machine-readable output is available for core automation commands", () => 
   assert.equal(installed.stderr, "");
   const installedValue = JSON.parse(installed.stdout);
   assert.deepEqual(Object.keys(installedValue), ["skills"]);
-  assert.deepEqual(Object.keys(installedValue.skills[0]).sort(), ["description", "instanceId", "name"]);
+  assert.deepEqual(Object.keys(installedValue.skills[0]).sort(), ["description", "instanceId", "name", "tags"]);
   assert.equal(installedValue.skills[0].name, "json-skill");
+  assert.deepEqual(installedValue.skills[0].tags, []);
 
   const listed = cli(["list", "--json"], { cwd: project, hub, home: root });
   assert.equal(listed.status, 0, listed.stderr);

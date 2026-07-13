@@ -129,7 +129,7 @@ sklp install https://github.com/example/skills.git --ref main --path skills/revi
 sklp install https://github.com/example/skills/tree/main/skills/review-animations
 ```
 
-Use `--path` when a Git repository keeps the Skill below the repository root. GitHub `tree/<ref>/<path>` URLs copied from the browser are also accepted. If the selected Git path does not contain `SKILL.md` directly, Skill Port scans that path for multiple Skill directories. `--dry-run --json` lists installable, skipped, and failed entries; real installs still preflight duplicate names before writing state. Git commands disable terminal credential prompts and time out after 30 seconds by default; set `SKLP_GIT_TIMEOUT_MS` to use a different positive millisecond limit.
+Use `--path` when a Git repository keeps the Skill below the repository root. GitHub `tree/<ref>/<path>` URLs copied from the browser are also accepted. If the selected Git path does not contain `SKILL.md` directly, Skill Port scans that path for multiple Skill directories. When a GitHub URL installs at least two new valid Skills, each receives the GitHub owner as a Hub-only Publisher tag; use `sklp list --tag <owner>` to filter them case-insensitively. `--dry-run --json` lists installable, skipped, and failed entries; real installs still preflight duplicate names before writing state. Git commands disable terminal credential prompts and time out after 30 seconds by default; set `SKLP_GIT_TIMEOUT_MS` to use a different positive millisecond limit.
 
 Registry files named `sources.json` are supported for local registry imports:
 
@@ -190,7 +190,7 @@ See [exit codes](docs/exit-codes.md). Skill Port CLI uses `0` for successful com
 
 ## Machine-readable output
 
-Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
+Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Public Skill JSON includes a `tags` array; Publisher tags remain Hub-only and never appear in catalog output. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
 
 ```json
 {

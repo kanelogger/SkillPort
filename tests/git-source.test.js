@@ -253,30 +253,32 @@ test("Git subdirectory installs preserve update behavior", () => {
   assert.equal(info.skill.description, "After update");
 });
 
-test("GitHub tree URLs install from the selected path", () => {
+test("GitHub tree URLs tag multi-Skill installs with their publisher", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-github-tree-"));
   const hub = join(root, "hub");
   const project = join(root, "project");
   const source = join(root, "repo");
   mkdirSync(project);
   mkdirSync(source);
-  makeSkill(join(source, "skills", "tree-skill"), "tree-skill", "From a GitHub tree URL");
+  makeSkill(join(source, "skills", "tree-alpha"), "tree-alpha", "First GitHub tree Skill");
+  makeSkill(join(source, "skills", "tree-beta"), "tree-beta", "Second GitHub tree Skill");
   git(["init"], source);
   git(["branch", "-M", "main"], source);
   git(["add", "."], source);
   git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
-  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = https://github.com/skillport-fixtures/tree-url.git\n`);
+  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = https://github.com/JimLiu/tree-url.git\n`);
   cli(["init"], { cwd: project, hub, home: root });
 
-  const result = cli(["install", "https://github.com/skillport-fixtures/tree-url/tree/main/skills/tree-skill"], {
+  const result = cli(["install", "https://github.com/JimLiu/tree-url/tree/main/skills"], {
     cwd: project,
     hub,
     home: root
   });
   assert.equal(result.status, 0, result.stderr);
-  const info = JSON.parse(cli(["info", "tree-skill"], { cwd: project, hub, home: root }).stdout);
+  const info = JSON.parse(cli(["info", "tree-alpha"], { cwd: project, hub, home: root }).stdout);
   assert.equal(info.skill.sourceRef, "main");
-  assert.equal(info.skill.sourceLocation, "https://github.com/skillport-fixtures/tree-url/tree/main/skills/tree-skill");
+  assert.deepEqual(info.skill.tags, ["JimLiu"]);
+  assert.deepEqual(JSON.parse(cli(["list", "--tag", "JIMLIU", "--json"], { cwd: project, hub, home: root }).stdout).skills.map((skill) => skill.name), ["tree-alpha", "tree-beta"]);
 });
 
 test("Git install scans a repository directory that contains multiple Skills", () => {
@@ -298,6 +300,83 @@ test("Git install scans a repository directory that contains multiple Skills", (
   const list = cli(["list"], { cwd: project, hub, home: root }).stdout;
   assert.match(list, /git-alpha\s+First Git Skill/);
   assert.match(list, /git-beta\s+Second Git Skill/);
+});
+
+test("GitHub multi-Skill installs receive a publisher tag that list filters case-insensitively", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-github-publisher-tag-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(source, "skills", "diagram"), "baoyu-diagram", "Diagram Skill");
+  makeSkill(join(source, "skills", "writer"), "baoyu-writer", "Writer Skill");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = https://github.com/JimLiu/baoyu-skills.git\n`);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+
+  const installed = cli(["install", "https://github.com/JimLiu/baoyu-skills.git", "--path", "skills", "--json"], options);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.deepEqual(JSON.parse(installed.stdout).skills.map((skill) => skill.tags), [["JimLiu"], ["JimLiu"]]);
+
+  const listed = cli(["list", "--tag", "jimliu", "--json"], options);
+  assert.equal(listed.status, 0, listed.stderr);
+  assert.deepEqual(JSON.parse(listed.stdout).skills.map((skill) => skill.name), ["baoyu-diagram", "baoyu-writer"]);
+  assert.match(cli(["list", "--tag", "JIMLIU"], options).stdout, /baoyu-diagram\s+Diagram Skill\s+JimLiu/);
+  makeSkill(join(source, "skills", "diagram"), "baoyu-diagram", "Updated Diagram Skill");
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], source);
+  const updated = cli(["update", "baoyu-diagram"], options);
+  assert.equal(updated.status, 0, updated.stderr);
+  assert.deepEqual(JSON.parse(cli(["info", "baoyu-diagram"], options).stdout).skill.tags, ["JimLiu"]);
+  assert.equal(cli(["install", "https://github.com/JimLiu/baoyu-skills.git", "--path", "skills", "--skip-existing"], options).status, 0);
+  assert.deepEqual(JSON.parse(cli(["info", "baoyu-diagram"], options).stdout).skill.tags, ["JimLiu"]);
+  const catalog = JSON.parse(readFileSync(join(hub, "catalog.json"), "utf8"));
+  assert.equal("tags" in catalog.skills[0], false);
+});
+
+test("GitHub SSH multi-Skill installs receive a publisher tag", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-github-ssh-publisher-tag-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(source, "skills", "ssh-alpha"), "ssh-alpha", "First SSH Skill");
+  makeSkill(join(source, "skills", "ssh-beta"), "ssh-beta", "Second SSH Skill");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = git@github.com:JimLiu/baoyu-skills.git\n`);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+
+  const installed = cli(["install", "git@github.com:JimLiu/baoyu-skills.git", "--path", "skills", "--json"], options);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.deepEqual(JSON.parse(installed.stdout).skills.map((skill) => skill.tags), [["JimLiu"], ["JimLiu"]]);
+  assert.deepEqual(JSON.parse(cli(["list", "--tag", "jimliu", "--json"], options).stdout).skills.map((skill) => skill.name), ["ssh-alpha", "ssh-beta"]);
+});
+
+test("GitHub multi-Skill imports do not tag a sole new candidate after skipping existing Skills", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-github-publisher-skip-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(source, "skills", "existing"), "existing-skill", "Existing Skill");
+  makeSkill(join(source, "skills", "new"), "new-skill", "New Skill");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  writeFileSync(join(root, ".gitconfig"), `[url "${pathToFileURL(source).href}"]\n\tinsteadOf = https://github.com/JimLiu/baoyu-skills.git\n`);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", "https://github.com/JimLiu/baoyu-skills.git", "--path", "skills/existing"], options).status, 0);
+
+  const installed = cli(["install", "https://github.com/JimLiu/baoyu-skills.git", "--path", "skills", "--skip-existing"], options);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.deepEqual(JSON.parse(cli(["info", "new-skill"], options).stdout).skill.tags, []);
 });
 
 test("Git install rejects duplicate names before partial multi-Skill installs", () => {

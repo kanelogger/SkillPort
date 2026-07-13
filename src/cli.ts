@@ -123,11 +123,12 @@ program.command("unlink")
 
 program.command("list")
   .description(human("List installed Skills", "列出已安装 Skill"))
+  .option("--tag <tag>", human("Filter Skills by Publisher tag", "按发布者标签筛选 Skill"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => withApp((app) => {
-    const skills = app.list();
+    const skills = app.list(options.tag);
     if (options.json) printJson({ skills: skills.map(publicSkill) });
-    else for (const skill of skills) console.log(`${skill.name}\t${skill.description}`);
+    else for (const skill of skills) console.log(`${skill.name}\t${skill.description}${skill.tags.length ? `\t${skill.tags.join(", ")}` : ""}`);
   })));
 
 program.command("info")
@@ -256,7 +257,8 @@ function publicSkill(skill: Skill) {
   return {
     instanceId: skill.instanceId,
     name: skill.name,
-    description: skill.description
+    description: skill.description,
+    tags: skill.tags
   };
 }
 

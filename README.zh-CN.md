@@ -147,7 +147,7 @@ sklp install https://github.com/example/skills.git --ref main --path skills/revi
 sklp install https://github.com/example/skills/tree/main/skills/review-animations
 ```
 
-当 Git 仓库里的 Skill 不在仓库根目录时，用 `--path` 指定仓库内路径。也可以直接粘贴 GitHub 浏览器里的 `tree/<ref>/<path>` URL。若选中的 Git 路径本身没有 `SKILL.md`，Skill Port 会扫描该路径下的多个 Skill 目录；`--dry-run --json` 会列出可安装、已跳过和会失败的条目，真实安装写入前仍会先检查同一批导入里的同名 Skill。Git 命令会关闭终端凭据提示，默认 30 秒超时；可用 `SKLP_GIT_TIMEOUT_MS` 设置其他正整数毫秒值。
+当 Git 仓库里的 Skill 不在仓库根目录时，用 `--path` 指定仓库内路径。也可以直接粘贴 GitHub 浏览器里的 `tree/<ref>/<path>` URL。若选中的 Git 路径本身没有 `SKILL.md`，Skill Port 会扫描该路径下的多个 Skill 目录。当 GitHub URL 一次安装至少两个新的有效 Skill 时，每个 Skill 会获得 GitHub owner 对应的 Hub 内发布者标签；用 `sklp list --tag <owner>` 可按标签进行大小写不敏感的筛选。`--dry-run --json` 会列出可安装、已跳过和会失败的条目，真实安装写入前仍会先检查同一批导入里的同名 Skill。Git 命令会关闭终端凭据提示，默认 30 秒超时；可用 `SKLP_GIT_TIMEOUT_MS` 设置其他正整数毫秒值。
 
 安装 registry 文件：
 
@@ -222,7 +222,7 @@ sklp enable my-skill --json
 sklp doctor --json
 ```
 
-`sklp info <skill>` 默认输出 JSON。
+`sklp info <skill>` 默认输出 JSON。公开的 Skill JSON 包含 `tags` 数组；发布者标签仅保存在 Hub 内，不会出现在 catalog 中。
 
 带 `--json` 的运行时命令失败会把固定 JSON envelope 写入 stdout，stderr 保持为空：
 
