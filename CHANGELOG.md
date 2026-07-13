@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-07-13
+
+### Features
+
+- Add Hub-only Publisher tags for GitHub multi-Skill imports and case-insensitive `sklp list --tag <owner>` filtering.
+- Continue multi-Skill Git imports when invalid sibling metadata is present, while preserving valid Skills and their Publisher tags.
+
+### Documentation
+
+- Document Publisher tag privacy and Git import behavior in English and Chinese guides.
+
 ## 0.3.0 - 2026-07-13
 
 ### Breaking Changes
