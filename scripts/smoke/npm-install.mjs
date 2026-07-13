@@ -18,7 +18,9 @@ const pack = runNpm(["pack", "--json", "--pack-destination", root], {
   cwd: process.cwd(),
 });
 assert.equal(pack.status, 0, pack.stderr ?? pack.error?.message);
-const packed = JSON.parse(pack.stdout)[0];
+const packResult = JSON.parse(pack.stdout);
+const packed = Array.isArray(packResult) ? packResult[0] : Object.values(packResult)[0];
+assert.ok(packed, "npm pack did not return package metadata.");
 const filename = packed.filename;
 const files = packed.files.map((file) => file.path);
 assert.ok(files.includes("dist/cli.js"));
