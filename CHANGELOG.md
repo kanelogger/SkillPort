@@ -4,8 +4,8 @@
 
 ### Release
 
-- Add an automated and manually rerunnable post-publish smoke workflow that installs the published npm package on macOS, Linux, and Windows and exercises the local Skill lifecycle.
-- Document the CLI release closure gates for Node.js 24.15.0/npm users, including Windows CI evidence and published-package smoke verification.
+- Add a manually rerunnable post-publish smoke workflow that installs the published npm package on macOS, Linux, and Windows and exercises the local Skill lifecycle.
+- Document the CLI business-closure evidence for Node.js 24.15.0/npm users, including Windows CI evidence and publisher-owned published-package smoke verification.
 
 ## 0.4.0 - 2026-07-13
 
