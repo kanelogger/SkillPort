@@ -1,6 +1,6 @@
 # Skill Port CLI Requirements Matrix
 
-Date: 2026-07-09
+Date: 2026-07-14
 
 Status keys:
 
@@ -10,7 +10,7 @@ Status keys:
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| R1 npm package exposes `sklp` on macOS, Linux, Windows | `package.json` bin; latest macOS and Linux packed installs passed; Windows native package smoke pending | Partial |
+| R1 npm package exposes `sklp` on macOS, Linux, Windows | `package.json` bin; `scripts/smoke/npm-install.mjs` verifies packed installs; `scripts/smoke/published-install.mjs` and `.github/workflows/post-publish-smoke.yml` verify the published npm package after release; current v0.4.1 Windows proof requires GitHub Actions execution | Partial |
 | R2 default/custom Hub | `tests/config.test.js`; `SKLP_HOME`; `sklp init --hub` | Passed |
 | R3 init creates local Hub/SQLite and registers project without project manifest | core lifecycle tests; no project-owned Skill Port manifest implemented | Passed |
 | R4 nearest registered ancestor only, no Git/language marker inference | nested project test; source search shows no Git marker discovery | Passed |
@@ -36,8 +36,8 @@ Status keys:
 | R24 global target names fail before mutation | global validation test | Passed |
 | R25 one canonical global target | global lifecycle test records the `agents` key only | Passed |
 | R26 global target path is `~/.agents/skills/` | target registry test; discovery contract smoke test | Passed |
-| R27 Unix symlink; Windows symlink then junction fallback | macOS/Linux native tests; simulated Windows symlink/junction adapter; native Windows pending | Partial |
-| R28 actual entry path and link type recorded | `info` assertions; link adapter tests; Windows native link type pending | Partial |
+| R27 Unix symlink; Windows symlink then junction fallback | macOS/Linux native tests; simulated Windows symlink/junction adapter; v0.4.1 native Windows proof requires the pre-release platform gate | Partial |
+| R28 actual entry path and link type recorded | `info` assertions; link adapter tests; v0.4.1 native Windows proof requires the pre-release platform gate | Partial |
 | R29 enable verifies entry resolves to Hub content and has `SKILL.md` | lifecycle, conflict, discovery contract tests | Passed |
 | R30 unmanaged files/directories/links are not overwritten or adopted | target conflict tests; unregistered Hub destination test; unregistered Hub link test | Passed |
 | R31 update preserves active enablements | update active link test | Passed |
@@ -66,8 +66,8 @@ Status keys:
 
 | Gate | Evidence needed | Status |
 | --- | --- | --- |
-| Windows native support | GitHub Actions or another native Windows runner must pass `npm ci`, lint, typecheck, tests, `test:platform`, `test:discovery`, and packed install | External |
-| Shared-directory runtime loading | An Agent consuming `~/.agents/skills/` must load the smoke Skill from the advertised directory | External |
-| Latest packed install | Latest macOS and Linux clean-prefix tarball installs passed | Passed |
-| Dependency audit | `npm audit --omit=dev` completed with 0 vulnerabilities | Passed |
-| GitHub CI | `gh` auth or a pushed branch is required to observe real workflow results | External |
+| Pre-release platform gate | GitHub Actions `ci.yml` must pass on `ubuntu-latest`, `macos-latest`, and `windows-latest` for the v0.4.1 release candidate before tag/release | External |
+| Post-publish install smoke | After npm publication, `.github/workflows/post-publish-smoke.yml` must install `skill-port-cli@0.4.1` from npm and pass the local Skill lifecycle on `ubuntu-latest`, `macos-latest`, and `windows-latest` | External |
+| Shared-directory runtime loading | `npm run test:discovery` passed locally for v0.4.1; pre-release GitHub CI must repeat it on macOS, Linux, and Windows | Partial |
+| Latest packed install | `npm run test:package` passed for the v0.4.1 candidate; `npm pack --dry-run` reported 40 intended files | Passed |
+| Dependency audit | `npm audit --omit=dev` completed with 0 vulnerabilities for the v0.4.1 candidate | Passed |

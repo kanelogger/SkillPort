@@ -13,11 +13,13 @@ Latest local contract run:
 - Result: the shared Agent target contract passed
 - Command: `npm run test:discovery`
 
+For v0.4.1 release closure, the same command must pass in the pre-release GitHub Actions matrix on macOS, Linux, and Windows. Windows hosted CI is the native Windows evidence source for the shared-directory contract.
+
 The 2026-07-09 Codex runtime smoke test used an isolated project and the `skill-port-discovery-smoke` fixture. It returned the fixture's exact `SKILL_PORT_DISCOVERY_OK` response. The managed entry was then removed through `sklp disable`, and a filesystem check confirmed no entry remained.
 
 ## Release evidence
 
-Before publishing a release, record runtime evidence only for an Agent whose discovery behavior is explicitly advertised. Skill Port itself advertises the shared directory, not tool-specific integrations.
+Before publishing a release, record runtime evidence only for an Agent whose discovery behavior is explicitly advertised. Skill Port itself advertises the shared directory, not tool-specific integrations. The automated contract is therefore the release gate; real Agent runtime smoke is supporting evidence, not a required gate for every Agent that happens to read `~/.agents/skills/`.
 
 | Shared directory consumer | Date | Version | OS | Result |
 | --- | --- | --- | --- | --- |

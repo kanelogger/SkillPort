@@ -25,3 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm publish --access public
+
+  post-publish-smoke:
+    needs: publish
+    uses: ./.github/workflows/post-publish-smoke.yml
+    with:
+      version: ${{ github.event.release.tag_name }}
