@@ -99,4 +99,9 @@ assert.equal(run(["disable", "published-smoke"]).status, 0);
 assert.equal(run(["remove", "published-smoke"]).status, 0);
 assert.equal(existsSync(join(hub, "skills", "published-smoke")), false);
 
-console.log(`Published CLI installation and core loop verified for skill-port-cli@${version}.`);
+const uninstall = runExecutable(["uninstall"], { input: "y\n" });
+assert.equal(uninstall.status, 0, uninstall.stderr);
+assert.equal(existsSync(hub), false);
+assert.equal(existsSync(executable), false);
+
+console.log(`Published CLI installation, core loop, and self-uninstallation verified for skill-port-cli@${version}.`);

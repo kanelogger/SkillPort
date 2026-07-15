@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 - 2026-07-15
+
+### Features
+
+- Add interactive `sklp uninstall`, which accepts only an exact lowercase `y`, removes Skill Port-managed entries, Hub state, locator, and the npm-global CLI, and preserves Hub-external linked sources.
+
+### Release
+
+- Publish GitHub Releases to npm through GitHub OIDC trusted publishing and verify the exact published package on macOS, Linux, and Windows, including self-uninstallation.
+
 ## 0.4.1 - 2026-07-14
 
 ### Release
