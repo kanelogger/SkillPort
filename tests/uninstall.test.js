@@ -130,6 +130,19 @@ test("uninstall continues after a managed entry is replaced with a directory", (
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
 });
 
+test("uninstall reports an npm failure after cleaning the Hub", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  writeFailingFakeNpm(fixture.npmCli);
+
+  const result = runUninstall(fixture, "y\n");
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Could not uninstall skill-port-cli with npm: npm failed/);
+  assert.equal(existsSync(fixture.hub), false);
+  assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
 test("uninstall uses Chinese prompts and results in Chinese mode", (t) => {
   const fixture = setupFixture();
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
@@ -196,5 +209,14 @@ function writeFakeNpm(path) {
   writeFileSync(path, [
     'import { writeFileSync } from "node:fs";',
     'writeFileSync(process.env.SKLP_NPM_MARKER, process.argv.slice(2).join(" "));'
+  ].join("\n"));
+}
+
+function writeFailingFakeNpm(path) {
+  writeFileSync(path, [
+    'import { writeFileSync } from "node:fs";',
+    'writeFileSync(process.env.SKLP_NPM_MARKER, process.argv.slice(2).join(" "));',
+    'process.stderr.write("npm failed");',
+    "process.exit(1);"
   ].join("\n"));
 }
