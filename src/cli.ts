@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { createInterface } from "node:readline";
 import { CliError, sanitizeError } from "./domain/errors.js";
 import { SkillPort, type BatchUpdateSummary, type FleetUpdateCheck, type UpdateSummary } from "./application/skill-port.js";
 import type { Skill } from "./domain/models.js";
@@ -120,6 +123,26 @@ program.command("unlink")
     if (options.json) printJson({ unlinked: skill });
     else console.log(human(`Unlinked ${skill}`, `已取消链接 ${skill}`));
   })));
+
+program.command("uninstall")
+  .description(human("Uninstall sklp and its managed Skills", "卸载 sklp 及其管理的 Skills"))
+  .action(run(async () => {
+    const confirmed = await confirmUninstall();
+    if (!confirmed) {
+      console.log(human("Uninstall cancelled.", "已取消卸载。"));
+      return;
+    }
+    const result = SkillPort.uninstall();
+    const npmFailure = uninstallGlobalPackage();
+    const failures = [...result.failures, ...(npmFailure ? [npmFailure] : [])];
+    if (failures.length > 0) {
+      throw new CliError(human(
+        `Uninstall completed with errors:\n${failures.join("\n")}`,
+        `卸载完成，但存在错误：\n${failures.join("\n")}`
+      ));
+    }
+    console.log(human("Uninstalled sklp.", "已卸载 sklp。"));
+  }));
 
 program.command("list")
   .description(human("List installed Skills", "列出已安装 Skill"))
@@ -251,6 +274,58 @@ function isChineseOutput(): boolean {
 function packageVersion(): string {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   return typeof manifest.version === "string" ? manifest.version : "0.0.0";
+}
+
+function confirmUninstall(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const readline = createInterface({ input: process.stdin, output: process.stdout });
+    let settled = false;
+    const finish = (confirmed: boolean) => {
+      if (settled) return;
+      settled = true;
+      readline.close();
+      resolve(confirmed);
+    };
+    readline.once("close", () => {
+      if (!settled) {
+        settled = true;
+        resolve(false);
+      }
+    });
+    readline.question(human(
+      "Confirm uninstall sklp and delete its managed Skills? [y/N] ",
+      "确认卸载 sklp 并删除其管理的技能？ [y/N] "
+    ), (answer) => finish(answer === "y"));
+  });
+}
+
+function uninstallGlobalPackage(): string | null {
+  const npmCli = npmCliPath();
+  if (!npmCli) return human(
+    "Could not locate npm. Remove skill-port-cli with `npm uninstall --global skill-port-cli`.",
+    "找不到 npm。请执行 `npm uninstall --global skill-port-cli`。"
+  );
+  const result = spawnSync(process.execPath, [npmCli, "uninstall", "--global", "skill-port-cli"], {
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true
+  });
+  if (result.status === 0) return null;
+  return human(
+    `Could not uninstall skill-port-cli with npm: ${sanitizeError(result.stderr || result.error)}`,
+    `无法通过 npm 卸载 skill-port-cli：${sanitizeError(result.stderr || result.error)}`
+  );
+}
+
+function npmCliPath(): string | null {
+  const configured = process.env.npm_execpath;
+  if (configured && existsSync(configured)) return configured;
+  const nodeDirectory = dirname(process.execPath);
+  const candidates = [
+    join(nodeDirectory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    join(nodeDirectory, "node_modules", "npm", "bin", "npm-cli.js")
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
 function publicSkill(skill: Skill) {

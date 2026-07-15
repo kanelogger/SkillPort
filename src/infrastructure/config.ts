@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { CliError } from "../domain/errors.js";
@@ -49,5 +49,16 @@ export function initializeHub(paths: HubPaths, persistLocator = false): void {
     const locator = join(homedir(), locatorName);
     mkdirSync(dirname(locator), { recursive: true });
     writeFileSync(locator, `${JSON.stringify({ hubPath: paths.root }, null, 2)}\n`);
+  }
+}
+
+export function removeHubLocator(paths: HubPaths): void {
+  const locator = join(homedir(), locatorName);
+  if (!existsSync(locator)) return;
+  try {
+    const value = JSON.parse(readFileSync(locator, "utf8"));
+    if (typeof value?.hubPath === "string" && resolve(value.hubPath) === paths.root) unlinkSync(locator);
+  } catch {
+    // An unreadable locator is not safe to claim as the active Hub locator.
   }
 }

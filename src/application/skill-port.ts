@@ -1,12 +1,12 @@
 import {
-  existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync
+  existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, unlinkSync
 } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import { isValidSkillName, readSkillMetadata } from "../domain/metadata.js";
 import type { Diagnostic, Enablement, EnablementInfo, Skill } from "../domain/models.js";
-import { initializeHub, resolveHub, type HubPaths } from "../infrastructure/config.js";
+import { initializeHub, removeHubLocator, resolveHub, type HubPaths } from "../infrastructure/config.js";
 import { StateStore } from "../infrastructure/database.js";
 import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
@@ -58,6 +58,10 @@ export type BatchUpdateSummary = Omit<UpdateSummary, "planned"> & {
   updated: Array<{ name: string; revision: string }>;
 };
 
+export type UninstallResult = {
+  failures: string[];
+};
+
 class RecoveryPendingError extends Error {
   constructor(kind: string, cause: unknown) {
     super(`${kind} failed and rollback is pending: ${sanitizeError(cause)}`);
@@ -95,6 +99,32 @@ export class SkillPort {
       withHubLock(paths, () => app.recoverInterruptedOperations());
     }
     return app;
+  }
+
+  static uninstall(): UninstallResult {
+    const paths = resolveHub();
+    return withHubLock(paths, () => {
+      const failures: string[] = [];
+      const enablements = readEnablementsForUninstall(paths, failures);
+      for (const enablement of enablements) {
+        try {
+          removeRegisteredEntry(enablement.entryPath);
+        } catch (error) {
+          failures.push(`Could not remove managed entry ${enablement.entryPath}: ${sanitizeError(error)}`);
+        }
+      }
+      try {
+        rmSync(paths.root, { recursive: true, force: true });
+      } catch (error) {
+        failures.push(`Could not remove Hub ${paths.root}: ${sanitizeError(error)}`);
+      }
+      try {
+        removeHubLocator(paths);
+      } catch (error) {
+        failures.push(`Could not remove Hub locator: ${sanitizeError(error)}`);
+      }
+      return { failures };
+    });
   }
 
   close(): void {
@@ -1043,6 +1073,32 @@ function canonicalDirectory(path: string): string {
   const resolved = resolve(path);
   if (!existsSync(resolved) || !lstatSync(resolved).isDirectory()) throw new CliError(`Project directory does not exist: ${path}`);
   return realpathSync(resolved);
+}
+
+function readEnablementsForUninstall(paths: HubPaths, failures: string[]): Enablement[] {
+  if (!existsSync(paths.database)) return [];
+  try {
+    const store = new StateStore(paths, { readOnly: true });
+    try {
+      return store.enablements();
+    } finally {
+      store.close();
+    }
+  } catch (error) {
+    failures.push(`Could not read managed Agent entries: ${sanitizeError(error)}`);
+    return [];
+  }
+}
+
+function removeRegisteredEntry(path: string): void {
+  let stats: ReturnType<typeof lstatSync>;
+  try {
+    stats = lstatSync(path);
+  } catch {
+    return;
+  }
+  if (!stats.isSymbolicLink()) throw new CliError(`Recorded entry is not a link: ${path}`);
+  unlinkSync(path);
 }
 
 function samePath(a: string, b: string): boolean {

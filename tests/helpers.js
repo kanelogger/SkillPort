@@ -18,7 +18,8 @@ export function cli(args, options) {
       SKLP_TEST_HOME: options.home,
       ...options.env
     },
-    encoding: "utf8"
+    encoding: "utf8",
+    input: options.input
   });
   return result;
 }
