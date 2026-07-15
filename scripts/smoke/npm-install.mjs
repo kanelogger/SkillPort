@@ -51,9 +51,10 @@ writeFileSync(
   "---\nname: package-smoke\ndescription: Packed CLI core loop fixture\n---\n"
 );
 const smokeEnv = { ...process.env, SKLP_HOME: hub, SKLP_TEST_HOME: root };
-const run = (args) => runExecutable(args, {
+const run = (args, options = {}) => runExecutable(args, {
   cwd: project,
-  env: smokeEnv
+  ...options,
+  env: { ...smokeEnv, ...options.env }
 });
 
 assert.equal(run(["init"]).status, 0);
@@ -67,4 +68,13 @@ assert.equal(run(["disable", "package-smoke"]).status, 0);
 assert.equal(run(["remove", "package-smoke"]).status, 0);
 assert.equal(existsSync(join(hub, "skills", "package-smoke")), false);
 
-console.log("Packed CLI installation and core loop verified.");
+const uninstall = run(["uninstall"], {
+  input: "y\n",
+  env: { npm_config_prefix: prefix, npm_execpath: "" }
+});
+assert.equal(uninstall.status, 0, uninstall.stderr);
+assert.match(uninstall.stdout, /Uninstalled sklp/);
+assert.equal(existsSync(hub), false);
+assert.equal(existsSync(executable), false);
+
+console.log("Packed CLI installation, core loop, and self-uninstallation verified.");

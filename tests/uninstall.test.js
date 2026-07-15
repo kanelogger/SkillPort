@@ -19,6 +19,37 @@ test("uninstall cancels unless confirmation is an exact y", (t) => {
   assert.equal(existsSync(fixture.npmMarker), false);
 });
 
+test("uninstall cancels when standard input closes", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+
+  const result = runUninstall(fixture, "");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Uninstall cancelled/);
+  assert.equal(existsSync(fixture.hub), true);
+  assert.equal(existsSync(fixture.npmMarker), false);
+});
+
+test("uninstall does not expose a JSON confirmation bypass", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+
+  const result = cli(["uninstall", "--json"], {
+    ...fixture.options,
+    input: "y\n",
+    env: {
+      npm_execpath: fixture.npmCli,
+      SKLP_NPM_MARKER: fixture.npmMarker
+    }
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /unknown option '--json'/);
+  assert.equal(existsSync(fixture.hub), true);
+  assert.equal(existsSync(fixture.npmMarker), false);
+});
+
 test("uninstall removes managed state and preserves linked source directories", (t) => {
   const fixture = setupFixture();
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
@@ -33,6 +64,30 @@ test("uninstall removes managed state and preserves linked source directories", 
   assert.equal(existsSync(fixture.locator), false);
   assert.equal(existsSync(join(fixture.linkedSource, "SKILL.md")), true);
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
+test("uninstall removes the Hub and CLI when state cannot be read", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  writeFileSync(join(fixture.hub, "state.db"), "not a sqlite database");
+
+  const result = runUninstall(fixture, "y\n");
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Could not read managed Agent entries/);
+  assert.equal(existsSync(fixture.hub), false);
+  assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
+test("uninstall uses Chinese prompts and results in Chinese mode", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+
+  const result = runUninstall(fixture, "y\n", { SKLP_LANG: "zh-CN" });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /确认卸载 sklp/);
+  assert.match(result.stdout, /已卸载 sklp/);
 });
 
 function setupFixture() {
@@ -73,13 +128,14 @@ function setupFixture() {
   };
 }
 
-function runUninstall(fixture, input) {
+function runUninstall(fixture, input, env = {}) {
   return cli(["uninstall"], {
     ...fixture.options,
     input,
     env: {
       npm_execpath: fixture.npmCli,
-      SKLP_NPM_MARKER: fixture.npmMarker
+      SKLP_NPM_MARKER: fixture.npmMarker,
+      ...env
     }
   });
 }

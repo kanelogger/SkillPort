@@ -5,8 +5,20 @@ Skill Port manages a local Hub of Agent Skills and their project or global enabl
 ## Language
 
 **CLI business closure**:
-The state in which the advertised Skill Port CLI command contract has current, reproducible evidence on every supported platform, including Windows. It covers the complete local-Skill lifecycle, packaged install, and supported runtime prerequisites; public npm publication is a separate publisher-owned distribution action.
+The state in which the advertised Skill Port CLI command contract has current, reproducible evidence on every supported platform, including Windows. It covers the complete local-Skill lifecycle, packaged install, CLI self-uninstallation, and supported runtime prerequisites; public npm publication is a separate publisher-owned distribution action.
 _Avoid_: npm publication, feature completeness, test green
+
+**CLI self-uninstallation**:
+An interactive lifecycle command for the npm-globally-installed `skill-port-cli` package. `sklp uninstall` asks for confirmation and proceeds only when the user enters `y`; it removes Skill Port's managed Agent entries, Hub (including managed Skills, state, and catalogs), Hub locator, and global npm package. The same command contract applies on macOS, Linux, and Windows. Hub-external linked Skill source folders and the source checkout remain untouched.
+_Avoid_: extra modes, filesystem scans, Hub preservation, desktop uninstallation
+
+**Verified Skill Port resource**:
+A filesystem object whose Skill Port ownership is established by Hub state and its managed-path invariants. It may be removed during CLI self-uninstallation.
+_Avoid_: manually managed Agent entry, Hub-external linked source, unverified file
+
+**Uninstall discovery boundary**:
+CLI self-uninstallation removes the managed Agent entries recorded in Hub state. It does not scan the filesystem for additional entries.
+_Avoid_: Home-wide search, implicit project discovery, recovery modes
 
 **Node-only base runtime**:
 A supported environment using Node.js 24.15.0 or newer and npm, with no native build tool. CLI business closure requires the complete local-Skill lifecycle to work in this environment on every advertised platform, including Windows. Git-source commands preserve their full contract but require a separately installed system Git executable and fail before mutation with installation guidance when it is absent.

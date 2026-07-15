@@ -32,6 +32,7 @@ sklp doctor
 sklp disable my-skill
 sklp remove my-skill
 sklp unlink my-local-skill
+sklp uninstall
 ```
 
 `sklp init` 会初始化本地 Hub，并把当前目录注册为项目。项目启用会在 `.agents/skills/` 下创建受管入口，不会在项目里写 Skill Port 配置文件，也不会读取或修改 Git 配置。
@@ -39,6 +40,14 @@ sklp unlink my-local-skill
 项目启用使用 `<project>/.agents/skills/`；唯一的全局目标是 `~/.agents/skills/`。
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
+
+## 卸载
+
+```bash
+sklp uninstall
+```
+
+命令会提示 `确认卸载 sklp 并删除其管理的技能？ [y/N]`，只有输入精确的 `y` 才会继续。它会删除 Hub 已记录的 Agent 入口、当前 Hub 与其管理的 Skills、匹配的 Hub locator，以及 npm 全局 `skill-port-cli` 包。Hub 外的 linked Skill 源目录和当前源码工作区会保留。`sklp uninstall` 不提供 `--yes` 或 `--json` 模式。
 
 ## 中文输出
 

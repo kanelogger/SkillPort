@@ -32,6 +32,7 @@ sklp doctor
 sklp disable my-skill
 sklp remove my-skill
 sklp unlink my-local-skill
+sklp uninstall
 ```
 
 `sklp init` registers the current directory locally. Project enablement writes a managed entry under `.agents/skills/`; no Skill Port manifest or Git configuration is added to the project.
@@ -39,6 +40,14 @@ sklp unlink my-local-skill
 Project enablement uses `<project>/.agents/skills/`; the only global target is `~/.agents/skills/`.
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
+
+## Uninstall
+
+```bash
+sklp uninstall
+```
+
+The command asks `Confirm uninstall sklp and delete its managed Skills? [y/N]`. Only an exact `y` proceeds. It removes Hub-recorded Agent entries, the active Hub and its managed Skills, the matching Hub locator, and the npm-global `skill-port-cli` package. Linked Skill source directories outside the Hub and the source checkout remain untouched. `sklp uninstall` has no `--yes` or `--json` mode.
 
 Set `SKLP_LANG=zh-CN` to use Chinese command help and human-readable command output. JSON output remains stable and language-independent.
 

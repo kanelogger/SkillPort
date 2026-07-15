@@ -1,6 +1,6 @@
 # Skill Port CLI Requirements Matrix
 
-Date: 2026-07-14
+Date: 2026-07-15
 
 Status keys:
 
@@ -62,6 +62,7 @@ Status keys:
 | R49 exit codes are documented for scripts and Agents | `docs/exit-codes.md` documents command failure semantics, doctor warning/error behavior, JSON automation fields, and Chinese notes; existing tests cover success, warning-only doctor, and error doctor statuses | Passed |
 | R50 single Git Skill update checks are read-only and report stable tracking status | `tests/git-source.test.js` covers default branch, named branch, commit pin, stored source tracking, and Hub state snapshots; README and exit-code docs define the contract | Passed |
 | R51 fleet Git update checks, previews, and batch updates are deterministic and isolated | `tests/batch-update.test.js` covers name order, local/linked/tag skips, Chinese human output, JSON contracts, immutable Hub/managed-entry snapshots, resolved revisions, partial failure continuation, and preserved enablements; README and exit-code docs define the contract | Passed |
+| R52 `sklp uninstall` confirms with exact `y`, removes Hub-recorded Agent entries, Hub state and npm-global CLI, and preserves Hub-external linked sources | `tests/uninstall.test.js` covers cancellation, copied and linked Skill cleanup, project/global entries, locator cleanup, unreadable state, npm invocation, and Chinese output. `scripts/smoke/npm-install.mjs` verifies a packed installation removes its Hub and isolated global executable through the npm CLI fallback. The existing CI matrix runs this smoke on macOS, Linux, and Windows. | Partial |
 
 ## Business Closure Evidence
 
