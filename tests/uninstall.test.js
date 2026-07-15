@@ -92,6 +92,44 @@ test("uninstall still removes the CLI when Hub cleanup cannot acquire its lock",
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
 });
 
+test("uninstall removes the CLI when the Hub is already missing", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-uninstall-missing-hub-"));
+  const hub = join(root, "hub");
+  const npmCli = join(root, "fake-npm.mjs");
+  const npmMarker = join(root, "npm-args.txt");
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFakeNpm(npmCli);
+
+  const result = cli(["uninstall"], {
+    cwd: root,
+    hub,
+    home: root,
+    input: "y\n",
+    env: { npm_execpath: npmCli, SKLP_NPM_MARKER: npmMarker }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(hub), false);
+  assert.equal(readMarker(npmMarker), "uninstall --global skill-port-cli");
+});
+
+test("uninstall continues after a managed entry is replaced with a directory", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  rmSync(fixture.projectEntry);
+  mkdirSync(fixture.projectEntry, { recursive: true });
+  writeFileSync(join(fixture.projectEntry, "keep.txt"), "user content");
+
+  const result = runUninstall(fixture, "y\n");
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Recorded entry is not a link/);
+  assert.equal(readFileSync(join(fixture.projectEntry, "keep.txt"), "utf8"), "user content");
+  assert.equal(existsSync(fixture.globalEntry), false);
+  assert.equal(existsSync(fixture.hub), false);
+  assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
 test("uninstall uses Chinese prompts and results in Chinese mode", (t) => {
   const fixture = setupFixture();
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
@@ -116,10 +154,7 @@ function setupFixture() {
   makeSkill(copiedSource, "copied-skill");
   makeSkill(linkedSource, "linked-skill");
   writeFileSync(locator, `${JSON.stringify({ hubPath: hub })}\n`);
-  writeFileSync(npmCli, [
-    'import { writeFileSync } from "node:fs";',
-    'writeFileSync(process.env.SKLP_NPM_MARKER, process.argv.slice(2).join(" "));'
-  ].join("\n"));
+  writeFakeNpm(npmCli);
 
   const options = { cwd: project, hub, home: root };
   assert.equal(cli(["init"], options).status, 0);
@@ -155,4 +190,11 @@ function runUninstall(fixture, input, env = {}) {
 
 function readMarker(path) {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
+}
+
+function writeFakeNpm(path) {
+  writeFileSync(path, [
+    'import { writeFileSync } from "node:fs";',
+    'writeFileSync(process.env.SKLP_NPM_MARKER, process.argv.slice(2).join(" "));'
+  ].join("\n"));
 }
