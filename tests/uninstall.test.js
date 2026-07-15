@@ -79,6 +79,19 @@ test("uninstall removes the Hub and CLI when state cannot be read", (t) => {
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
 });
 
+test("uninstall still removes the CLI when Hub cleanup cannot acquire its lock", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  writeFileSync(join(fixture.hub, ".mutation.lock"), "not-a-process-id\n");
+
+  const result = runUninstall(fixture, "y\n");
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Another Skill Port mutation is in progress/);
+  assert.equal(existsSync(fixture.hub), true);
+  assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
 test("uninstall uses Chinese prompts and results in Chinese mode", (t) => {
   const fixture = setupFixture();
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));

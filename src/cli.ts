@@ -132,9 +132,17 @@ program.command("uninstall")
       console.log(human("Uninstall cancelled.", "已取消卸载。"));
       return;
     }
-    const result = SkillPort.uninstall();
+    const failures: string[] = [];
+    try {
+      failures.push(...SkillPort.uninstall().failures);
+    } catch (error) {
+      failures.push(human(
+        `Could not remove Skill Port data: ${sanitizeError(error)}`,
+        `无法移除 Skill Port 数据：${sanitizeError(error)}`
+      ));
+    }
     const npmFailure = uninstallGlobalPackage();
-    const failures = [...result.failures, ...(npmFailure ? [npmFailure] : [])];
+    if (npmFailure) failures.push(npmFailure);
     if (failures.length > 0) {
       throw new CliError(human(
         `Uninstall completed with errors:\n${failures.join("\n")}`,
