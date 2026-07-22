@@ -1,5 +1,6 @@
 import { expect, test, _electron as electron } from "@playwright/test";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -15,16 +16,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
   writeFileSync(join(source, "SKILL.md"), "---\nname: desktop-e2e\ndescription: Desktop E2E Skill\n---\n");
   const desktopRoot = resolve(process.cwd());
   const repositoryRoot = resolve(desktopRoot, "../..");
-  const executablePath = join(
-    repositoryRoot,
-    "node_modules",
-    "electron",
-    "dist",
-    "Electron.app",
-    "Contents",
-    "MacOS",
-    "Electron"
-  );
+  const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
   const cliEnv: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, SKLP_TEST_HOME: root };
   delete cliEnv.SKLP_HOME;
   const runInfo = () => spawnSync(
