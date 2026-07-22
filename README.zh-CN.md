@@ -1,5 +1,9 @@
 # Skill Port CLI
 
+<p align="center">
+  <img src="apps/desktop/assets/skill-port-icon.png" alt="Skill Port 应用图标" width="128">
+</p>
+
 [English](README.md)
 
 Skill Port CLI 是一个本地 Agent Skill 管理工具。它把 Skill 安装到本机 Hub，再启用到项目或全局 Agent 目录。
@@ -43,7 +47,7 @@ sklp uninstall
 
 ## 桌面 GUI 开发
 
-仓库同时包含一个复用相同 Hub 和核心安全规则的 Electron GUI。开发与验证方式见 [Skill Port Desktop](docs/desktop.md)。Desktop 当前是未签名的开发态 MVP，不包含在已发布的 CLI npm 包中。
+仓库同时包含一个复用相同 Hub 和核心安全规则的 Electron GUI。可以从 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 下载 macOS、Windows 或 Linux 安装包，也可以按照 [Skill Port Desktop](docs/desktop.md) 从源码运行。Desktop 当前是未签名 MVP，不包含在已发布的 CLI npm 包中。
 
 ## 卸载
 

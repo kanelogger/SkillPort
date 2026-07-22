@@ -1,5 +1,6 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerDeb } from "@electron-forge/maker-deb";
+import MakerDMG from "@electron-forge/maker-dmg";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { MakerZIP } from "@electron-forge/maker-zip";
@@ -11,14 +12,16 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     executableName: "skill-port",
-    appBundleId: "com.kanelogger.skillport"
+    appBundleId: "com.kanelogger.skillport",
+    icon: "assets/skill-port-icon"
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}, ["win32"]),
+    new MakerSquirrel({ setupIcon: "assets/skill-port-icon.ico" }, ["win32"]),
     new MakerZIP({}, ["darwin"]),
-    new MakerDeb({}, ["linux"]),
-    new MakerRpm({}, ["linux"])
+    new MakerDMG({ format: "ULFO" }, ["darwin"]),
+    new MakerDeb({ options: { icon: "assets/skill-port-icon.png", categories: ["Development"] } }, ["linux"]),
+    new MakerRpm({ options: { icon: "assets/skill-port-icon.png", categories: ["Development"] } }, ["linux"])
   ],
   plugins: [
     new VitePlugin({

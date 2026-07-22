@@ -3,6 +3,7 @@ import {
   type IpcMainInvokeEvent, type UtilityProcess
 } from "electron";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, normalize, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { authorizeRpcPaths } from "./path-authority.js";
@@ -10,6 +11,9 @@ import { parseRpcRequest, type RpcRequest, type RpcResponse } from "./shared/rpc
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+
+const squirrelStartup = createRequire(import.meta.url)("electron-squirrel-startup") as boolean;
+if (squirrelStartup) app.quit();
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -116,6 +120,7 @@ async function createWindow(): Promise<void> {
     minWidth: 920,
     minHeight: 620,
     title: "Skill Port",
+    icon: join(app.getAppPath(), "assets", "skill-port-icon.png"),
     webPreferences: {
       preload: join(dirname(fileURLToPath(import.meta.url)), "preload.js"),
       contextIsolation: true,

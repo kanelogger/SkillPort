@@ -65,5 +65,11 @@
   "overrides": {
     "@electron/rebuild": "4.2.0"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "allowScripts": {
+    "electron-winstaller@5.4.4": true,
+    "esbuild@0.25.12": true,
+    "fs-xattr@0.3.1": true,
+    "macos-alias@0.2.12": true
+  }
 }

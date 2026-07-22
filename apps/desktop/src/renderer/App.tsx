@@ -9,6 +9,7 @@ import type {
   Enablement
 } from "skill-port-cli/desktop";
 import type { InstallPreview } from "../shared/rpc.js";
+import skillPortIcon from "../../assets/skill-port-icon.png";
 import { languageForLocale, translate, type Language } from "./i18n.js";
 
 type View = "skills" | "projects" | "health";
@@ -93,7 +94,7 @@ export function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">SP</span><span>{t("appName")}</span></div>
+        <div className="brand"><img className="brand-mark" src={skillPortIcon} alt="" /><span>{t("appName")}</span></div>
         <nav aria-label="Primary">
           <NavButton active={view === "skills"} onClick={() => setView("skills")} icon="◆">{t("skills")}</NavButton>
           <NavButton active={view === "projects"} onClick={() => setView("projects")} icon="▣">{t("projects")}</NavButton>
@@ -196,7 +197,7 @@ function Setup({ language, setLanguage, t, busy, error, onRun, onReady }: {
     <main className="setup-screen">
       <button className="button ghost language-button" onClick={() => setLanguage(language === "en" ? "zh-CN" : "en")}>{t("language")}</button>
       <section className="setup-card">
-        <span className="setup-mark">SP</span>
+        <img className="setup-mark" src={skillPortIcon} alt="" />
         <h1>{t("setupTitle")}</h1>
         <p>{t("setupDescription")}</p>
         {error && <div className="error-banner" role="alert">{error}</div>}

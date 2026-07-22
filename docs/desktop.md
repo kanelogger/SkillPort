@@ -1,6 +1,26 @@
 # Skill Port Desktop
 
+<p align="center">
+  <img src="../apps/desktop/assets/skill-port-icon.png" alt="Skill Port application icon" width="128">
+</p>
+
 Skill Port Desktop is the local GUI for the same Hub managed by `sklp`.
+
+## Install a release
+
+Download the package for your system from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases):
+
+- macOS Apple Silicon: download the `arm64.dmg`, open it, and drag Skill Port to Applications.
+- macOS Intel: download the `x64.dmg`, open it, and drag Skill Port to Applications.
+- Windows: run `Skill Port Setup.exe`.
+- Debian or Ubuntu: install the `.deb` package.
+- Fedora or RHEL: install the `.rpm` package.
+
+These MVP packages are unsigned. On macOS, right-click Skill Port and choose **Open** on the first launch. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
+
+## Application icon
+
+The shared application icon lives under `apps/desktop/assets/`. The PNG is used by the renderer and Linux window, the ICNS file is embedded in macOS packages, and the ICO file is embedded in Windows packages and the Squirrel installer.
 
 ## Development
 
@@ -17,6 +37,15 @@ Build or create an unsigned local package:
 npm run desktop:build
 npm run desktop:make
 ```
+
+Pushing a tag matching the Desktop version creates the multi-platform GitHub Release. For version `0.1.0`:
+
+```bash
+git tag desktop-v0.1.0
+git push origin desktop-v0.1.0
+```
+
+Desktop tags use the `desktop-v*` prefix. CLI npm releases keep using `v*` tags.
 
 Verification:
 

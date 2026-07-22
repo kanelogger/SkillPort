@@ -2,6 +2,8 @@
   "name": "skill-port-desktop",
   "productName": "Skill Port",
   "version": "0.1.0",
+  "description": "Local GUI for managing Agent Skills with Skill Port",
+  "author": "kanelogger",
   "private": true,
   "main": ".vite/build/main.js",
   "scripts": {
@@ -13,6 +15,7 @@
     "e2e": "electron-forge package && playwright test"
   },
   "dependencies": {
+    "electron-squirrel-startup": "1.0.1",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "zod": "4.0.17"
@@ -20,6 +23,7 @@
   "devDependencies": {
     "@electron-forge/cli": "7.11.2",
     "@electron-forge/maker-deb": "7.11.2",
+    "@electron-forge/maker-dmg": "7.11.2",
     "@electron-forge/maker-rpm": "7.11.2",
     "@electron-forge/maker-squirrel": "7.11.2",
     "@electron-forge/maker-zip": "7.11.2",

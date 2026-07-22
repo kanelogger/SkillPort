@@ -34,7 +34,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-shell { display: grid; grid-template-columns: 224px minmax(0,1fr); height: 100%; }
 .sidebar { display:flex; flex-direction:column; padding:20px 14px; border-right:1px solid var(--line); background:var(--surface); }
 .brand { display:flex; align-items:center; gap:11px; padding:2px 8px 24px; font-size:18px; font-weight:750; }
-.brand-mark, .setup-mark { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:var(--primary); color:white; font-size:12px; font-weight:800; letter-spacing:.04em; }
+.brand-mark, .setup-mark { display:block; width:36px; height:36px; object-fit:contain; }
 .sidebar nav { display:grid; gap:4px; }
 .nav-button { display:flex; align-items:center; gap:12px; width:100%; padding:11px 12px; border:0; border-radius:10px; background:transparent; color:var(--muted); text-align:left; cursor:pointer; }
 .nav-button:hover { background:var(--surface-soft); color:var(--text); }
