@@ -45,7 +45,10 @@ jobs:
             -name '*.dmg' -o \
             -name '*.zip' -o \
             -name '*Setup.exe' \
-          \) -exec cp {} release-assets/ \;
+          \) -print0 | while IFS= read -r -d '' file; do
+            filename="$(basename "$file" | tr ' ' '.')"
+            cp "$file" "release-assets/$filename"
+          done
           test -n "$(find release-assets -type f -print -quit)"
       - uses: actions/upload-artifact@v4
         with:
