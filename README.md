@@ -1,5 +1,9 @@
 # Skill Port CLI
 
+<p align="center">
+  <img src="apps/desktop/assets/skill-port-icon.png" alt="Skill Port application icon" width="128">
+</p>
+
 [中文文档](README.zh-CN.md)
 
 Skill Port CLI keeps Agent Skills in one local Hub and enables them into projects or the shared global Agent directory.
@@ -40,6 +44,10 @@ sklp uninstall
 Project enablement uses `<project>/.agents/skills/`; the only global target is `~/.agents/skills/`.
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
+
+## Desktop GUI development
+
+The repository also contains an Electron GUI that uses the same Hub and core safety rules. Download the macOS or Windows installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), or see [Skill Port Desktop](docs/desktop.md) to run it from source. The Desktop app is an unsigned MVP and is not included in the published CLI package.
 
 ## Uninstall
 
@@ -199,7 +207,7 @@ See [exit codes](docs/exit-codes.md). Skill Port CLI uses `0` for successful com
 
 ## Machine-readable output
 
-Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Public Skill JSON includes a `tags` array; Publisher tags remain Hub-only and never appear in catalog output. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
+Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Public Skill JSON includes a `tags` array; tags remain Hub-only and never appear in catalog output. Publisher tags are inferred during qualifying imports, and Skill Port Desktop can explicitly edit the same Hub-private tag set. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
 
 ```json
 {

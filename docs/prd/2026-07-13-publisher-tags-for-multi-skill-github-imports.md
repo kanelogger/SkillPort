@@ -37,7 +37,7 @@ When one GitHub URL installation resolves to at least two valid Skills, assign t
 - Add `--tag <owner>` to `list`. With the option, return only Skills carrying that Publisher tag; without it, preserve the existing complete-list behavior.
 - Add `tags` to public JSON Skill representations returned by list, install, link, update, and info where a Skill representation is already emitted. A Skill with no tags returns an empty array.
 - Preserve current catalog JSON, catalog Markdown, and copied-Skill `meta.json` shapes. Publisher tags are intentionally excluded from each artifact.
-- Treat tags as immutable after initial insertion: `update`, `--skip-existing`, link, and all non-install workflows must not add, replace, or remove Publisher tags. Removing a Skill removes its associated Hub-only tags.
+- CLI content workflows keep tags immutable: `update`, `--skip-existing`, and link do not add, replace, or remove Publisher tags. The Desktop follow-up may explicitly replace the same Hub-only tag set through its `updateTags` facade; removing a Skill still removes associated tags.
 - Keep the existing UUID `instanceId` and global Skill-name uniqueness. Do not derive IDs from repository and Skill names, and do not add hash-based duplicate-name resolution in this feature.
 - Preserve current rollback and recovery guarantees. Installation failures must not leave tag rows without their Skill, and recovery must not change existing tags.
 
@@ -56,7 +56,7 @@ When one GitHub URL installation resolves to at least two valid Skills, assign t
 
 - Repository-specific tags such as `baoyu-skills`.
 - Automatically inferred tags for non-GitHub, local, `file://`, or registry sources.
-- User-defined tag creation, editing, removal, or multiple tag categories.
+- Multiple tag categories or tag editing through the CLI. Desktop user-defined tag editing is specified by the Desktop GUI PRD.
 - Exposing tags in catalog artifacts or copied-Skill metadata.
 - Changing Skill `instanceId`, deriving IDs from repository and Skill names, or accepting duplicate Skill names through hash suffixes.
 - Discovering and installing newly added Skills during `update`.

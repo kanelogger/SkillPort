@@ -3,8 +3,17 @@
   "version": "0.5.0",
   "description": "Local Agent Skill hub and project binding CLI",
   "type": "module",
+  "workspaces": [
+    "apps/desktop"
+  ],
   "bin": {
     "sklp": "dist/cli.js"
+  },
+  "exports": {
+    "./desktop": {
+      "types": "./dist/desktop.d.ts",
+      "import": "./dist/desktop.js"
+    }
   },
   "repository": {
     "type": "git",
@@ -26,12 +35,18 @@
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src tests scripts",
+    "lint": "eslint src tests scripts apps/desktop/src apps/desktop/tests apps/desktop/*.ts",
     "test": "npm run build && node --test \"tests/**/*.test.js\"",
     "test:package": "node scripts/smoke/npm-install.mjs",
     "test:platform": "npm run build && node --test tests/core-loop.test.js tests/link-adapter.test.js tests/target-conflict.test.js tests/tool-registry.test.js",
     "test:discovery": "npm run build && node scripts/smoke/agent-discovery.mjs",
-    "smoke:published": "node scripts/smoke/published-install.mjs"
+    "smoke:published": "node scripts/smoke/published-install.mjs",
+    "desktop:dev": "npm run build && npm run start --workspace skill-port-desktop",
+    "desktop:build": "npm run build && npm run package --workspace skill-port-desktop",
+    "desktop:typecheck": "npm run build && npm run typecheck --workspace skill-port-desktop",
+    "desktop:test": "npm run build && npm run test --workspace skill-port-desktop",
+    "desktop:e2e": "npm run build && npm run e2e --workspace skill-port-desktop",
+    "desktop:make": "npm run build && npm run make --workspace skill-port-desktop"
   },
   "dependencies": {
     "commander": "^14.0.0",
@@ -47,5 +62,14 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "Apache-2.0"
+  "overrides": {
+    "@electron/rebuild": "4.2.0"
+  },
+  "license": "Apache-2.0",
+  "allowScripts": {
+    "electron-winstaller@5.4.4": true,
+    "esbuild@0.25.12": true,
+    "fs-xattr@0.3.1": true,
+    "macos-alias@0.2.12": true
+  }
 }

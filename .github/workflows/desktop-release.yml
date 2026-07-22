@@ -1,0 +1,84 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  make:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: desktop-macos-arm64
+          - os: macos-15-intel
+            artifact: desktop-macos-x64
+          - os: windows-latest
+            artifact: desktop-windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - name: Verify Desktop version tag
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node -e "const p=require('./apps/desktop/package.json'); if (process.env.RELEASE_TAG !== 'desktop-v' + p.version) process.exit(1)"
+      - run: npm ci
+      - run: npm run desktop:typecheck
+      - run: npm run desktop:test
+      - run: npm run desktop:make
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          find apps/desktop/out/make -type f \( \
+            -name '*.dmg' -o \
+            -name '*.zip' -o \
+            -name '*Setup.exe' \
+          \) -print0 | while IFS= read -r -d '' file; do
+            filename="$(basename "$file" | tr ' ' '.')"
+            cp "$file" "release-assets/$filename"
+          done
+          test -n "$(find release-assets -type f -print -quit)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: make
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --title "Skill Port Desktop ${RELEASE_TAG#desktop-v}" \
+              --notes-file .github/desktop-release-notes.md
+          fi

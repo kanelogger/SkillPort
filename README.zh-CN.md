@@ -1,5 +1,9 @@
 # Skill Port CLI
 
+<p align="center">
+  <img src="apps/desktop/assets/skill-port-icon.png" alt="Skill Port 应用图标" width="128">
+</p>
+
 [English](README.md)
 
 Skill Port CLI 是一个本地 Agent Skill 管理工具。它把 Skill 安装到本机 Hub，再启用到项目或全局 Agent 目录。
@@ -40,6 +44,10 @@ sklp uninstall
 项目启用使用 `<project>/.agents/skills/`；唯一的全局目标是 `~/.agents/skills/`。
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
+
+## 桌面 GUI 开发
+
+仓库同时包含一个复用相同 Hub 和核心安全规则的 Electron GUI。可以从 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 下载 macOS 或 Windows 安装包，也可以按照 [Skill Port Desktop](docs/desktop.md) 从源码运行。Desktop 当前是未签名 MVP，不包含在已发布的 CLI npm 包中。
 
 ## 卸载
 
@@ -231,7 +239,7 @@ sklp enable my-skill --json
 sklp doctor --json
 ```
 
-`sklp info <skill>` 默认输出 JSON。公开的 Skill JSON 包含 `tags` 数组；发布者标签仅保存在 Hub 内，不会出现在 catalog 中。
+`sklp info <skill>` 默认输出 JSON。公开的 Skill JSON 包含 `tags` 数组；标签仅保存在 Hub 内，不会出现在 catalog 中。符合条件的导入会推断发布者标签，Skill Port Desktop 可显式编辑同一组 Hub 私有标签。
 
 带 `--json` 的运行时命令失败会把固定 JSON envelope 写入 stdout，stderr 保持为空：
 

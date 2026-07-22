@@ -23,6 +23,7 @@ type RecoveryPayload =
   | { kind: "link"; skill: Skill; destination: string }
   | { kind: "update"; skill: Skill; destination: string; backup: string }
   | { kind: "update"; skill: Skill; destination: string; linked: true }
+  | { kind: "update-tags"; skill: Skill; tags: string[] }
   | { kind: "remove"; skill: Skill; destination: string; backup: string; enablements: Enablement[] }
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
   | { kind: "disable"; skill: Skill; enablement: Enablement };
@@ -352,6 +353,32 @@ export class SkillPort {
     });
   }
 
+  previewLink(source: string): InstallMetadata {
+    const prepared = prepareLocalSource(source);
+    const sourceRoot = realpathSync(prepared.root);
+    const hubRoot = realpathSync(this.paths.root);
+    if (isInside(hubRoot, sourceRoot) || isInside(sourceRoot, hubRoot)) {
+      throw new CliError("Skill source and Hub must not contain one another.");
+    }
+    const metadata = readSkillMetadata(sourceRoot);
+    if (this.store.skill(metadata.name)) {
+      throw new CliError(
+        `Skill already installed: ${metadata.name}. Change the incoming Skill's SKILL.md name before linking it.`
+      );
+    }
+    return metadata;
+  }
+
+  updateTags(name: string, tags: string[]): Skill {
+    const normalized = normalizeTags(tags);
+    return this.mutate("update-tags", (checkpoint) => {
+      const current = this.requireSkill(name);
+      checkpoint({ kind: "update-tags", skill: current, tags: normalized });
+      this.store.transaction(() => this.store.replaceSkillTags(current.instanceId, normalized));
+      return { ...current, tags: normalized };
+    });
+  }
+
   update(name: string, revision?: string): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
@@ -623,6 +650,19 @@ export class SkillPort {
     return tag ? this.store.skillsWithTag(tag) : this.store.skills();
   }
 
+  projects(): string[] {
+    return this.store.projects();
+  }
+
+  registerProject(path: string): string {
+    return this.mutate("init", () => {
+      const project = canonicalDirectory(path);
+      this.store.addProject(project);
+      writeCatalogs(this.paths, this.store.skills());
+      return project;
+    });
+  }
+
   info(name: string): { skill: Skill; enablements: EnablementInfo[] } {
     const skill = this.requireSkill(name);
     const expected = this.skillPath(skill);
@@ -806,6 +846,8 @@ export class SkillPort {
         return this.recoverLink(payload);
       case "update":
         return this.recoverUpdate(payload);
+      case "update-tags":
+        return this.recoverTagUpdate(payload);
       case "remove":
         return this.recoverRemove(payload);
       case "enable":
@@ -870,6 +912,16 @@ export class SkillPort {
       return true;
     }
     return false;
+  }
+
+  private recoverTagUpdate(payload: Extract<RecoveryPayload, { kind: "update-tags" }>): boolean {
+    const current = this.store.skill(payload.skill.name);
+    if (!current || current.instanceId !== payload.skill.instanceId) {
+      throw new CliError(`Interrupted tag update conflicts with the installed Skill: ${payload.skill.name}`);
+    }
+    if (sameTags(current.tags, payload.tags)) return true;
+    if (sameTags(current.tags, payload.skill.tags)) return false;
+    throw new CliError(`Interrupted tag update found conflicting tags for Skill: ${payload.skill.name}`);
   }
 
   private recoverLinkedUpdate(payload: Extract<RecoveryPayload, { kind: "update"; linked: true }>): boolean {
@@ -1193,6 +1245,9 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
   if (kind === "update" && typeof value.destination === "string" && value.linked === true) {
     return { kind, skill: value.skill, destination: value.destination, linked: true };
   }
+  if (kind === "update-tags" && isTagArray(value.tags)) {
+    return { kind, skill: value.skill, tags: value.tags };
+  }
   if (kind === "remove" && typeof value.destination === "string" && typeof value.backup === "string"
     && Array.isArray(value.enablements) && value.enablements.every((item) => isEnablement(item))) {
     return {
@@ -1227,6 +1282,35 @@ function isSkill(value: unknown): value is Skill {
     && Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === "string")
     && typeof value.installedAt === "string"
     && typeof value.updatedAt === "string";
+}
+
+function normalizeTags(tags: string[]): string[] {
+  if (!Array.isArray(tags)) throw new CliError("Tags must be an array of strings.");
+  if (tags.length > 32) throw new CliError("A Skill can have at most 32 tags.");
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const input of tags) {
+    if (typeof input !== "string") throw new CliError("Tags must be an array of strings.");
+    const tag = input.trim();
+    if (!tag) throw new CliError("Tags must not be empty.");
+    if (tag.length > 64) throw new CliError("Each tag must be at most 64 characters.");
+    if (/\p{Cc}/u.test(tag)) throw new CliError("Tags must not contain control characters.");
+    const key = tag.toLocaleLowerCase("en-US");
+    if (!seen.has(key)) {
+      seen.add(key);
+      normalized.push(tag);
+    }
+  }
+  return normalized.sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" }));
+}
+
+function isTagArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((tag) => typeof tag === "string");
+}
+
+function sameTags(left: string[], right: string[]): boolean {
+  const values = new Set(left);
+  return left.length === right.length && right.every((tag) => values.has(tag));
 }
 
 function isEnablement(value: unknown, requireId = true): value is Enablement {

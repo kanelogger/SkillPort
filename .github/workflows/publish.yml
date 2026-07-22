@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   publish:
+    if: startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -25,6 +26,7 @@ jobs:
       - run: npm publish --provenance
 
   post-publish-smoke:
+    if: startsWith(github.event.release.tag_name, 'v')
     needs: publish
     uses: ./.github/workflows/post-publish-smoke.yml
     with:
