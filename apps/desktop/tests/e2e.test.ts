@@ -73,6 +73,16 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await page.getByRole("button", { name: "Install previewed Skills" }).click();
     await page.getByRole("button", { name: /desktop-e2e/ }).click();
     await expect(page.getByRole("heading", { name: "desktop-e2e" })).toBeVisible();
+    await expect(page.getByText("No tags yet.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Edit tags" }).click();
+    const tagsDialog = page.getByRole("dialog");
+    await tagsDialog.getByLabel("Tags").fill("video, Productivity, VIDEO");
+    await tagsDialog.getByRole("button", { name: "Save tags" }).click();
+    await expect(page.locator(".tag", { hasText: "video" })).toBeVisible();
+    await expect(page.locator(".tag", { hasText: "Productivity" })).toBeVisible();
+    const taggedInfo = runInfo();
+    expect(taggedInfo.status).toBe(0);
+    expect(JSON.parse(taggedInfo.stdout).skill.tags).toEqual(["Productivity", "video"]);
     for (const size of [{ width: 1024, height: 720 }, { width: 1440, height: 900 }]) {
       await app.evaluate(({ BrowserWindow }, nextSize) => {
         BrowserWindow.getAllWindows()[0]?.setSize(nextSize.width, nextSize.height);

@@ -235,7 +235,7 @@ sklp enable my-skill --json
 sklp doctor --json
 ```
 
-`sklp info <skill>` 默认输出 JSON。公开的 Skill JSON 包含 `tags` 数组；发布者标签仅保存在 Hub 内，不会出现在 catalog 中。
+`sklp info <skill>` 默认输出 JSON。公开的 Skill JSON 包含 `tags` 数组；标签仅保存在 Hub 内，不会出现在 catalog 中。符合条件的导入会推断发布者标签，Skill Port Desktop 可显式编辑同一组 Hub 私有标签。
 
 带 `--json` 的运行时命令失败会把固定 JSON envelope 写入 stdout，stderr 保持为空：
 

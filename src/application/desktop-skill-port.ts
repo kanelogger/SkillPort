@@ -128,6 +128,11 @@ export class DesktopSkillPort {
     return this.getSkill(skill.name);
   }
 
+  updateTags(name: string, tags: string[]): DesktopSkillDetails {
+    this.write((app) => app.updateTags(name, tags));
+    return this.getSkill(name);
+  }
+
   enable(name: string, target: DesktopTarget): Enablement {
     return this.write((app) => app.enable(name, targetOptions(target)));
   }

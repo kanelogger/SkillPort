@@ -30,4 +30,6 @@ The E2E command builds the production Vite bundles, then launches them through t
 
 The first-run screen requires a project directory and optionally accepts a custom Hub directory. Existing CLI users open the active Hub resolved by `SKLP_HOME`, the Hub locator, or `~/.skill-port`.
 
-The MVP supports Skill installation and linking, project/global enablement, read-only diagnostics, and safe removal. It does not include update management, repair, self-uninstallation, signing, notarization, or automatic application updates.
+The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, and safe removal. Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output.
+
+The Desktop does not include update management, repair, self-uninstallation, signing, notarization, or automatic application updates.

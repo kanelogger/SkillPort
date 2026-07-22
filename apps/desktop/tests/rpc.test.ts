@@ -14,6 +14,25 @@ describe("desktop RPC contract", () => {
     expect(() => parseRpcRequest({ id: "2", method: "getSkill", params: {} })).toThrow();
     expect(() => parseRpcRequest({ id: "3", method: "unknown", params: {} })).toThrow();
     expect(() => parseRpcRequest({ id: "4", method: "remove", params: { name: "skill", force: "yes" } })).toThrow();
+    expect(parseRpcRequest({ id: "5", method: "updateTags", params: { name: "skill", tags: ["video"] } })).toEqual({
+      id: "5",
+      method: "updateTags",
+      params: { name: "skill", tags: ["video"] }
+    });
+    expect(() => parseRpcRequest({ id: "6", method: "updateTags", params: { name: "skill", tags: [""] } })).toThrow();
+    expect(() => parseRpcRequest({ id: "7", method: "updateTags", params: { name: "skill", tags: Array(33).fill("tag") } })).toThrow();
+  });
+
+  it("dispatches tag updates through the allowlisted facade", async () => {
+    const updateTags = vi.fn(() => ({ name: "sample-skill", tags: ["video"] }));
+    const desktop = { updateTags } as unknown as DesktopOperations;
+    const value = await dispatchRpc({
+      id: "1",
+      method: "updateTags",
+      params: { name: "sample-skill", tags: ["video"] }
+    }, desktop);
+    expect(value).toEqual({ name: "sample-skill", tags: ["video"] });
+    expect(updateTags).toHaveBeenCalledWith("sample-skill", ["video"]);
   });
 
   it("dispatches only the allowlisted operation", async () => {

@@ -70,6 +70,13 @@ const messages: Record<Language, Record<string, string>> = {
     projectRegistered: "Project registered.",
     language: "中文",
     tag: "Tag",
+    tags: "Tags",
+    editTags: "Edit tags",
+    saveTags: "Save tags",
+    noTags: "No tags yet.",
+    tagsPlaceholder: "video, productivity",
+    tagsHelp: "Separate tags with commas or new lines. Clear the field to remove all tags.",
+    tagsInvalid: "Use at most 32 tags, with no more than 64 characters each.",
     status: "Status"
   },
   "zh-CN": {
@@ -141,6 +148,13 @@ const messages: Record<Language, Record<string, string>> = {
     projectRegistered: "项目已登记。",
     language: "English",
     tag: "标签",
+    tags: "标签",
+    editTags: "编辑标签",
+    saveTags: "保存标签",
+    noTags: "尚未添加标签。",
+    tagsPlaceholder: "视频, 效率",
+    tagsHelp: "使用逗号或换行分隔；清空输入框可移除全部标签。",
+    tagsInvalid: "最多 32 个标签，每个标签不超过 64 个字符。",
     status: "状态"
   }
 };

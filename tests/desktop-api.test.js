@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,7 +39,7 @@ test("desktop facade initializes a Hub and exposes project and Skill DTOs", () =
   mkdirSync(second);
   makeSkill(source, "desktop-skill", "Desktop Skill");
 
-  withEnvironment(root, () => {
+  withEnvironment(root, ({ hub }) => {
     const desktop = new DesktopSkillPort();
     assert.equal(desktop.getBootstrapState().initialized, false);
     assert.throws(
@@ -58,6 +58,17 @@ test("desktop facade initializes a Hub and exposes project and Skill DTOs", () =
     assert.equal(installed.installationKind, "local-copy");
     assert.equal(installed.health, "not-enabled");
     assert.equal(installed.enablementCount, 0);
+
+    const skillContents = readFileSync(join(hub, "skills", "desktop-skill", "SKILL.md"), "utf8");
+    const tagged = desktop.updateTags("desktop-skill", ["  Video ", "productivity", "video"]);
+    assert.deepEqual(tagged.tags, ["productivity", "Video"]);
+    assert.deepEqual(desktop.listSkills("VIDEO").map((skill) => skill.name), ["desktop-skill"]);
+    assert.equal(readFileSync(join(hub, "skills", "desktop-skill", "SKILL.md"), "utf8"), skillContents);
+    const catalog = JSON.parse(readFileSync(join(hub, "catalog.json"), "utf8"));
+    assert.equal("tags" in catalog.skills[0], false);
+
+    const cleared = desktop.updateTags("desktop-skill", []);
+    assert.deepEqual(cleared.tags, []);
 
     desktop.enable("desktop-skill", { type: "project", path: project });
     const enabled = desktop.getSkill("desktop-skill");

@@ -27,6 +27,7 @@ export type DesktopRpcApi = {
   install(input: { source: string; options?: DesktopInstallOptions }): Promise<DesktopSkillDetails[]>;
   previewLink(input: { source: string }): Promise<{ name: string; description: string }>;
   link(input: { source: string }): Promise<DesktopSkillDetails>;
+  updateTags(input: { name: string; tags: string[] }): Promise<DesktopSkillDetails>;
   enable(input: { name: string; target: DesktopTarget }): Promise<Enablement>;
   disable(input: { name: string; target: DesktopTarget }): Promise<void>;
   doctor(): Promise<Diagnostic[]>;
@@ -67,6 +68,10 @@ const parameterSchemas: Record<RpcMethod, z.ZodType> = {
   install: z.object({ source: z.string().min(1), options: optionsSchema.optional() }).strict(),
   previewLink: z.object({ source: z.string().min(1) }).strict(),
   link: z.object({ source: z.string().min(1) }).strict(),
+  updateTags: z.object({
+    name: z.string().min(1),
+    tags: z.array(z.string().trim().min(1).max(64)).max(32)
+  }).strict(),
   enable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   disable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   doctor: z.object({}).strict(),

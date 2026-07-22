@@ -4,6 +4,7 @@ import type { RpcRequest } from "./shared/rpc.js";
 export type DesktopOperations = Pick<DesktopSkillPort,
   "getBootstrapState" | "initialize" | "listSkills" | "getSkill" | "listProjects" | "registerProject"
   | "previewInstall" | "install" | "previewLink" | "link" | "enable" | "disable" | "doctor" | "remove" | "unlink"
+  | "updateTags"
 >;
 
 export async function dispatchRpc(request: RpcRequest, desktop: DesktopOperations = new DesktopSkillPort()): Promise<unknown> {
@@ -19,6 +20,7 @@ export async function dispatchRpc(request: RpcRequest, desktop: DesktopOperation
     case "install": return desktop.install(params.source, params.options);
     case "previewLink": return desktop.previewLink(params.source);
     case "link": return desktop.link(params.source);
+    case "updateTags": return desktop.updateTags(params.name, params.tags);
     case "enable": return desktop.enable(params.name, params.target);
     case "disable": return desktop.disable(params.name, params.target);
     case "doctor": return desktop.doctor();

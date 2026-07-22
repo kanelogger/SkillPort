@@ -203,7 +203,7 @@ See [exit codes](docs/exit-codes.md). Skill Port CLI uses `0` for successful com
 
 ## Machine-readable output
 
-Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Public Skill JSON includes a `tags` array; Publisher tags remain Hub-only and never appear in catalog output. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
+Use `--json` for stable automation output. `sklp info <skill>` emits JSON by default. Public Skill JSON includes a `tags` array; tags remain Hub-only and never appear in catalog output. Publisher tags are inferred during qualifying imports, and Skill Port Desktop can explicitly edit the same Hub-private tag set. Runtime command failures invoked with `--json` write a JSON envelope to stdout and leave stderr empty:
 
 ```json
 {

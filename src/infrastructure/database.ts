@@ -199,6 +199,12 @@ export class StateStore {
     `).run(skill.description, skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.updatedAt, skill.instanceId);
   }
 
+  replaceSkillTags(skillId: string, tags: string[]): void {
+    this.db.prepare("DELETE FROM skill_tags WHERE skill_id=?").run(skillId);
+    const insert = this.db.prepare("INSERT INTO skill_tags(skill_id,tag) VALUES(?,?)");
+    for (const tag of tags) insert.run(skillId, tag);
+  }
+
   deleteSkill(id: string): void {
     this.db.prepare("DELETE FROM skills WHERE instance_id=?").run(id);
   }

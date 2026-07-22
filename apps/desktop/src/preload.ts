@@ -20,6 +20,7 @@ const bridge: DesktopBridge = {
   install: (input) => invoke("install", input),
   previewLink: (input) => invoke("previewLink", input),
   link: (input) => invoke("link", input),
+  updateTags: (input) => invoke("updateTags", input),
   enable: (input) => invoke("enable", input),
   disable: (input) => invoke("disable", input),
   doctor: () => invoke("doctor"),

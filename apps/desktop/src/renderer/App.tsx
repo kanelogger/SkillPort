@@ -29,6 +29,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [enableOpen, setEnableOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const t = (key: string) => translate(language, key);
 
@@ -122,6 +123,7 @@ export function App() {
             t={t}
             onSelect={selectSkill}
             onEnable={() => setEnableOpen(true)}
+            onEditTags={() => setTagsOpen(true)}
             onDisable={async (enablement) => {
               const target: DesktopTarget = enablement.targetType === "global"
                 ? { type: "global" }
@@ -154,6 +156,13 @@ export function App() {
           await window.skillPort.enable({ name: selected.name, target });
           await refresh(selected.name);
           setEnableOpen(false);
+        });
+      }} />}
+      {tagsOpen && selected && <TagsModal skill={selected} t={t} busy={busy} onClose={() => setTagsOpen(false)} onConfirm={async (tags) => {
+        await run(async () => {
+          await window.skillPort.updateTags({ name: selected.name, tags });
+          await refresh(selected.name);
+          setTagsOpen(false);
         });
       }} />}
       {removeOpen && selected && <RemoveModal skill={selected} t={t} busy={busy} onClose={() => setRemoveOpen(false)} onConfirm={async (force) => {
@@ -202,12 +211,13 @@ function Setup({ language, setLanguage, t, busy, error, onRun, onReady }: {
   );
 }
 
-function SkillsView({ skills, selected, t, onSelect, onEnable, onDisable, onRemove }: {
+function SkillsView({ skills, selected, t, onSelect, onEnable, onEditTags, onDisable, onRemove }: {
   skills: DesktopSkillSummary[];
   selected: DesktopSkillDetails | null;
   t: (key: string) => string;
   onSelect: (name: string) => void;
   onEnable: () => void;
+  onEditTags: () => void;
   onDisable: (enablement: Enablement) => void;
   onRemove: () => void;
 }) {
@@ -243,7 +253,12 @@ function SkillsView({ skills, selected, t, onSelect, onEnable, onDisable, onRemo
         {!selected ? <Empty text={t("selectSkill")} /> : <>
           <div className="detail-heading"><div><span className="eyebrow">{kindLabel(selected.installationKind, t)}</span><h2>{selected.name}</h2><p title={selected.description}>{selected.description}</p></div><Status value={selected.health} /></div>
           <dl className="facts"><div><dt>{t("source")}</dt><dd title={selected.sourceLocation}>{selected.sourceLocation}</dd></div><div><dt>{t("revision")}</dt><dd>{selected.sourceRevision ?? selected.sourceRef ?? "—"}</dd></div><div><dt>{t("installed")}</dt><dd>{new Date(selected.installedAt).toLocaleString()}</dd></div></dl>
-          {selected.tags.length > 0 && <div className="tag-row">{selected.tags.map((item) => <span className="tag" key={item}>{item}</span>)}</div>}
+          <div className="tag-section">
+            <div className="section-title compact"><h3>{t("tags")}</h3><button className="button ghost small" onClick={onEditTags}>{t("editTags")}</button></div>
+            {selected.tags.length > 0
+              ? <div className="tag-row">{selected.tags.map((item) => <span className="tag" key={item}>{item}</span>)}</div>
+              : <p className="muted tag-empty">{t("noTags")}</p>}
+          </div>
           <div className="section-title"><h3>{t("enablements")}</h3><button className="button small" onClick={onEnable}>＋ {t("enable")}</button></div>
           <div className="enablement-list">
             {selected.enablements.length === 0 && <p className="muted">{t("notEnabled")}</p>}
@@ -317,6 +332,23 @@ function AddSkillModal({ t, busy, onClose, onRun, onComplete }: {
 function EnableModal({ skill, projects, t, busy, onClose, onConfirm }: { skill: DesktopSkillDetails; projects: string[]; t: (key: string) => string; busy: boolean; onClose: () => void; onConfirm: (target: DesktopTarget) => void }) {
   const [target, setTarget] = useState("global");
   return <Modal title={`${t("enable")} ${skill.name}`} onClose={onClose}><label className="field"><span>{t("target")}</span><select value={target} onChange={(event) => setTarget(event.target.value)}><option value="global">{t("globalTarget")}</option>{projects.map((project) => <option key={project} value={project}>{project}</option>)}</select></label><div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("cancel")}</button><button className="button primary" disabled={busy} onClick={() => onConfirm(target === "global" ? { type: "global" } : { type: "project", path: target })}>{t("enable")}</button></div></Modal>;
+}
+
+function TagsModal({ skill, t, busy, onClose, onConfirm }: {
+  skill: DesktopSkillDetails;
+  t: (key: string) => string;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (tags: string[]) => void;
+}) {
+  const [value, setValue] = useState(skill.tags.join(", "));
+  const tags = value.split(/[,\n]/).map((tag) => tag.trim()).filter(Boolean);
+  const invalid = tags.length > 32 || tags.some((tag) => tag.length > 64);
+  return <Modal title={`${t("editTags")}: ${skill.name}`} onClose={onClose}>
+    <label className="field"><span>{t("tags")}</span><textarea aria-label={t("tags")} rows={5} value={value} onChange={(event) => setValue(event.target.value)} placeholder={t("tagsPlaceholder")} autoFocus /></label>
+    <p className={`field-help ${invalid ? "invalid" : ""}`}>{invalid ? t("tagsInvalid") : t("tagsHelp")}</p>
+    <div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("cancel")}</button><button className="button primary" disabled={busy || invalid} onClick={() => onConfirm(tags)}>{t("saveTags")}</button></div>
+  </Modal>;
 }
 
 function RemoveModal({ skill, t, busy, onClose, onConfirm }: { skill: DesktopSkillDetails; t: (key: string) => string; busy: boolean; onClose: () => void; onConfirm: (force: boolean) => void }) {
