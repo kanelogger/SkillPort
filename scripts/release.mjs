@@ -170,9 +170,15 @@ function assertGitState({ resume }) {
   }
 }
 
-function tagPointsAtHead(tag) {
-  const result = command("git", ["rev-parse", "--verify", `${tag}^{}`], { capture: true, allowFailure: true });
-  return result.status === 0 && result.stdout.trim() === output("git", ["rev-parse", "HEAD"]);
+function tagPackageVersion(tag) {
+  const result = command("git", ["show", `${tag}:package.json`], { capture: true, allowFailure: true });
+  if (result.status !== 0) return null;
+  try {
+    const manifest = JSON.parse(result.stdout);
+    return typeof manifest.version === "string" ? manifest.version : null;
+  } catch {
+    return null;
+  }
 }
 
 function publishedVersion(packageName, version) {
@@ -264,8 +270,8 @@ async function main() {
   const tag = `v${version}`;
 
   assertGitState(args);
-  if (args.resume && !tagPointsAtHead(tag)) {
-    throw new Error(`--resume requires ${tag} to point at HEAD.`);
+  if (args.resume && tagPackageVersion(tag) !== version) {
+    throw new Error(`--resume requires ${tag} to contain package version ${version}.`);
   }
   if (!args.resume && command("git", ["rev-parse", "--verify", tag], { capture: true, allowFailure: true }).status === 0) {
     throw new Error(`Git tag ${tag} already exists.`);

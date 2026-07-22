@@ -83,9 +83,10 @@ const smokeEnv = {
   SKLP_HOME: hub,
   SKLP_TEST_HOME: root
 };
-const run = (args) => runExecutable(args, {
+const run = (args, options = {}) => runExecutable(args, {
   cwd: project,
-  env: smokeEnv
+  ...options,
+  env: { ...smokeEnv, ...options.env }
 });
 
 assert.equal(run(["init"]).status, 0);
@@ -99,7 +100,10 @@ assert.equal(run(["disable", "published-smoke"]).status, 0);
 assert.equal(run(["remove", "published-smoke"]).status, 0);
 assert.equal(existsSync(join(hub, "skills", "published-smoke")), false);
 
-const uninstall = runExecutable(["uninstall"], { input: "y\n" });
+const uninstall = run(["uninstall"], {
+  input: "y\n",
+  env: { npm_config_prefix: prefix, npm_execpath: "" }
+});
 assert.equal(uninstall.status, 0, uninstall.stderr);
 assert.equal(existsSync(hub), false);
 assert.equal(existsSync(executable), false);
