@@ -47,7 +47,7 @@ The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hu
 
 ## Desktop GUI development
 
-The repository also contains an Electron GUI that uses the same Hub and core safety rules. Download the macOS, Windows, or Linux installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), or see [Skill Port Desktop](docs/desktop.md) to run it from source. The Desktop app is an unsigned MVP and is not included in the published CLI package.
+The repository also contains an Electron GUI that uses the same Hub and core safety rules. Download the macOS or Windows installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), or see [Skill Port Desktop](docs/desktop.md) to run it from source. The Desktop app is an unsigned MVP and is not included in the published CLI package.
 
 ## Uninstall
 

@@ -21,8 +21,6 @@ jobs:
             artifact: desktop-macos-x64
           - os: windows-latest
             artifact: desktop-windows-x64
-          - os: ubuntu-latest
-            artifact: desktop-linux-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -35,11 +33,6 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: node -e "const p=require('./apps/desktop/package.json'); if (process.env.RELEASE_TAG !== 'desktop-v' + p.version) process.exit(1)"
-      - name: Install RPM build tools
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes rpm
       - run: npm ci
       - run: npm run desktop:typecheck
       - run: npm run desktop:test
@@ -51,9 +44,7 @@ jobs:
           find apps/desktop/out/make -type f \( \
             -name '*.dmg' -o \
             -name '*.zip' -o \
-            -name '*Setup.exe' -o \
-            -name '*.deb' -o \
-            -name '*.rpm' \
+            -name '*Setup.exe' \
           \) -exec cp {} release-assets/ \;
           test -n "$(find release-assets -type f -print -quit)"
       - uses: actions/upload-artifact@v4

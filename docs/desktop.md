@@ -13,8 +13,6 @@ Download the package for your system from [GitHub Releases](https://github.com/k
 - macOS Apple Silicon: download the `arm64.dmg`, open it, and drag Skill Port to Applications.
 - macOS Intel: download the `x64.dmg`, open it, and drag Skill Port to Applications.
 - Windows: run `Skill Port Setup.exe`.
-- Debian or Ubuntu: install the `.deb` package.
-- Fedora or RHEL: install the `.rpm` package.
 
 These MVP packages are unsigned. On macOS, right-click Skill Port and choose **Open** on the first launch. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
 
@@ -38,11 +36,11 @@ npm run desktop:build
 npm run desktop:make
 ```
 
-Pushing a tag matching the Desktop version creates the multi-platform GitHub Release. For version `0.1.0`:
+Pushing a tag matching the Desktop version creates the macOS and Windows GitHub Release. For version `0.1.1`:
 
 ```bash
-git tag desktop-v0.1.0
-git push origin desktop-v0.1.0
+git tag desktop-v0.1.1
+git push origin desktop-v0.1.1
 ```
 
 Desktop tags use the `desktop-v*` prefix. CLI npm releases keep using `v*` tags.
