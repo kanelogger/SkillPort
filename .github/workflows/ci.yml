@@ -28,6 +28,22 @@ jobs:
       - run: npm run test:platform
       - run: npm run test:discovery
       - run: npm run test:package
+      - run: npm run desktop:typecheck
+      - run: npm run desktop:test
+      - run: npm run desktop:build
+
+  desktop-macos:
+    needs: verify
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.15.0"
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:e2e
+      - run: npm run desktop:make
 
   package:
     needs: verify

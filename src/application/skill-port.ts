@@ -352,6 +352,22 @@ export class SkillPort {
     });
   }
 
+  previewLink(source: string): InstallMetadata {
+    const prepared = prepareLocalSource(source);
+    const sourceRoot = realpathSync(prepared.root);
+    const hubRoot = realpathSync(this.paths.root);
+    if (isInside(hubRoot, sourceRoot) || isInside(sourceRoot, hubRoot)) {
+      throw new CliError("Skill source and Hub must not contain one another.");
+    }
+    const metadata = readSkillMetadata(sourceRoot);
+    if (this.store.skill(metadata.name)) {
+      throw new CliError(
+        `Skill already installed: ${metadata.name}. Change the incoming Skill's SKILL.md name before linking it.`
+      );
+    }
+    return metadata;
+  }
+
   update(name: string, revision?: string): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
@@ -621,6 +637,19 @@ export class SkillPort {
 
   list(tag?: string): Skill[] {
     return tag ? this.store.skillsWithTag(tag) : this.store.skills();
+  }
+
+  projects(): string[] {
+    return this.store.projects();
+  }
+
+  registerProject(path: string): string {
+    return this.mutate("init", () => {
+      const project = canonicalDirectory(path);
+      this.store.addProject(project);
+      writeCatalogs(this.paths, this.store.skills());
+      return project;
+    });
   }
 
   info(name: string): { skill: Skill; enablements: EnablementInfo[] } {

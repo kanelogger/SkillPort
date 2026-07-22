@@ -41,6 +41,10 @@ sklp uninstall
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
 
+## 桌面 GUI 开发
+
+仓库同时包含一个复用相同 Hub 和核心安全规则的 Electron GUI。开发与验证方式见 [Skill Port Desktop](docs/desktop.md)。Desktop 当前是未签名的开发态 MVP，不包含在已发布的 CLI npm 包中。
+
 ## 卸载
 
 ```bash

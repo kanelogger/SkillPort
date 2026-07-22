@@ -8,6 +8,11 @@ node_modules/
 # Build and test output
 dist/
 build/
+apps/desktop/.vite/
+apps/desktop/dist/
+apps/desktop/out/
+apps/desktop/playwright-report/
+apps/desktop/test-results/
 coverage/
 tests/**/coverage/
 tests/e2e/reports/

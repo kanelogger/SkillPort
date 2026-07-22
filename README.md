@@ -41,6 +41,10 @@ Project enablement uses `<project>/.agents/skills/`; the only global target is `
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
 
+## Desktop GUI development
+
+The repository also contains an Electron GUI that uses the same Hub and core safety rules. See [Skill Port Desktop](docs/desktop.md). The Desktop app is currently an unsigned development MVP and is not included in the published CLI package.
+
 ## Uninstall
 
 ```bash
