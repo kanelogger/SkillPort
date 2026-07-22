@@ -1,6 +1,6 @@
 # Skill Port CLI Requirements Matrix
 
-Date: 2026-07-15
+Date: 2026-07-22
 
 Status keys:
 
@@ -74,6 +74,7 @@ Status keys:
 | Gate | Evidence needed | Status |
 | --- | --- | --- |
 | Cross-platform business gate | GitHub Actions `ci.yml` run `29315513324` passed on `ubuntu-latest`, `macos-latest`, and `windows-latest` for v0.4.1 | Passed |
+| Local npm release gate | `scripts/release.mjs` validates the release version, Git state, npm authentication and registry availability; runs lint, typecheck, full tests, platform tests, discovery, packed install, audit, and package inspection; publishes locally; pushes the release commit/tag; and runs the published-package smoke. `tests/release-script.test.js` covers argument and stable-version behavior. | Passed |
 | Published-package install smoke | After the publisher releases `skill-port-cli@0.4.1`, manually run `.github/workflows/post-publish-smoke.yml` to verify the public npm package on `ubuntu-latest`, `macos-latest`, and `windows-latest` | Publisher-owned |
 | Shared-directory runtime loading | `npm run test:discovery` passed locally and in GitHub Actions CI run `29315513324` on macOS, Linux, and Windows | Passed |
 | Latest packed install | `npm run test:package` passed for the v0.5.0 candidate; `npm pack --dry-run --json` reported 46 intended CLI/core files and no `apps/desktop` content | Passed |
