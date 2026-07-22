@@ -280,3 +280,13 @@ sklp doctor --json
 - `remove --force` 只会移除验证过的受管入口。
 - Git 命令不通过 shell 执行。
 - Git URL 中的凭据会被脱敏。
+
+## 维护者发布
+
+npm 包由本地发布，GitHub Release 不再触发该包发布。请在干净、已与远端同步的 `main` 分支运行发布命令；本机需要 Node.js 24.15.0 或更高版本，并且当前 npm 账号拥有 `skill-port-cli` 的发布权限：
+
+```bash
+npm run release -- patch --note "描述本次面向用户的改动"
+```
+
+可将 `patch` 换成 `minor`、`major` 或精确的稳定版本号；多项改动可重复传入 `--note`。脚本会检查 npm 登录状态和版本占用情况，运行全部 CLI 发布门禁，更新版本元数据和 changelog，创建发布提交与 tag，在本机发布 npm 包，推送 `main` 和 tag，最后安装线上包执行冒烟测试。如果发布提交创建后 npm 发布或 Git 推送失败，修复原因后运行 `npm run release -- --resume` 继续。

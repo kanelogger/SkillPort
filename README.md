@@ -237,3 +237,13 @@ Catalog entries contain only `instanceId`, `name`, and `description`. Project as
 - `unlink` only applies to linked local Skills; `unlink --force` first removes verified managed entries.
 - `doctor` is read-only and reports an actionable suggestion for each diagnostic.
 - Git is invoked without a shell, and credentials are removed from persisted and displayed source URLs.
+
+## Maintainer release
+
+npm releases are published locally; GitHub Releases do not publish this package. Run the release command from a clean, synchronized `main` branch with Node.js 24.15.0 or newer and an npm account that can publish `skill-port-cli`:
+
+```bash
+npm run release -- patch --note "Describe the user-visible change"
+```
+
+Use `minor`, `major`, or an exact stable version instead of `patch`. Repeat `--note` to add multiple `CHANGELOG.md` bullets. The script checks npm authentication and version availability, runs all CLI release gates, updates version metadata and the changelog, creates the release commit and tag, publishes npm, pushes `main` and the tag, then smoke-tests the published package. If npm publication or Git push fails after the release commit is created, fix the cause and run `npm run release -- --resume`.
