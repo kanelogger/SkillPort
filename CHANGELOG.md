@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-07-22
+
+### Changes
+
+- update uninstall
+
 ## 0.5.0 - 2026-07-15
 
 ### Features
