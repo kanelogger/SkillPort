@@ -8,13 +8,25 @@ Skill Port Desktop is the local GUI for the same Hub managed by `sklp`.
 
 ## Install a release
 
-Download the package for your system from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases):
+Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP. Until a replacement is published, install the CLI with `npm install --global skill-port-cli` and use `sklp`.
+
+After a replacement appears on [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), download the package for your system:
 
 - macOS Apple Silicon: download the `arm64.dmg`, open it, and drag Skill Port to Applications.
 - macOS Intel: download the `x64.dmg`, open it, and drag Skill Port to Applications.
 - Windows: run `Skill Port Setup.exe`.
 
-The macOS packages use an ad-hoc signature so Gatekeeper can verify that the application bundle was not modified after packaging. They are not Developer ID signed or notarized, so macOS may still block the first launch. Right-click Skill Port and choose **Open**; on newer macOS versions, open **System Settings > Privacy & Security** and choose **Open Anyway**. No Terminal command is required. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
+The macOS packages use an ad-hoc signature so Gatekeeper can verify that the application bundle was not modified after packaging. They are not Developer ID signed or notarized, so macOS may still block the first launch. Right-click Skill Port and choose **Open**; on newer macOS versions, launch it once, then open **System Settings > Privacy & Security** and choose **Open Anyway**. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
+
+If the app exits immediately after Gatekeeper has allowed it, remove that version and install a newer release. Removing quarantine or locally re-signing a known-bad package is not a supported repair.
+
+## First run
+
+1. Choose the project directory where Skill Port should manage Agent Skill entries.
+2. Keep the default Hub unless an existing CLI setup uses `SKLP_HOME`, a Hub locator, or another custom Hub.
+3. Install a Skill from a local directory or Git source, or link a local Skill under active development.
+4. Open the Skill detail page and enable it for the selected project or globally.
+5. Use Diagnostics for read-only health checks. Review the preview before confirming any Git Skill update.
 
 ## Application icon
 

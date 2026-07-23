@@ -50,15 +50,26 @@ jobs:
           app="$(find apps/desktop/out -type d -name 'Skill Port.app' -print -quit)"
           test -n "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
-          "$app/Contents/MacOS/skill-port" &
-          pid=$!
-          sleep 5
-          if ! kill -0 "$pid"; then
-            wait "$pid"
+          smoke_log="$RUNNER_TEMP/skill-port-smoke.log"
+          open -W -n "$app" -o "$smoke_log" --stderr "$smoke_log" --args --skill-port-smoke-test &
+          launcher_pid=$!
+          completed=false
+          for _ in {1..20}; do
+            if ! kill -0 "$launcher_pid" 2>/dev/null; then
+              wait "$launcher_pid" || { cat "$smoke_log"; exit 1; }
+              completed=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$completed" != true ]]; then
+            cat "$smoke_log"
+            kill "$launcher_pid" 2>/dev/null || true
+            pkill -f "$app/Contents/MacOS/skill-port" || true
             exit 1
           fi
-          kill "$pid"
-          wait "$pid" || true
+          cat "$smoke_log"
+          grep -q 'SKILL_PORT_SMOKE_READY' "$smoke_log"
 
   package:
     needs: verify

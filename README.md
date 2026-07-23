@@ -52,7 +52,16 @@ The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hu
 
 Skill Port Desktop is an Electron GUI that uses the same Hub and core safety rules as the CLI. It supports Skill installation, linking, Hub-private tag editing, project/global enablement, read-only diagnostics, and Git Skill update previews with confirmation.
 
-Download the macOS or Windows installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases). See [Skill Port Desktop](docs/desktop.md) for development setup, build commands, and release instructions.
+> **Release status:** Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP. Use the CLI until a replacement Desktop release appears on [GitHub Releases](https://github.com/kanelogger/SkillPort/releases).
+
+When a replacement release is available:
+
+1. On macOS, download `arm64.dmg` for Apple Silicon or `x64.dmg` for Intel. Open the DMG and drag Skill Port to Applications. On Windows, run `Skill Port Setup.exe`.
+2. On the first macOS launch, right-click Skill Port and choose **Open**. On newer macOS versions, launch it once, then use **System Settings > Privacy & Security > Open Anyway**.
+3. Choose the project directory that should receive managed Skill entries. Keep the default Hub unless an existing CLI setup uses a custom Hub.
+4. Install or link a Skill, open its detail page, and enable it for the selected project or globally. Diagnostics are read-only; Git updates always show a preview before confirmation.
+
+If a macOS app exits immediately after Gatekeeper has allowed it, remove that version and install a newer release. Removing quarantine or locally re-signing a known-bad package is not a supported repair. See [Skill Port Desktop](docs/desktop.md) for detailed installation, usage, development, and release instructions.
 
 Desktop tags use the `desktop-v*` prefix. The Desktop is not included in the published `skill-port-cli` npm package.
 
