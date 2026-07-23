@@ -14,7 +14,7 @@ Download the package for your system from [GitHub Releases](https://github.com/k
 - macOS Intel: download the `x64.dmg`, open it, and drag Skill Port to Applications.
 - Windows: run `Skill Port Setup.exe`.
 
-These MVP packages are unsigned. On macOS, right-click Skill Port and choose **Open** on the first launch. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
+The macOS packages use an ad-hoc signature so Gatekeeper can verify that the application bundle was not modified after packaging. They are not Developer ID signed or notarized, so macOS may still block the first launch. Right-click Skill Port and choose **Open**; on newer macOS versions, open **System Settings > Privacy & Security** and choose **Open Anyway**. No Terminal command is required. Windows may show a SmartScreen warning. `SHA256SUMS.txt` in each Desktop release contains installer checksums.
 
 ## Application icon
 
@@ -29,7 +29,7 @@ npm install
 npm run desktop:dev
 ```
 
-Build or create an unsigned local package:
+Build or create a local package. macOS builds receive an ad-hoc signature:
 
 ```bash
 npm run desktop:build
@@ -60,4 +60,4 @@ The first-run screen requires a project directory and optionally accepts a custo
 
 The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, safe removal, and manual Git Skill updates. The Desktop can check one copied Git Skill or the full Hub, show a non-mutating update preview, then update only after confirmation. Local copies, linked Skills, and tag/commit-pinned Git Skills remain skipped according to the CLI update contract. Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output.
 
-The Desktop does not include background update checks, repair, self-uninstallation, signing, notarization, or automatic application updates.
+The Desktop does not include background update checks, repair, self-uninstallation, Developer ID signing, notarization, or automatic application updates.

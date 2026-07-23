@@ -44,6 +44,12 @@ jobs:
       - run: npm ci
       - run: npm run desktop:e2e
       - run: npm run desktop:make
+      - name: Verify macOS app signature
+        shell: bash
+        run: |
+          app="$(find apps/desktop/out -type d -name 'Skill Port.app' -print -quit)"
+          test -n "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
 
   package:
     needs: verify

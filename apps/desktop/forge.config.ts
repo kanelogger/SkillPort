@@ -13,7 +13,11 @@ const config: ForgeConfig = {
     asar: true,
     executableName: "skill-port",
     appBundleId: "com.kanelogger.skillport",
-    icon: "assets/skill-port-icon"
+    icon: "assets/skill-port-icon",
+    osxSign: {
+      identity: "-",
+      identityValidation: false
+    }
   },
   rebuildConfig: {},
   makers: [
