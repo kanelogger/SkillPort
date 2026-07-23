@@ -37,13 +37,22 @@ jobs:
       - run: npm run desktop:typecheck
       - run: npm run desktop:test
       - run: npm run desktop:make
-      - name: Verify macOS app signature
+      - name: Verify macOS app package
         if: runner.os == 'macOS'
         shell: bash
         run: |
           app="$(find apps/desktop/out -type d -name 'Skill Port.app' -print -quit)"
           test -n "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/skill-port" &
+          pid=$!
+          sleep 5
+          if ! kill -0 "$pid"; then
+            wait "$pid"
+            exit 1
+          fi
+          kill "$pid"
+          wait "$pid" || true
       - name: Collect installers
         shell: bash
         run: |

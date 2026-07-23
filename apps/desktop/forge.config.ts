@@ -16,7 +16,8 @@ const config: ForgeConfig = {
     icon: "assets/skill-port-icon",
     osxSign: {
       identity: "-",
-      identityValidation: false
+      identityValidation: false,
+      optionsForFile: () => ({ hardenedRuntime: false })
     }
   },
   rebuildConfig: {},
