@@ -206,6 +206,7 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
     if (await switchToEnglish.isVisible()) await switchToEnglish.click();
     await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: /desktop-update/ }).click();
+    await expect(page.getByRole("heading", { name: "desktop-update" })).toBeVisible();
     await page.getByRole("button", { name: "Enable", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Enable", exact: true }).click();
 
