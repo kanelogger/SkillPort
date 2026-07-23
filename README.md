@@ -52,9 +52,9 @@ The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hu
 
 Skill Port Desktop is an Electron GUI that uses the same Hub and core safety rules as the CLI. It supports Skill installation, linking, Hub-private tag editing, project/global enablement, read-only diagnostics, and Git Skill update previews with confirmation.
 
-> **Release status:** Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP. Use the CLI until a replacement Desktop release appears on [GitHub Releases](https://github.com/kanelogger/SkillPort/releases).
+> **Release status:** Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. The replacement [Desktop 0.1.4 release](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4) is available now. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP.
 
-When a replacement release is available:
+Install the current release:
 
 1. On macOS, download `arm64.dmg` for Apple Silicon or `x64.dmg` for Intel. Open the DMG and drag Skill Port to Applications. On Windows, run `Skill Port Setup.exe`.
 2. On the first macOS launch, right-click Skill Port and choose **Open**. On newer macOS versions, launch it once, then use **System Settings > Privacy & Security > Open Anyway**.

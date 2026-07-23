@@ -8,9 +8,9 @@ Skill Port Desktop is the local GUI for the same Hub managed by `sklp`.
 
 ## Install a release
 
-Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP. Until a replacement is published, install the CLI with `npm install --global skill-port-cli` and use `sklp`.
+Desktop 0.1.3 was withdrawn on July 23, 2026 because its macOS packages can exit immediately at launch. The replacement [Desktop 0.1.4 release](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4) is available now. Do not install a cached `Skill.Port-0.1.3-*.dmg` or macOS ZIP.
 
-After a replacement appears on [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), download the package for your system:
+Download the current package for your system from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases):
 
 - macOS Apple Silicon: download the `arm64.dmg`, open it, and drag Skill Port to Applications.
 - macOS Intel: download the `x64.dmg`, open it, and drag Skill Port to Applications.
