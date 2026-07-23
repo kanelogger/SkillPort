@@ -207,14 +207,14 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
     await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: /desktop-update/ }).click();
     await expect(page.getByRole("heading", { name: "desktop-update" })).toBeVisible();
-    await page.getByRole("button", { name: "Enable", exact: true }).click();
+    await page.locator(".detail-panel").getByRole("button", { name: /Enable/ }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Enable", exact: true }).click();
 
     writeFileSync(join(gitSource, "SKILL.md"), "---\nname: desktop-update\ndescription: After update\n---\n");
     git(["add", "."], gitSource);
     git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], gitSource);
     const updatedRevision = git(["rev-parse", "HEAD"], gitSource);
-    await page.getByRole("button", { name: "Check update", exact: true }).click();
+    await page.locator(".detail-panel").getByRole("button", { name: /Check update/ }).click();
     const updateDialog = page.getByRole("dialog");
     await expect(updateDialog.getByText(/desktop-update: outdated/)).toBeVisible();
     await updateDialog.getByRole("button", { name: "Preview update" }).click();
