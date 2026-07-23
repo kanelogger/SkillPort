@@ -201,6 +201,9 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
     });
     const page = await app.firstWindow({ timeout: 30_000 });
     await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: /Skills|技能/ })).toBeVisible({ timeout: 30_000 });
+    const switchToEnglish = page.getByRole("button", { name: "English" });
+    if (await switchToEnglish.isVisible()) await switchToEnglish.click();
     await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: /desktop-update/ }).click();
     await page.getByRole("button", { name: "Enable", exact: true }).click();
