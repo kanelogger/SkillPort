@@ -102,6 +102,7 @@ textarea { width:100%; resize:vertical; line-height:1.5; }
 .section-title.compact { min-height:31px; }
 .section-title h2 { font-size:22px; }
 .section-title h3 { font-size:15px; }
+.detail-actions { margin:16px 0; }
 .enablement-list { display:grid; gap:8px; }
 .enablement { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:10px; padding:11px; border-radius:10px; background:var(--surface-soft); }
 .enablement strong, .enablement small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

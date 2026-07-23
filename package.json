@@ -42,6 +42,7 @@
     "test:discovery": "npm run build && node scripts/smoke/agent-discovery.mjs",
     "smoke:published": "node scripts/smoke/published-install.mjs",
     "release": "node scripts/release.mjs",
+    "release:desktop": "node scripts/release-desktop.mjs",
     "desktop:dev": "npm run build && npm run start --workspace skill-port-desktop",
     "desktop:build": "npm run build && npm run package --workspace skill-port-desktop",
     "desktop:typecheck": "npm run build && npm run typecheck --workspace skill-port-desktop",

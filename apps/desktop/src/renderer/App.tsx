@@ -5,8 +5,11 @@ import type {
   DesktopSkillDetails,
   DesktopSkillSummary,
   DesktopTarget,
+  BatchUpdateSummary,
   Diagnostic,
-  Enablement
+  Enablement,
+  FleetUpdateCheck,
+  UpdateSummary
 } from "skill-port-cli/desktop";
 import type { InstallPreview } from "../shared/rpc.js";
 import skillPortIcon from "../../assets/skill-port-icon.png";
@@ -32,6 +35,7 @@ export function App() {
   const [enableOpen, setEnableOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [updateDialog, setUpdateDialog] = useState<{ name?: string; checks: FleetUpdateCheck[] } | null>(null);
   const t = (key: string) => translate(language, key);
 
   async function run<T>(operation: () => Promise<T>): Promise<T | undefined> {
@@ -60,6 +64,13 @@ export function App() {
     const name = selectName ?? selected?.name;
     if (name && nextSkills.some((skill) => skill.name === name)) setSelected(await window.skillPort.getSkill({ name }));
     else setSelected(null);
+  }
+
+  async function checkUpdates(name?: string) {
+    const checks = await run(async () => name
+      ? [await window.skillPort.checkUpdate({ name })]
+      : await window.skillPort.checkAllUpdates());
+    if (checks) setUpdateDialog({ name, checks });
   }
 
   useEffect(() => {
@@ -112,7 +123,7 @@ export function App() {
           <div className="top-actions">
             {busy && <span className="busy-label"><span className="spinner" />{t("busy")}</span>}
             <button className="button ghost" onClick={() => setLanguage(language === "en" ? "zh-CN" : "en")}>{t("language")}</button>
-            {view === "skills" && <button className="button primary" onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button>}
+            {view === "skills" && <><button className="button ghost" onClick={() => void checkUpdates()}>↻ {t("checkUpdates")}</button><button className="button primary" onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button></>}
           </div>
         </header>
         {error && <div className="error-banner" role="alert"><strong>{t("operationFailed")}</strong><span>{error}</span><button onClick={() => setError(null)} aria-label={t("close")}>×</button></div>}
@@ -125,6 +136,7 @@ export function App() {
             onSelect={selectSkill}
             onEnable={() => setEnableOpen(true)}
             onEditTags={() => setTagsOpen(true)}
+            onCheckUpdate={() => void checkUpdates(selected!.name)}
             onDisable={async (enablement) => {
               const target: DesktopTarget = enablement.targetType === "global"
                 ? { type: "global" }
@@ -174,6 +186,29 @@ export function App() {
           await refresh();
         });
       }} />}
+      {updateDialog && <UpdateModal
+        scopeName={updateDialog.name}
+        checks={updateDialog.checks}
+        t={t}
+        busy={busy}
+        onClose={() => setUpdateDialog(null)}
+        onPreview={() => run(() => updateDialog.name
+          ? window.skillPort.previewUpdate({ name: updateDialog.name })
+          : window.skillPort.previewAllUpdates())}
+        onConfirm={async () => {
+          const result = await run(async (): Promise<BatchUpdateSummary> => {
+            if (!updateDialog.name) return window.skillPort.updateAll();
+            const updated = await window.skillPort.update({ name: updateDialog.name });
+            return {
+              updated: [{ name: updated.name, revision: updated.sourceRevision ?? "unknown" }],
+              skipped: [],
+              failed: []
+            };
+          });
+          if (result) await refresh(updateDialog.name);
+          return result;
+        }}
+      />}
     </div>
   );
 }
@@ -212,13 +247,14 @@ function Setup({ language, setLanguage, t, busy, error, onRun, onReady }: {
   );
 }
 
-function SkillsView({ skills, selected, t, onSelect, onEnable, onEditTags, onDisable, onRemove }: {
+function SkillsView({ skills, selected, t, onSelect, onEnable, onEditTags, onCheckUpdate, onDisable, onRemove }: {
   skills: DesktopSkillSummary[];
   selected: DesktopSkillDetails | null;
   t: (key: string) => string;
   onSelect: (name: string) => void;
   onEnable: () => void;
   onEditTags: () => void;
+  onCheckUpdate: () => void;
   onDisable: (enablement: Enablement) => void;
   onRemove: () => void;
 }) {
@@ -254,6 +290,7 @@ function SkillsView({ skills, selected, t, onSelect, onEnable, onEditTags, onDis
         {!selected ? <Empty text={t("selectSkill")} /> : <>
           <div className="detail-heading"><div><span className="eyebrow">{kindLabel(selected.installationKind, t)}</span><h2>{selected.name}</h2><p title={selected.description}>{selected.description}</p></div><Status value={selected.health} /></div>
           <dl className="facts"><div><dt>{t("source")}</dt><dd title={selected.sourceLocation}>{selected.sourceLocation}</dd></div><div><dt>{t("revision")}</dt><dd>{selected.sourceRevision ?? selected.sourceRef ?? "—"}</dd></div><div><dt>{t("installed")}</dt><dd>{new Date(selected.installedAt).toLocaleString()}</dd></div></dl>
+          {selected.installationKind === "git-copy" && <div className="detail-actions"><button className="button" onClick={onCheckUpdate}>↻ {t("checkUpdate")}</button></div>}
           <div className="tag-section">
             <div className="section-title compact"><h3>{t("tags")}</h3><button className="button ghost small" onClick={onEditTags}>{t("editTags")}</button></div>
             {selected.tags.length > 0
@@ -358,6 +395,34 @@ function RemoveModal({ skill, t, busy, onClose, onConfirm }: { skill: DesktopSki
   return <Modal title={`${t("confirmRemove")}: ${skill.name}`} onClose={onClose}><p className="muted">{t("destructiveDescription")}</p><dl className="facts"><div><dt>{t("source")}</dt><dd title={skill.sourceLocation}>{skill.sourceLocation}</dd></div></dl>{skill.enablements.length > 0 && <div className="preview-box"><strong>{t("enablements")}</strong><ul>{skill.enablements.map((item) => <li key={item.id}>{item.targetType === "global" ? t("globalTarget") : item.targetKey} — {item.entryPath}</li>)}</ul></div>}{requiresForce && <label className="check"><input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} /><span>{t("forceRemove")}</span></label>}<div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("cancel")}</button><button className="button danger" disabled={busy || (requiresForce && !force)} onClick={() => onConfirm(force)}>{skill.installationKind === "linked" ? t("unlink") : t("remove")}</button></div></Modal>;
 }
 
+function UpdateModal({ scopeName, checks, t, busy, onClose, onPreview, onConfirm }: {
+  scopeName?: string;
+  checks: FleetUpdateCheck[];
+  t: (key: string) => string;
+  busy: boolean;
+  onClose: () => void;
+  onPreview: () => Promise<UpdateSummary | undefined>;
+  onConfirm: () => Promise<BatchUpdateSummary | undefined>;
+}) {
+  const [preview, setPreview] = useState<UpdateSummary | null>(null);
+  const [result, setResult] = useState<BatchUpdateSummary | null>(null);
+  const title = scopeName ? `${t("checkUpdate")}: ${scopeName}` : t("checkUpdates");
+  async function previewUpdates() {
+    const value = await onPreview();
+    if (value) setPreview(value);
+  }
+  async function confirmUpdates() {
+    const value = await onConfirm();
+    if (value) setResult(value);
+  }
+  return <Modal title={title} onClose={onClose}>
+    <div className="preview-box"><strong>{t("checkResults")}</strong><PreviewGroup label={t("updateStatus")} items={checks.map(formatUpdateCheck)} /></div>
+    {preview && <div className="preview-box"><strong>{t("updatePreview")}</strong><PreviewGroup label={t("wouldUpdate")} items={preview.planned.map((item) => `${item.name} — ${item.revision}`)} /><PreviewGroup label={t("skipped")} items={preview.skipped.map((item) => `${item.name}: ${item.reason}`)} /><PreviewGroup label={t("failed")} items={preview.failed.map((item) => `${item.name}: ${item.reason}`)} /></div>}
+    {result && <div className="preview-box"><strong>{t("updateComplete")}</strong><PreviewGroup label={t("updated")} items={result.updated.map((item) => `${item.name} — ${item.revision}`)} /><PreviewGroup label={t("skipped")} items={result.skipped.map((item) => `${item.name}: ${item.reason}`)} /><PreviewGroup label={t("failed")} items={result.failed.map((item) => `${item.name}: ${item.reason}`)} /></div>}
+    <div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("close")}</button><button className="button" disabled={busy || Boolean(result)} onClick={() => void previewUpdates()}>{t("previewUpdate")}</button><button className="button primary" disabled={busy || !preview?.planned.length || Boolean(result)} onClick={() => void confirmUpdates()}>{t("confirmUpdate")}</button></div>
+  </Modal>;
+}
+
 function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-head"><h2 id="modal-title">{title}</h2><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div>{children}</section></div>;
 }
@@ -373,4 +438,5 @@ function NavButton({ active, onClick, icon, children }: { active: boolean; onCli
 function Status({ value }: { value: string }) { return <span className={`status status-${value}`}>{value}</span>; }
 function Empty({ text }: { text: string }) { return <div className="empty"><span>◇</span><p>{text}</p></div>; }
 function PreviewGroup({ label, items }: { label: string; items: string[] }) { return items.length ? <div className="preview-group"><span>{label}</span><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></div> : null; }
+function formatUpdateCheck(check: FleetUpdateCheck): string { return `${check.name}: ${check.status}${check.reason ? ` — ${check.reason}` : ""}`; }
 function kindLabel(kind: DesktopInstallationKind, t: (key: string) => string) { return kind === "linked" ? t("linked") : kind === "git-copy" ? t("gitCopy") : t("localCopy"); }

@@ -6,8 +6,12 @@ import type {
   DesktopSkillDetails,
   DesktopSkillSummary,
   DesktopTarget,
+  BatchUpdateSummary,
   Diagnostic,
-  Enablement
+  Enablement,
+  FleetUpdateCheck,
+  UpdateCheck,
+  UpdateSummary
 } from "skill-port-cli/desktop";
 
 export type InstallPreview = {
@@ -28,6 +32,12 @@ export type DesktopRpcApi = {
   previewLink(input: { source: string }): Promise<{ name: string; description: string }>;
   link(input: { source: string }): Promise<DesktopSkillDetails>;
   updateTags(input: { name: string; tags: string[] }): Promise<DesktopSkillDetails>;
+  checkUpdate(input: { name: string }): Promise<UpdateCheck>;
+  checkAllUpdates(): Promise<FleetUpdateCheck[]>;
+  previewUpdate(input: { name: string }): Promise<UpdateSummary>;
+  previewAllUpdates(): Promise<UpdateSummary>;
+  update(input: { name: string }): Promise<DesktopSkillDetails>;
+  updateAll(): Promise<BatchUpdateSummary>;
   enable(input: { name: string; target: DesktopTarget }): Promise<Enablement>;
   disable(input: { name: string; target: DesktopTarget }): Promise<void>;
   doctor(): Promise<Diagnostic[]>;
@@ -72,6 +82,12 @@ const parameterSchemas: Record<RpcMethod, z.ZodType> = {
     name: z.string().min(1),
     tags: z.array(z.string().trim().min(1).max(64)).max(32)
   }).strict(),
+  checkUpdate: z.object({ name: z.string().min(1) }).strict(),
+  checkAllUpdates: z.object({}).strict(),
+  previewUpdate: z.object({ name: z.string().min(1) }).strict(),
+  previewAllUpdates: z.object({}).strict(),
+  update: z.object({ name: z.string().min(1) }).strict(),
+  updateAll: z.object({}).strict(),
   enable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   disable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   doctor: z.object({}).strict(),

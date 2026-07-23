@@ -3,25 +3,39 @@ import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+
+function git(args: string[], cwd: string): string {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  expect(result.status).toBe(0);
+  return result.stdout.trim();
+}
 
 test("desktop and CLI share the core Skill lifecycle", async () => {
   const root = mkdtempSync(join(tmpdir(), "skill-port-desktop-e2e-"));
   const project = join(root, "project");
   const source = join(root, "source");
+  const gitSource = join(root, "git-source");
   const selectedHub = join(root, "selected-hub");
   mkdirSync(project);
   mkdirSync(source);
+  mkdirSync(gitSource);
   mkdirSync(selectedHub);
   writeFileSync(join(source, "SKILL.md"), "---\nname: desktop-e2e\ndescription: Desktop E2E Skill\n---\n");
+  writeFileSync(join(gitSource, "SKILL.md"), "---\nname: desktop-update\ndescription: Before update\n---\n");
+  git(["init"], gitSource);
+  git(["branch", "-M", "main"], gitSource);
+  git(["add", "."], gitSource);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], gitSource);
   const desktopRoot = resolve(process.cwd());
   const repositoryRoot = resolve(desktopRoot, "../..");
   const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
   const cliEnv: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, SKLP_TEST_HOME: root };
   delete cliEnv.SKLP_HOME;
-  const runInfo = () => spawnSync(
+  const runInfo = (name = "desktop-e2e") => spawnSync(
     process.execPath,
-    [join(repositoryRoot, "dist", "cli.js"), "info", "desktop-e2e"],
+    [join(repositoryRoot, "dist", "cli.js"), "info", name],
     { cwd: project, env: cliEnv, encoding: "utf8" }
   );
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
@@ -66,6 +80,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await page.getByRole("button", { name: /desktop-e2e/ }).click();
     await expect(page.getByRole("heading", { name: "desktop-e2e" })).toBeVisible();
     await expect(page.getByText("No tags yet.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check update", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Edit tags" }).click();
     const tagsDialog = page.getByRole("dialog");
     await tagsDialog.getByLabel("Tags").fill("video, Productivity, VIDEO");
@@ -141,6 +156,34 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await removeDialog.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(page.getByText("No Skills installed yet.")).toBeVisible();
     expect(runInfo().status).not.toBe(0);
+
+    const installedGit = spawnSync(
+      process.execPath,
+      [join(repositoryRoot, "dist", "cli.js"), "install", pathToFileURL(gitSource).href],
+      { cwd: project, env: cliEnv, encoding: "utf8" }
+    );
+    expect(installedGit.status).toBe(0);
+    await page.reload();
+    await page.getByRole("button", { name: /desktop-update/ }).click();
+    await page.getByRole("button", { name: "Enable", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Enable", exact: true }).click();
+
+    writeFileSync(join(gitSource, "SKILL.md"), "---\nname: desktop-update\ndescription: After update\n---\n");
+    git(["add", "."], gitSource);
+    git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], gitSource);
+    const updatedRevision = git(["rev-parse", "HEAD"], gitSource);
+    await page.getByRole("button", { name: "Check update", exact: true }).click();
+    const updateDialog = page.getByRole("dialog");
+    await expect(updateDialog.getByText(/desktop-update: outdated/)).toBeVisible();
+    await updateDialog.getByRole("button", { name: "Preview update" }).click();
+    await expect(updateDialog.getByText(updatedRevision)).toBeVisible();
+    await updateDialog.getByRole("button", { name: "Update previewed Skills" }).click();
+    await expect(updateDialog.getByText("Update complete")).toBeVisible();
+    const updateInfo = runInfo("desktop-update");
+    expect(updateInfo.status).toBe(0);
+    expect(JSON.parse(updateInfo.stdout).skill.sourceRevision).toBe(updatedRevision);
+    expect(JSON.parse(updateInfo.stdout).enablements).toHaveLength(1);
+    await updateDialog.getByRole("button", { name: "Close" }).click();
 
     await page.getByRole("button", { name: "中文" }).click();
     await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();

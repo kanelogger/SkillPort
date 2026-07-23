@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { DesktopSkillPort, toDesktopError } from "../dist/desktop.js";
 import { makeSkill } from "./helpers.js";
@@ -27,6 +29,12 @@ function withEnvironment(root, fn) {
       else process.env[key] = value;
     }
   }
+}
+
+function git(args, cwd) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
 }
 
 test("desktop facade initializes a Hub and exposes project and Skill DTOs", () => {
@@ -94,6 +102,42 @@ test("desktop facade previews links and preserves linked source on unlink", () =
     assert.equal(desktop.link(source).installationKind, "linked");
     desktop.unlink("linked-skill");
     assert.equal(existsSync(join(source, "SKILL.md")), true);
+  });
+});
+
+test("desktop facade checks, previews, and updates copied Git Skills without changing enablements", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-update-"));
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(repo, "desktop-git-skill", "Before update");
+  git(["init"], repo);
+  git(["branch", "-M", "main"], repo);
+  git(["add", "."], repo);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], repo);
+
+  withEnvironment(root, () => {
+    const desktop = new DesktopSkillPort();
+    desktop.initialize({ project });
+    desktop.install(pathToFileURL(repo).href);
+    desktop.enable("desktop-git-skill", { type: "project", path: project });
+
+    makeSkill(repo, "desktop-git-skill", "After update");
+    git(["add", "."], repo);
+    git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], repo);
+    const revision = git(["rev-parse", "HEAD"], repo);
+
+    const check = desktop.checkUpdate("desktop-git-skill");
+    assert.equal(check.status, "outdated");
+    assert.equal(check.remoteRevision, revision);
+    assert.deepEqual(desktop.previewUpdate("desktop-git-skill").planned, [{ name: "desktop-git-skill", revision }]);
+    assert.equal(desktop.previewAllUpdates().planned[0].name, "desktop-git-skill");
+
+    const updated = desktop.update("desktop-git-skill");
+    assert.equal(updated.description, "After update");
+    assert.equal(updated.sourceRevision, revision);
+    assert.equal(updated.enablementCount, 1);
+    assert.equal(desktop.checkUpdate("desktop-git-skill").status, "up-to-date");
   });
 });
 

@@ -36,12 +36,13 @@ npm run desktop:build
 npm run desktop:make
 ```
 
-Pushing a tag matching the Desktop version creates the macOS and Windows GitHub Release. For version `0.1.1`:
+Use the Desktop release script from a clean, synchronized `main` branch. It runs the local quality gates, updates the Desktop workspace version and lockfile, commits, creates the matching tag, and pushes it. GitHub Actions then builds the macOS and Windows installers, checksums them, and creates the GitHub Release.
 
 ```bash
-git tag desktop-v0.1.1
-git push origin desktop-v0.1.1
+npm run release:desktop -- patch
 ```
+
+Use `minor`, `major`, or an exact stable version when appropriate. The script asks for final confirmation; use `--yes` only for an intentional non-interactive release. `--dry-run` validates the target without changing state. If a push fails after the commit and tag are created, fix the cause and run `npm run release:desktop -- --resume`.
 
 Desktop tags use the `desktop-v*` prefix. CLI npm releases keep using `v*` tags.
 
@@ -57,6 +58,6 @@ The E2E command builds the production Vite bundles, then launches them through t
 
 The first-run screen requires a project directory and optionally accepts a custom Hub directory. Existing CLI users open the active Hub resolved by `SKLP_HOME`, the Hub locator, or `~/.skill-port`.
 
-The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, and safe removal. Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output.
+The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, safe removal, and manual Git Skill updates. The Desktop can check one copied Git Skill or the full Hub, show a non-mutating update preview, then update only after confirmation. Local copies, linked Skills, and tag/commit-pinned Git Skills remain skipped according to the CLI update contract. Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output.
 
-The Desktop does not include update management, repair, self-uninstallation, signing, notarization, or automatic application updates.
+The Desktop does not include background update checks, repair, self-uninstallation, signing, notarization, or automatic application updates.

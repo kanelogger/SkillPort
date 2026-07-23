@@ -77,7 +77,17 @@ const messages: Record<Language, Record<string, string>> = {
     tagsPlaceholder: "video, productivity",
     tagsHelp: "Separate tags with commas or new lines. Clear the field to remove all tags.",
     tagsInvalid: "Use at most 32 tags, with no more than 64 characters each.",
-    status: "Status"
+    status: "Status",
+    checkUpdates: "Check updates",
+    checkUpdate: "Check update",
+    checkResults: "Check results",
+    updateStatus: "Status",
+    updatePreview: "Update preview",
+    previewUpdate: "Preview update",
+    wouldUpdate: "Will update",
+    confirmUpdate: "Update previewed Skills",
+    updateComplete: "Update complete",
+    updated: "Updated"
   },
   "zh-CN": {
     appName: "Skill Port",
@@ -155,7 +165,17 @@ const messages: Record<Language, Record<string, string>> = {
     tagsPlaceholder: "视频, 效率",
     tagsHelp: "使用逗号或换行分隔；清空输入框可移除全部标签。",
     tagsInvalid: "最多 32 个标签，每个标签不超过 64 个字符。",
-    status: "状态"
+    status: "状态",
+    checkUpdates: "检查更新",
+    checkUpdate: "检查更新",
+    checkResults: "检查结果",
+    updateStatus: "状态",
+    updatePreview: "更新预览",
+    previewUpdate: "预览更新",
+    wouldUpdate: "将更新",
+    confirmUpdate: "更新已预览的技能",
+    updateComplete: "更新完成",
+    updated: "已更新"
   }
 };
 

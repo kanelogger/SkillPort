@@ -3,7 +3,13 @@ import { join, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import type { Diagnostic, Enablement, EnablementInfo, Skill } from "../domain/models.js";
 import { resolveHub } from "../infrastructure/config.js";
-import { SkillPort } from "./skill-port.js";
+import {
+  SkillPort,
+  type BatchUpdateSummary,
+  type FleetUpdateCheck,
+  type UpdateCheck,
+  type UpdateSummary
+} from "./skill-port.js";
 
 export type DesktopInstallationKind = "git-copy" | "local-copy" | "linked";
 export type DesktopHealth = "healthy" | "missing" | "conflict" | "not-enabled";
@@ -131,6 +137,31 @@ export class DesktopSkillPort {
   updateTags(name: string, tags: string[]): DesktopSkillDetails {
     this.write((app) => app.updateTags(name, tags));
     return this.getSkill(name);
+  }
+
+  checkUpdate(name: string): UpdateCheck {
+    return this.read((app) => app.checkUpdate(name));
+  }
+
+  checkAllUpdates(): FleetUpdateCheck[] {
+    return this.read((app) => app.checkAllUpdates());
+  }
+
+  previewUpdate(name: string): UpdateSummary {
+    return this.read((app) => app.previewUpdate(name));
+  }
+
+  previewAllUpdates(): UpdateSummary {
+    return this.read((app) => app.previewAllUpdates());
+  }
+
+  update(name: string): DesktopSkillDetails {
+    this.write((app) => app.update(name));
+    return this.getSkill(name);
+  }
+
+  updateAll(): BatchUpdateSummary {
+    return this.write((app) => app.updateAll());
   }
 
   enable(name: string, target: DesktopTarget): Enablement {
