@@ -2,8 +2,8 @@ import {
   app, BrowserWindow, dialog, ipcMain, net, protocol, utilityProcess,
   type IpcMainInvokeEvent, type UtilityProcess
 } from "electron";
+import squirrelStartup from "electron-squirrel-startup";
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join, normalize, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { authorizeRpcPaths } from "./path-authority.js";
@@ -12,8 +12,9 @@ import { parseRpcRequest, type RpcRequest, type RpcResponse } from "./shared/rpc
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const squirrelStartup = createRequire(import.meta.url)("electron-squirrel-startup") as boolean;
 if (squirrelStartup) app.quit();
+
+const smokeTest = process.argv.includes("--skill-port-smoke-test");
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -140,6 +141,11 @@ app.whenReady().then(async () => {
   registerIpc();
   registerAppProtocol();
   await createWindow();
+  if (smokeTest) {
+    console.log("SKILL_PORT_SMOKE_READY");
+    app.quit();
+    return;
+  }
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
