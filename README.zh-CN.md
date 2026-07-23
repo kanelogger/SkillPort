@@ -6,12 +6,15 @@
 
 [English](README.md)
 
-Skill Port CLI 是一个本地 Agent Skill 管理工具。它把 Skill 安装到本机 Hub，再启用到项目或全局 Agent 目录。
+**版本: 0.5.1** · [更新日志](CHANGELOG.md)
+
+Skill Port 是一个本地 Agent Skill 管理工具。它把 Skill 安装到本机 Hub，再启用到项目或全局 Agent 目录。`sklp` 命令行工具和可选的[桌面 GUI](#桌面-gui) 共享同一个 Hub 和相同的安全规则。
 
 ## 环境要求
 
 - Node.js 24.15 或更新版本
 - Git 可在 `PATH` 中使用，Git 来源安装需要它
+- 本项目使用 [npm workspaces](https://docs.npmjs.com/cli/v11/using-npm/workspaces)
 
 ## 安装
 
@@ -45,9 +48,23 @@ sklp uninstall
 
 默认 Hub 是 `~/.skill-port`。可以用 `SKLP_HOME` 或 `sklp init --hub <path>` 指定隔离 Hub。
 
-## 桌面 GUI 开发
+## 桌面 GUI
 
-仓库同时包含一个复用相同 Hub 和核心安全规则的 Electron GUI。可以从 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 下载 macOS 或 Windows 安装包，也可以按照 [Skill Port Desktop](docs/desktop.md) 从源码运行。Desktop 当前是未签名 MVP，不包含在已发布的 CLI npm 包中。
+Skill Port Desktop 是一个 Electron GUI，与 CLI 共享相同的 Hub 和核心安全规则。它支持 Skill 安装、链接、Hub 内标签编辑、项目/全局启用、只读诊断，以及带确认的 Git Skill 更新预览。
+
+可以从 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 下载 macOS 或 Windows 安装包。开发环境搭建、构建命令和发布说明请查看 [Skill Port Desktop](docs/desktop.md)。
+
+Desktop 标签使用 `desktop-v*` 前缀。Desktop 不包含在已发布的 `skill-port-cli` npm 包中。
+
+## Desktop API (Node.js)
+
+本包为 Node.js 消费者导出了 Desktop 集成入口：
+
+```ts
+import { DesktopSkillPort } from "skill-port-cli/desktop";
+```
+
+公开类型包括 `DesktopSkillPort`、`DesktopBootstrapState`、`DesktopSkillDetails`、`DesktopHealth`、`Diagnostic`、`Enablement` 以及更新相关类型。详见 [desktop.ts](src/desktop.ts)。
 
 ## 卸载
 
@@ -283,10 +300,22 @@ sklp doctor --json
 
 ## 维护者发布
 
-npm 包由本地发布，GitHub Release 不再触发该包发布。请在干净、已与远端同步的 `main` 分支运行发布命令；本机需要 Node.js 24.15.0 或更高版本，并且当前 npm 账号拥有 `skill-port-cli` 的发布权限：
+### CLI 发布
+
+npm 包由本地发布。请在干净、已与远端同步的 `main` 分支运行发布命令；本机需要 Node.js 24.15.0 或更高版本，并且当前 npm 账号拥有 `skill-port-cli` 的发布权限：
 
 ```bash
 npm run release -- patch --note "描述本次面向用户的改动"
 ```
 
 可将 `patch` 换成 `minor`、`major` 或精确的稳定版本号；多项改动可重复传入 `--note`。脚本会检查 npm 登录状态和版本占用情况，运行全部 CLI 发布门禁，更新版本元数据和 changelog，创建发布提交与 tag，在本机发布 npm 包，推送 `main` 和 tag，最后安装线上包执行冒烟测试。如果发布提交创建后 npm 发布或 Git 推送失败，修复原因后运行 `npm run release -- --resume` 继续。
+
+### Desktop 发布
+
+Desktop 使用独立的发布脚本：它运行本地质量门禁，更新 Desktop 工作区版本和 lockfile，提交并创建 `desktop-v*` 标签。GitHub Actions 随后构建 macOS 和 Windows 安装包并创建 GitHub Release。
+
+```bash
+npm run release:desktop -- patch
+```
+
+可将 `patch` 换成 `minor`、`major` 或精确版本号。详见 [docs/desktop.md](docs/desktop.md)。

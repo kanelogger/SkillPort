@@ -6,12 +6,15 @@
 
 [中文文档](README.zh-CN.md)
 
-Skill Port CLI keeps Agent Skills in one local Hub and enables them into projects or the shared global Agent directory.
+**Version: 0.5.1** · [Changelog](CHANGELOG.md)
+
+Skill Port keeps Agent Skills in one local Hub and enables them into projects or the shared global Agent directory. The `sklp` CLI and an optional [Desktop GUI](#desktop-gui) share the same Hub and safety rules.
 
 ## Requirements
 
 - Node.js 24.15 or newer
 - Git on `PATH` for Git-based installs
+- This project uses [npm workspaces](https://docs.npmjs.com/cli/v11/using-npm/workspaces)
 
 ## Install
 
@@ -45,9 +48,23 @@ Project enablement uses `<project>/.agents/skills/`; the only global target is `
 
 The default Hub is `~/.skill-port`. Set `SKLP_HOME` for an isolated or custom Hub, or use `sklp init --hub <path>`.
 
-## Desktop GUI development
+## Desktop GUI
 
-The repository also contains an Electron GUI that uses the same Hub and core safety rules. Download the macOS or Windows installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases), or see [Skill Port Desktop](docs/desktop.md) to run it from source. The Desktop app is an unsigned MVP and is not included in the published CLI package.
+Skill Port Desktop is an Electron GUI that uses the same Hub and core safety rules as the CLI. It supports Skill installation, linking, Hub-private tag editing, project/global enablement, read-only diagnostics, and Git Skill update previews with confirmation.
+
+Download the macOS or Windows installer from [GitHub Releases](https://github.com/kanelogger/SkillPort/releases). See [Skill Port Desktop](docs/desktop.md) for development setup, build commands, and release instructions.
+
+Desktop tags use the `desktop-v*` prefix. The Desktop is not included in the published `skill-port-cli` npm package.
+
+## Desktop API (Node.js)
+
+The package exports a Desktop integration entry point for Node.js consumers:
+
+```ts
+import { DesktopSkillPort } from "skill-port-cli/desktop";
+```
+
+See [desktop.ts](src/desktop.ts) for the public type surface: `DesktopSkillPort`, `DesktopBootstrapState`, `DesktopSkillDetails`, `DesktopHealth`, `Diagnostic`, `Enablement`, and update types.
 
 ## Uninstall
 
@@ -240,10 +257,22 @@ Catalog entries contain only `instanceId`, `name`, and `description`. Project as
 
 ## Maintainer release
 
-npm releases are published locally; GitHub Releases do not publish this package. Run the release command from a clean, synchronized `main` branch with Node.js 24.15.0 or newer and an npm account that can publish `skill-port-cli`:
+### CLI releases
+
+npm releases are published locally. Run the release command from a clean, synchronized `main` branch with Node.js 24.15.0 or newer and an npm account that can publish `skill-port-cli`:
 
 ```bash
 npm run release -- patch --note "Describe the user-visible change"
 ```
 
 Use `minor`, `major`, or an exact stable version instead of `patch`. Repeat `--note` to add multiple `CHANGELOG.md` bullets. The script checks npm authentication and version availability, runs all CLI release gates, updates version metadata and the changelog, creates the release commit and tag, publishes npm, pushes `main` and the tag, then smoke-tests the published package. If npm publication or Git push fails after the release commit is created, fix the cause and run `npm run release -- --resume`.
+
+### Desktop releases
+
+Desktop releases use a separate script that runs local quality gates, updates the Desktop workspace version and lockfile, commits, and creates a `desktop-v*` tag. GitHub Actions then builds the macOS and Windows installers and creates the GitHub Release.
+
+```bash
+npm run release:desktop -- patch
+```
+
+Use `minor`, `major`, or an exact stable version. See [docs/desktop.md](docs/desktop.md) for details.
