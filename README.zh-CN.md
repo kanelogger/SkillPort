@@ -52,7 +52,16 @@ sklp uninstall
 
 Skill Port Desktop 是一个 Electron GUI，与 CLI 共享相同的 Hub 和核心安全规则。它支持 Skill 安装、链接、Hub 内标签编辑、项目/全局启用、只读诊断，以及带确认的 Git Skill 更新预览。
 
-可以从 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 下载 macOS 或 Windows 安装包。开发环境搭建、构建命令和发布说明请查看 [Skill Port Desktop](docs/desktop.md)。
+> **发布状态：** Desktop 0.1.3 已于 2026 年 7 月 23 日撤回，因为其 macOS 安装包可能在启动时立即退出。不要安装缓存的 `Skill.Port-0.1.3-*.dmg` 或 macOS ZIP。在修复版出现在 [GitHub Releases](https://github.com/kanelogger/SkillPort/releases) 前，请先使用 CLI。
+
+修复版发布后的安装与操作步骤：
+
+1. macOS Apple Silicon 下载 `arm64.dmg`，Intel Mac 下载 `x64.dmg`；打开 DMG，把 Skill Port 拖入“应用程序”。Windows 运行 `Skill Port Setup.exe`。
+2. macOS 首次启动时，在 Finder 中右键 Skill Port 并选择“打开”。较新的 macOS 需要先启动一次，再前往“系统设置 → 隐私与安全性 → 仍要打开”。
+3. 选择需要接收受管 Skill 入口的项目目录。没有自定义 Hub 的现有 CLI 配置时，保留默认 Hub。
+4. 安装或链接 Skill，打开 Skill 详情页，再为当前项目或全局启用。诊断功能只读；Git 更新会先展示预览，再等待确认。
+
+macOS 已经允许启动后，如果应用仍立即退出，请移除该版本并安装更新版本。移除 quarantine 或在本机重新签名不能可靠修复已知有问题的安装包。详细安装、操作、开发和发布说明请查看 [Skill Port Desktop](docs/desktop.md)。
 
 Desktop 标签使用 `desktop-v*` 前缀。Desktop 不包含在已发布的 `skill-port-cli` npm 包中。
 
