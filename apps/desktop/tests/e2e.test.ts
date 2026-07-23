@@ -16,26 +16,19 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
   const root = mkdtempSync(join(tmpdir(), "skill-port-desktop-e2e-"));
   const project = join(root, "project");
   const source = join(root, "source");
-  const gitSource = join(root, "git-source");
   const selectedHub = join(root, "selected-hub");
   mkdirSync(project);
   mkdirSync(source);
-  mkdirSync(gitSource);
   mkdirSync(selectedHub);
   writeFileSync(join(source, "SKILL.md"), "---\nname: desktop-e2e\ndescription: Desktop E2E Skill\n---\n");
-  writeFileSync(join(gitSource, "SKILL.md"), "---\nname: desktop-update\ndescription: Before update\n---\n");
-  git(["init"], gitSource);
-  git(["branch", "-M", "main"], gitSource);
-  git(["add", "."], gitSource);
-  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], gitSource);
   const desktopRoot = resolve(process.cwd());
   const repositoryRoot = resolve(desktopRoot, "../..");
   const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
   const cliEnv: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, SKLP_TEST_HOME: root };
   delete cliEnv.SKLP_HOME;
-  const runInfo = (name = "desktop-e2e") => spawnSync(
+  const runInfo = () => spawnSync(
     process.execPath,
-    [join(repositoryRoot, "dist", "cli.js"), "info", name],
+    [join(repositoryRoot, "dist", "cli.js"), "info", "desktop-e2e"],
     { cwd: project, env: cliEnv, encoding: "utf8" }
   );
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
@@ -157,13 +150,58 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await expect(page.getByText("No Skills installed yet.")).toBeVisible();
     expect(runInfo().status).not.toBe(0);
 
-    const installedGit = spawnSync(
-      process.execPath,
-      [join(repositoryRoot, "dist", "cli.js"), "install", pathToFileURL(gitSource).href],
-      { cwd: project, env: cliEnv, encoding: "utf8" }
-    );
-    expect(installedGit.status).toBe(0);
+    await page.getByRole("button", { name: "中文" }).click();
+    await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
     await page.reload();
+    await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
+    for (const size of [{ width: 1024, height: 720 }, { width: 1440, height: 900 }]) {
+      await app.evaluate(({ BrowserWindow }, nextSize) => {
+        BrowserWindow.getAllWindows()[0]?.setSize(nextSize.width, nextSize.height);
+      }, size);
+      await expect.poll(
+        () => page.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth)
+      ).toBe(true);
+    }
+  } finally {
+    await app?.close().catch(() => undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop checks, previews, and updates a copied Git Skill", async () => {
+  const root = mkdtempSync(join(tmpdir(), "skill-port-desktop-update-e2e-"));
+  const project = join(root, "project");
+  const hub = join(root, "hub");
+  const gitSource = join(root, "git-source");
+  mkdirSync(project);
+  mkdirSync(gitSource);
+  writeFileSync(join(gitSource, "SKILL.md"), "---\nname: desktop-update\ndescription: Before update\n---\n");
+  git(["init"], gitSource);
+  git(["branch", "-M", "main"], gitSource);
+  git(["add", "."], gitSource);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], gitSource);
+  const desktopRoot = resolve(process.cwd());
+  const repositoryRoot = resolve(desktopRoot, "../..");
+  const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, SKLP_HOME: hub, SKLP_TEST_HOME: root };
+  const runCli = (args: string[]) => spawnSync(
+    process.execPath,
+    [join(repositoryRoot, "dist", "cli.js"), ...args],
+    { cwd: project, env: cliEnv, encoding: "utf8" }
+  );
+  let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
+
+  try {
+    expect(runCli(["init"]).status).toBe(0);
+    expect(runCli(["install", pathToFileURL(gitSource).href]).status).toBe(0);
+    app = await electron.launch({
+      executablePath,
+      args: [desktopRoot],
+      env: { ...cliEnv, LANG: "en_US.UTF-8" }
+    });
+    const page = await app.firstWindow({ timeout: 30_000 });
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: /desktop-update/ }).click();
     await page.getByRole("button", { name: "Enable", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Enable", exact: true }).click();
@@ -179,24 +217,10 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await expect(updateDialog.getByText(updatedRevision)).toBeVisible();
     await updateDialog.getByRole("button", { name: "Update previewed Skills" }).click();
     await expect(updateDialog.getByText("Update complete")).toBeVisible();
-    const updateInfo = runInfo("desktop-update");
+    const updateInfo = runCli(["info", "desktop-update"]);
     expect(updateInfo.status).toBe(0);
     expect(JSON.parse(updateInfo.stdout).skill.sourceRevision).toBe(updatedRevision);
     expect(JSON.parse(updateInfo.stdout).enablements).toHaveLength(1);
-    await updateDialog.getByRole("button", { name: "Close" }).click();
-
-    await page.getByRole("button", { name: "中文" }).click();
-    await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
-    await page.reload();
-    await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
-    for (const size of [{ width: 1024, height: 720 }, { width: 1440, height: 900 }]) {
-      await app.evaluate(({ BrowserWindow }, nextSize) => {
-        BrowserWindow.getAllWindows()[0]?.setSize(nextSize.width, nextSize.height);
-      }, size);
-      await expect.poll(
-        () => page.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth)
-      ).toBe(true);
-    }
   } finally {
     await app?.close().catch(() => undefined);
     rmSync(root, { recursive: true, force: true });
