@@ -12,6 +12,7 @@ test("machine-readable output is available for core automation commands", () => 
   const source = join(root, "source");
   mkdirSync(project);
   makeSkill(source, "json-skill", "Machine readable Skill");
+  assert.equal(cli(["agent", "setup", "--json"], { cwd: project, hub, home: root }).status, 0);
   assert.equal(cli(["init"], { cwd: project, hub, home: root }).status, 0);
 
   const installed = cli(["install", source, "--json"], { cwd: project, hub, home: root });

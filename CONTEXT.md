@@ -9,15 +9,19 @@ The state in which the advertised Skill Port CLI command contract has current, r
 _Avoid_: npm publication, feature completeness, test green
 
 **CLI self-uninstallation**:
-An interactive lifecycle command for the npm-globally-installed `skill-port-cli` package. `sklp uninstall` asks for confirmation and proceeds only when the user enters `y`; it removes Skill Port's managed Agent entries, Hub (including managed Skills, state, and catalogs), Hub locator, and global npm package. The same command contract applies on macOS, Linux, and Windows. Hub-external linked Skill source folders and the source checkout remain untouched.
+An interactive lifecycle command for the npm-globally-installed `skill-port-cli` package. `sklp uninstall` asks for confirmation and proceeds only when the user enters `y`; it removes the verified bundled Agent integration, Skill Port's Hub-recorded Agent entries, Hub (including managed Skills, state, and catalogs), Hub locator, and global npm package. The same command contract applies on macOS, Linux, and Windows. Hub-external linked Skill source folders, conflicting unmanaged entries, and the source checkout remain untouched.
 _Avoid_: extra modes, filesystem scans, Hub preservation, desktop uninstallation
 
 **Verified Skill Port resource**:
-A filesystem object whose Skill Port ownership is established by Hub state and its managed-path invariants. It may be removed during CLI self-uninstallation.
+A filesystem object whose Skill Port ownership is established either by Hub state plus managed-path invariants, or by the bundled Agent integration resolving to the current npm package's canonical Skill directory. Only verified resources may be removed.
 _Avoid_: manually managed Agent entry, Hub-external linked source, unverified file
 
+**Bundled Agent integration**:
+The package-owned `skill-port` management Skill registered at `~/.agents/skills/skill-port` by an npm-global install or `sklp agent setup`. It teaches compatible Agents to use `sklp` without modifying `AGENTS.md`. It is separate from Hub state and is owned only while the entry resolves to the current package's bundled Skill directory.
+_Avoid_: global Hub enablement, persistent Agent instructions, unmanaged same-name entry
+
 **Uninstall discovery boundary**:
-CLI self-uninstallation removes the managed Agent entries recorded in Hub state. It does not scan the filesystem for additional entries.
+CLI self-uninstallation checks the deterministic bundled Agent integration path and removes managed Agent entries recorded in Hub state. It does not scan the filesystem for additional entries.
 _Avoid_: Home-wide search, implicit project discovery, recovery modes
 
 **Node-only base runtime**:

@@ -17,6 +17,12 @@ For v0.4.1 business closure, the same command passed in GitHub Actions CI run `2
 
 The 2026-07-09 Codex runtime smoke test used an isolated project and the `skill-port-discovery-smoke` fixture. It returned the fixture's exact `SKILL_PORT_DISCOVERY_OK` response. The managed entry was then removed through `sklp disable`, and a filesystem check confirmed no entry remained.
 
+## Bundled management Skill
+
+The package smoke now verifies the bootstrap path used to teach Agents about `sklp`: an isolated npm-global install creates `~/.agents/skills/skill-port`, its `SKILL.md` is visible through the managed entry, and `sklp uninstall` removes the verified entry. The latest local run passed on 2026-07-24 with Node.js 24.15.0. `tests/agent-integration.test.js` separately covers explicit recovery, idempotence, unmanaged conflicts, and doctor behavior.
+
+This proves packaging and shared-directory visibility. A running Agent may cache its Skill inventory, so discovery is promised for a new Agent session rather than immediate hot reload.
+
 ## Release evidence
 
 Before publishing a release, record runtime evidence only for an Agent whose discovery behavior is explicitly advertised. Skill Port itself advertises the shared directory, not tool-specific integrations. The automated contract is therefore the business-closure gate; real Agent runtime smoke is supporting evidence, not a required gate for every Agent that happens to read `~/.agents/skills/`.

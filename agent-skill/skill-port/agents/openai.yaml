@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Port"
+  short_description: "Manage local Agent Skills with the sklp CLI"
+  default_prompt: "Use $skill-port to inspect and manage my local Agent Skills."

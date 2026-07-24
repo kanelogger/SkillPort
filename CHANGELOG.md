@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Bundle a compact `skill-port` management Skill and register it during npm-global installation so compatible Agents can discover `sklp` without changes to `AGENTS.md`.
+- Add the idempotent `sklp agent setup` recovery command and read-only doctor diagnostics for missing or conflicting Agent integration state.
+
+### Safety
+
+- Refuse to overwrite or remove an unverified `~/.agents/skills/skill-port` entry, and clean up only the package-owned integration during CLI or npm-global uninstallation.
+
 ## 0.5.1 - 2026-07-22
 
 ### Changes

@@ -58,6 +58,8 @@ test("desktop facade initializes a Hub and exposes project and Skill DTOs", () =
     const initialized = desktop.initialize({ project });
     assert.equal(initialized.initialized, true);
     assert.equal(initialized.projectCount, 1);
+    assert.deepEqual(desktop.doctor(), []);
+    assert.equal(existsSync(join(root, ".agents", "skills", "skill-port")), false);
     assert.equal(desktop.registerProject(second), realpathSync(second));
     assert.deepEqual(desktop.listProjects().sort(), [realpathSync(project), realpathSync(second)].sort());
 

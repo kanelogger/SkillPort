@@ -14,6 +14,10 @@ test("Chinese human output is available through SKLP_LANG", () => {
   mkdirSync(project);
   makeSkill(source, "zh-skill", "中文体验");
 
+  const agentSetup = cli(["agent", "setup"], { cwd: project, hub, home: root, env });
+  assert.equal(agentSetup.status, 0, agentSetup.stderr);
+  assert.match(agentSetup.stdout, /已注册 Agent 集成/);
+
   const initialized = cli(["init"], { cwd: project, hub, home: root, env });
   assert.equal(initialized.status, 0, initialized.stderr);
   assert.match(initialized.stdout, /已初始化 Skill Port/);

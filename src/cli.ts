@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { CliError, sanitizeError } from "./domain/errors.js";
 import { SkillPort, type BatchUpdateSummary, type FleetUpdateCheck, type UpdateSummary } from "./application/skill-port.js";
+import {
+  diagnoseAgentIntegration, removeAgentIntegration, setupAgentIntegration
+} from "./application/agent-integration.js";
 import type { Skill } from "./domain/models.js";
 
 const program = new Command()
@@ -134,6 +137,14 @@ program.command("uninstall")
     }
     const failures: string[] = [];
     try {
+      removeAgentIntegration();
+    } catch (error) {
+      failures.push(human(
+        `Could not remove Skill Port Agent integration: ${sanitizeError(error)}`,
+        `无法移除 Skill Port Agent 集成：${sanitizeError(error)}`
+      ));
+    }
+    try {
       failures.push(...SkillPort.uninstall().failures);
     } catch (error) {
       failures.push(human(
@@ -150,6 +161,21 @@ program.command("uninstall")
       ));
     }
     console.log(human("Uninstalled sklp.", "已卸载 sklp。"));
+  }));
+
+const agentCommand = program.command("agent")
+  .description(human("Manage Skill Port's local Agent integration", "管理 Skill Port 的本地 Agent 集成"));
+
+agentCommand.command("setup")
+  .description(human("Make sklp discoverable through the shared Agent Skill directory", "通过共享 Agent Skill 目录让 Agent 发现 sklp"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((options) => {
+    const integration = setupAgentIntegration();
+    if (options.json) printJson({ agentIntegration: integration });
+    else console.log(human(
+      `${integration.created ? "Registered" : "Agent integration already registered"}\nEntry: ${integration.entryPath}`,
+      `${integration.created ? "已注册 Agent 集成" : "Agent 集成已注册"}\n入口: ${integration.entryPath}`
+    ));
   }));
 
 program.command("list")
@@ -209,36 +235,31 @@ program.command("doctor")
       app = SkillPort.open({ recover: false, readOnly: true });
     } catch (error) {
       const code = error instanceof CliError ? "HUB_UNAVAILABLE" : "DATABASE_UNREADABLE";
+      const diagnostics = [{
+        code,
+        severity: "error" as const,
+        message: sanitizeError(error),
+        suggestion: "Run `sklp init` first, then rerun `sklp doctor`."
+      }, ...diagnoseAgentIntegration()];
       if (options.json) {
         printJson({
           healthy: false,
-          diagnostics: [{
-            code,
-            severity: "error",
-            message: sanitizeError(error),
-            suggestion: "Run `sklp init` first, then rerun `sklp doctor`."
-          }]
+          diagnostics
         });
       } else {
-        console.error(`[error] ${code}: ${sanitizeError(error)}`);
+        for (const diagnostic of diagnostics) printDiagnostic(diagnostic);
       }
       process.exitCode = 1;
       return;
     }
     try {
-      const diagnostics = app.doctor();
+      const diagnostics = [...app.doctor(), ...diagnoseAgentIntegration()];
       if (options.json) {
         printJson({ healthy: diagnostics.length === 0, diagnostics });
       } else if (diagnostics.length === 0) {
         console.log(human("Skill Port is healthy.", "Skill Port 状态正常。"));
       } else {
-        for (const diagnostic of diagnostics) {
-          console.error(human(
-            `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`,
-            `[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`
-          ));
-          console.error(human(`Suggestion: ${diagnostic.suggestion}`, `建议: ${diagnostic.suggestion}`));
-        }
+        for (const diagnostic of diagnostics) printDiagnostic(diagnostic);
       }
       process.exitCode = diagnostics.some((item) => item.severity === "error") ? 1 : 0;
     } finally {
@@ -425,4 +446,9 @@ function handleError(error: unknown, json = false): void {
 
 function isJsonOption(value: unknown): value is { json: boolean } {
   return value !== null && typeof value === "object" && "json" in value && value.json === true;
+}
+
+function printDiagnostic(diagnostic: { code: string; severity: string; message: string; suggestion: string }): void {
+  console.error(`[${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`);
+  console.error(human(`Suggestion: ${diagnostic.suggestion}`, `建议: ${diagnostic.suggestion}`));
 }

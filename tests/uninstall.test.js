@@ -16,6 +16,7 @@ test("uninstall cancels unless confirmation is an exact y", (t) => {
   assert.equal(existsSync(fixture.hub), true);
   assert.equal(existsSync(fixture.projectEntry), true);
   assert.equal(existsSync(fixture.globalEntry), true);
+  assert.equal(existsSync(fixture.agentIntegration), true);
   assert.equal(existsSync(fixture.npmMarker), false);
 });
 
@@ -28,6 +29,7 @@ test("uninstall cancels when standard input closes", (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Uninstall cancelled/);
   assert.equal(existsSync(fixture.hub), true);
+  assert.equal(existsSync(fixture.agentIntegration), true);
   assert.equal(existsSync(fixture.npmMarker), false);
 });
 
@@ -60,6 +62,7 @@ test("uninstall removes managed state and preserves linked source directories", 
   assert.match(result.stdout, /Uninstalled sklp/);
   assert.equal(existsSync(fixture.projectEntry), false);
   assert.equal(existsSync(fixture.globalEntry), false);
+  assert.equal(existsSync(fixture.agentIntegration), false);
   assert.equal(existsSync(fixture.hub), false);
   assert.equal(existsSync(fixture.locator), false);
   assert.equal(existsSync(join(fixture.linkedSource, "SKILL.md")), true);
@@ -99,6 +102,8 @@ test("uninstall removes the CLI when the Hub is already missing", (t) => {
   const npmMarker = join(root, "npm-args.txt");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFakeNpm(npmCli);
+  const agentIntegration = join(root, ".agents", "skills", "skill-port");
+  assert.equal(cli(["agent", "setup"], { cwd: root, hub, home: root }).status, 0);
 
   const result = cli(["uninstall"], {
     cwd: root,
@@ -110,6 +115,7 @@ test("uninstall removes the CLI when the Hub is already missing", (t) => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(hub), false);
+  assert.equal(existsSync(agentIntegration), false);
   assert.equal(readMarker(npmMarker), "uninstall --global skill-port-cli");
 });
 
@@ -126,6 +132,23 @@ test("uninstall continues after a managed entry is replaced with a directory", (
   assert.match(result.stderr, /Recorded entry is not a link/);
   assert.equal(readFileSync(join(fixture.projectEntry, "keep.txt"), "utf8"), "user content");
   assert.equal(existsSync(fixture.globalEntry), false);
+  assert.equal(existsSync(fixture.hub), false);
+  assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
+});
+
+test("uninstall preserves an Agent integration entry that is no longer owned", (t) => {
+  const fixture = setupFixture();
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  rmSync(fixture.agentIntegration);
+  mkdirSync(fixture.agentIntegration);
+  const marker = join(fixture.agentIntegration, "keep.txt");
+  writeFileSync(marker, "user content");
+
+  const result = runUninstall(fixture, "y\n");
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Refusing to remove unmanaged Agent integration/);
+  assert.equal(readFileSync(marker, "utf8"), "user content");
   assert.equal(existsSync(fixture.hub), false);
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
 });
@@ -170,6 +193,7 @@ function setupFixture() {
   writeFakeNpm(npmCli);
 
   const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["agent", "setup"], options).status, 0);
   assert.equal(cli(["init"], options).status, 0);
   assert.equal(cli(["install", copiedSource], options).status, 0);
   assert.equal(cli(["link", linkedSource], options).status, 0);
@@ -181,6 +205,7 @@ function setupFixture() {
     hub,
     projectEntry: join(project, ".agents", "skills", "copied-skill"),
     globalEntry: join(root, ".agents", "skills", "copied-skill"),
+    agentIntegration: join(root, ".agents", "skills", "skill-port"),
     linkedSource,
     locator,
     npmCli,

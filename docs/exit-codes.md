@@ -13,12 +13,16 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp uninstall` exits `0` after a cancellation or complete cleanup. It exits `1` after attempting every cleanup step it can perform when a managed entry, Hub resource, or npm package cannot be removed.
 
+`sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:
 
 - `warning`: state should be reviewed, but the CLI can still operate. Exit code stays `0` when all diagnostics are warnings.
 - `error`: state is broken or unsafe for the related operation. Exit code is `1` when any diagnostic is an error.
+
+A missing bundled Agent integration is a warning with the suggestion to run `sklp agent setup`. An unmanaged object at the reserved integration path is an error and remains untouched.
 
 Use JSON output for automation:
 
@@ -47,5 +51,7 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 `sklp update --all --check` 只要有任一 Git source 为 `unknown` 就返回 `1`。`sklp update <skill> --dry-run`、`sklp update --all --dry-run` 和 `sklp update --all` 只要 `failed` 数组非空就返回 `1`；跳过条目不会导致失败。
 
 `sklp uninstall` 在取消或完整清理后返回 `0`。受管入口、Hub 资源或 npm 包有任一无法移除时，它仍会尝试能够执行的其余清理步骤，并返回 `1`。
+
+`sklp agent setup` 在成功创建内置 Agent 集成或确认正确入口已经存在时返回 `0`。保留路径被非受管内容占用，或无法验证内置 Skill 时返回 `1`。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -17,6 +17,9 @@ assert.ok(npmCli, "npm_execpath is required to run npm portably from this smoke 
 const root = mkdtempSync(join(tmpdir(), "sklp-published-"));
 const env = {
   ...process.env,
+  HOME: root,
+  USERPROFILE: root,
+  SKLP_TEST_HOME: root,
   npm_config_cache: join(root, "npm-cache"),
   npm_config_fund: "false",
   npm_config_audit: "false"
@@ -51,6 +54,8 @@ for (let attempt = 1; attempt <= retries; attempt += 1) {
 }
 
 assert.equal(install.status, 0, install.stderr ?? install.error?.message);
+const agentIntegration = join(root, ".agents", "skills", "skill-port");
+assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
 
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
@@ -90,6 +95,7 @@ const run = (args, options = {}) => runExecutable(args, {
 });
 
 assert.equal(run(["init"]).status, 0);
+assert.deepEqual(JSON.parse(run(["doctor", "--json"]).stdout), { healthy: true, diagnostics: [] });
 assert.equal(run(["install", source]).status, 0);
 assert.match(run(["list"]).stdout, /published-smoke\s+Published CLI core loop fixture/);
 const info = JSON.parse(run(["info", "published-smoke"]).stdout);
@@ -107,5 +113,7 @@ const uninstall = run(["uninstall"], {
 assert.equal(uninstall.status, 0, uninstall.stderr);
 assert.equal(existsSync(hub), false);
 assert.equal(existsSync(executable), false);
+assert.equal(existsSync(agentIntegration), false);
 
 console.log(`Published CLI installation, core loop, and self-uninstallation verified for skill-port-cli@${version}.`);
+rmSync(root, { recursive: true, force: true });
