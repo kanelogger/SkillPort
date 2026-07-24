@@ -1,11 +1,24 @@
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import type { Enablement, Skill } from "../domain/models.js";
 import type { HubPaths } from "./config.js";
 
 type Row = Record<string, unknown>;
+
+const node22SqliteExperimentalWarning = "SQLite is an experimental feature and might change at any time";
+
+// Node 22 emits this known warning for every SQLite connection, which breaks the CLI's stderr-free JSON contract.
+if (process.versions.node.startsWith("22.")) {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+    if (warning === node22SqliteExperimentalWarning && args[0] === "ExperimentalWarning") return;
+    Reflect.apply(emitWarning, process, [warning, ...args]);
+  }) as typeof process.emitWarning;
+}
+
+const { DatabaseSync } = await import("node:sqlite");
 
 export type InterruptedOperation = {
   id: string;
@@ -14,7 +27,7 @@ export type InterruptedOperation = {
 };
 
 export class StateStore {
-  readonly db: DatabaseSync;
+  readonly db: DatabaseSyncType;
   readonly readOnly: boolean;
   private readonly readOnlySnapshot: string | null;
   private readonly hasSkillTagsTable: boolean;

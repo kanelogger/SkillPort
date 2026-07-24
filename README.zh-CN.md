@@ -17,7 +17,7 @@ Skill Port 是一个工具箱。Skill 只收一份，需要时再放进当前项
 
 ## 最省事的办法：交给 Agent
 
-你需要 Node.js 24.15 或更新版本。安装 Git 仓库里的 Skill 时，还需要 Git。
+你需要 Node.js 22.16 或更新版本。安装 Git 仓库里的 Skill 时，还需要 Git。
 
 ### 第 1 步：安装
 

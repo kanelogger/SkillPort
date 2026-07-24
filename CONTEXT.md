@@ -25,7 +25,7 @@ CLI self-uninstallation checks the deterministic bundled Agent integration path 
 _Avoid_: Home-wide search, implicit project discovery, recovery modes
 
 **Node-only base runtime**:
-A supported environment using Node.js 24.15.0 or newer and npm, with no native build tool. CLI business closure requires the complete local-Skill lifecycle to work in this environment on every advertised platform, including Windows. Git-source commands preserve their full contract but require a separately installed system Git executable and fail before mutation with installation guidance when it is absent.
+A supported CLI environment using Node.js 22.16.0 or newer and npm, with no native build tool. CLI business closure requires the complete local-Skill lifecycle to work in this environment on every advertised platform, including Windows. The Desktop development and packaging toolchain remains on Node.js 24.15.0 or newer. Git-source commands preserve their full contract but require a separately installed system Git executable and fail before mutation with installation guidance when it is absent.
 _Avoid_: universal Node-only runtime, hidden Git prerequisite
 
 **Windows native business evidence**:

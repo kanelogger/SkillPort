@@ -9,7 +9,7 @@ The target registry and packaged CLI smoke tests run with an isolated synthetic 
 Latest local contract run:
 
 - Date: 2026-07-13
-- Runtime: Node.js 24.15.0 on macOS
+- Runtime: Node.js 22.16.0 on macOS
 - Result: the shared Agent target contract passed
 - Command: `npm run test:discovery`
 
@@ -19,7 +19,7 @@ The 2026-07-09 Codex runtime smoke test used an isolated project and the `skill-
 
 ## Bundled management Skill
 
-The package smoke now verifies the bootstrap path used to teach Agents about `sklp`: an isolated npm-global install creates `~/.agents/skills/skill-port`, its `SKILL.md` is visible through the managed entry, and `sklp uninstall` removes the verified entry. The latest local run passed on 2026-07-24 with Node.js 24.15.0. `tests/agent-integration.test.js` separately covers explicit recovery, idempotence, unmanaged conflicts, and doctor behavior.
+The package smoke now verifies the bootstrap path used to teach Agents about `sklp`: an isolated npm-global install creates `~/.agents/skills/skill-port`, its `SKILL.md` is visible through the managed entry, and `sklp uninstall` removes the verified entry. The latest local Node.js 22.16.0 run passed on 2026-07-24. `tests/agent-integration.test.js` separately covers explicit recovery, idempotence, unmanaged conflicts, and doctor behavior. The current cross-platform CI matrix covers Node.js 22.16.0 and 24.15.0; hosted evidence for the Node 22 path is pending.
 
 This proves packaging and shared-directory visibility. A running Agent may cache its Skill inventory, so discovery is promised for a new Agent session rather than immediate hot reload.
 

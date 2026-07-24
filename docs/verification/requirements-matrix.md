@@ -11,7 +11,7 @@ Status keys:
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| R1 npm package exposes `sklp` on macOS, Linux, Windows | `package.json` bin; `scripts/smoke/npm-install.mjs` verifies packed installs; GitHub Actions CI run `29315513324` passed the package smoke and full matrix on macOS, Linux, and Windows. The current package smoke also verifies bundled Agent integration setup and cleanup locally. `scripts/smoke/published-install.mjs` and `.github/workflows/post-publish-smoke.yml` remain publisher-owned distribution verification after publication. | Passed |
+| R1 npm package exposes `sklp` on macOS, Linux, Windows with Node.js 22.16+ and 24.15+ | `package.json` requires Node.js `>=22.16.0`; `src/infrastructure/database.ts` suppresses only Node 22's known SQLite experimental warning so JSON stderr remains empty; the complete 117-test suite passed locally on Node.js 22.16.0. `scripts/smoke/npm-install.mjs` verifies packed installs. `ci.yml` and `post-publish-smoke.yml` now define the Node.js 22.16.0/24.15.0 matrix on macOS, Linux, and Windows; current hosted evidence for the new Node 22 path is still required. | Partial |
 | R2 default/custom Hub | `tests/config.test.js`; `SKLP_HOME`; `sklp init --hub` | Passed |
 | R3 init creates local Hub/SQLite and registers project without project manifest | core lifecycle tests; no project-owned Skill Port manifest implemented | Passed |
 | R4 nearest registered ancestor only, no Git/language marker inference | nested project test; source search shows no Git marker discovery | Passed |
@@ -76,9 +76,9 @@ Status keys:
 
 | Gate | Evidence needed | Status |
 | --- | --- | --- |
-| Cross-platform business gate | GitHub Actions `ci.yml` run `29315513324` passed on `ubuntu-latest`, `macos-latest`, and `windows-latest` for v0.4.1 | Passed |
+| Cross-platform business gate | GitHub Actions `ci.yml` now runs the CLI gates on Node.js 22.16.0 and 24.15.0 across `ubuntu-latest`, `macos-latest`, and `windows-latest`. The previous run `29315513324` proves the older Node 24 matrix only; a current Node 22 matrix run is required. | Partial |
 | Local npm release gate | `scripts/release.mjs` validates the release version, Git state, npm authentication and registry availability; runs lint, typecheck, full tests, platform tests, discovery, packed install, audit, and package inspection; publishes locally; pushes the release commit/tag; and runs the published-package smoke. `tests/release-script.test.js` covers argument and stable-version behavior. | Passed |
 | Published-package install smoke | After the publisher releases `skill-port-cli@0.4.1`, manually run `.github/workflows/post-publish-smoke.yml` to verify the public npm package on `ubuntu-latest`, `macos-latest`, and `windows-latest` | Publisher-owned |
 | Shared-directory runtime loading | `npm run test:discovery` passed locally and in GitHub Actions CI run `29315513324` on macOS, Linux, and Windows | Passed |
-| Latest packed install | `npm run test:package` passed locally on Node.js 24.15.0 for the current candidate, including automatic bundled Agent integration registration and cleanup; `npm pack --dry-run --json` reported 53 intended files, including the bundled Skill and lifecycle scripts, with no `apps/desktop` content | Passed |
+| Latest packed install | `npm run test:package` passed locally on Node.js 22.16.0 and 24.15.0, including automatic bundled Agent integration registration and cleanup. The package includes the bundled Skill and lifecycle scripts, with no `apps/desktop` content. A current cross-platform Node 22 matrix run remains required. | Partial |
 | Dependency audit | `npm audit --omit=dev` completed with 0 vulnerabilities for the v0.5.0 CLI/Desktop candidate | Passed |

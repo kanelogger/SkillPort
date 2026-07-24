@@ -17,7 +17,7 @@ Skill Port is a toolbox. It keeps one local copy of each Skill, then makes that 
 
 ## The easiest way: ask your Agent
 
-You need Node.js 24.15 or newer. Git is also required when a Skill comes from a Git repository.
+You need Node.js 22.16 or newer. Git is also required when a Skill comes from a Git repository.
 
 ### Step 1: Install
 
