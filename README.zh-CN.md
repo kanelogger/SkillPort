@@ -25,11 +25,28 @@ Skill Port 是一个工具箱。Skill 只收一份，需要时再放进当前项
 npm install --global skill-port-cli
 ```
 
+建议安装后验证：
+
+```bash
+command -v sklp
+sklp --version
+ls -ld ~/.agents/skills/skill-port
+```
+
 包名是 `skill-port-cli`，命令名是 `sklp`。
+
+全局安装会执行两项操作：
+
+- npm 安装 CLI，并在全局可执行目录提供 `sklp` 命令。
+- 包内的 `postinstall` 脚本把内置管理 Skill 注册到 `~/.agents/skills/skill-port`。macOS 和 Linux 使用目录符号链接；Windows 无权创建符号链接时改用 junction。
+
+安装过程不会初始化 Hub、注册当前项目、安装用户 Skill，也不会修改 `AGENTS.md`。这些操作只会在你执行 `sklp init`、`sklp install` 等命令后发生。
+
+如果 `~/.agents/skills/skill-port` 已存在不受 Skill Port 管理的文件、目录或链接，安装程序会保留它并打印警告。如果通过 `--ignore-scripts` 禁用了 npm 生命周期脚本，之后可以执行 `sklp agent setup` 完成注册。
 
 ### 第 2 步：打开一个新的 Agent 会话
 
-安装时，Skill Port 会把一份很短的使用说明放到：
+注册后的管理 Skill 会在以下位置提供一份简短使用说明：
 
 ```text
 ~/.agents/skills/skill-port

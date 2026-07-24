@@ -27,9 +27,18 @@ npm install --global skill-port-cli
 
 The package is named `skill-port-cli`. The command is `sklp`.
 
+The global install performs two actions:
+
+- npm installs the CLI and exposes `sklp` from its global binary directory.
+- The package's `postinstall` script registers the bundled management Skill at `~/.agents/skills/skill-port`. macOS and Linux use a directory symlink; Windows falls back to a junction when a symlink is not permitted.
+
+Installation does not initialize the Hub, register the current project, install user Skills, or edit `AGENTS.md`. Those actions begin only when you run commands such as `sklp init` and `sklp install`.
+
+If `~/.agents/skills/skill-port` already contains an unmanaged file, directory, or link, installation preserves it and prints a warning. If npm lifecycle scripts are disabled with `--ignore-scripts`, register the integration later with `sklp agent setup`.
+
 ### Step 2: Start a new Agent session
 
-During installation, Skill Port places a short instruction at:
+The registered management Skill contains a short instruction at:
 
 ```text
 ~/.agents/skills/skill-port
