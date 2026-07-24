@@ -3,10 +3,11 @@ import {
   type IpcMainInvokeEvent, type UtilityProcess
 } from "electron";
 import squirrelStartup from "electron-squirrel-startup";
-import { existsSync } from "node:fs";
-import { dirname, join, normalize, resolve } from "node:path";
+import { appendFileSync, existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { authorizeRpcPaths } from "./path-authority.js";
+import { resolveRendererFile } from "./path-guard.js";
 import { parseRpcRequest, type RpcRequest, type RpcResponse } from "./shared/rpc.js";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -106,9 +107,8 @@ function registerAppProtocol(): void {
   const rendererRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../renderer", MAIN_WINDOW_VITE_NAME);
   protocol.handle("app", (request) => {
     const requestUrl = new URL(request.url);
-    const relativePath = decodeURIComponent(requestUrl.pathname).replace(/^\/+/, "") || "index.html";
-    const filePath = resolve(rendererRoot, normalize(relativePath));
-    if (filePath !== rendererRoot && !filePath.startsWith(`${rendererRoot}/`)) return new Response("Forbidden", { status: 403 });
+    const { filePath, allowed } = resolveRendererFile(rendererRoot, requestUrl.pathname);
+    if (!allowed) return new Response("Forbidden", { status: 403 });
     if (!existsSync(filePath)) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(filePath).toString());
   });
@@ -142,7 +142,11 @@ app.whenReady().then(async () => {
   registerAppProtocol();
   await createWindow();
   if (smokeTest) {
-    console.log("SKILL_PORT_SMOKE_READY");
+    const message = "SKILL_PORT_SMOKE_READY";
+    console.log(message);
+    if (process.env.SKILL_PORT_SMOKE_LOG) {
+      appendFileSync(process.env.SKILL_PORT_SMOKE_LOG, `${message}\n`, "utf8");
+    }
     app.quit();
     return;
   }

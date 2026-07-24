@@ -64,6 +64,28 @@ jobs:
           fi
           cat "$smoke_log"
           grep -q 'SKILL_PORT_SMOKE_READY' "$smoke_log"
+      - name: Verify Windows packaged app launches
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path apps/desktop/out -Recurse -Filter 'skill-port.exe' |
+            Where-Object { $_.FullName -like '*win32-x64*' -and $_.FullName -notlike '*\make\*' } |
+            Select-Object -First 1
+          if (-not $exe) { throw 'Packaged skill-port.exe not found under apps/desktop/out/*win32-x64' }
+          $env:SKILL_PORT_SMOKE_LOG = "$env:RUNNER_TEMP/skill-port-smoke.log"
+          $proc = Start-Process -FilePath $exe.FullName -ArgumentList '--skill-port-smoke-test' -PassThru -NoNewWindow
+          $exited = $proc.WaitForExit(20000)
+          if (-not $exited) {
+            $proc.Kill()
+            throw 'Windows smoke test timed out waiting for skill-port.exe to exit'
+          }
+          if (-not (Test-Path $env:SKILL_PORT_SMOKE_LOG)) {
+            throw 'Smoke log file was not created'
+          }
+          Get-Content $env:SKILL_PORT_SMOKE_LOG
+          if (-not (Select-String -Path $env:SKILL_PORT_SMOKE_LOG -Pattern 'SKILL_PORT_SMOKE_READY' -Quiet)) {
+            throw 'Smoke test did not report SKILL_PORT_SMOKE_READY'
+          }
       - name: Collect installers
         shell: bash
         run: |

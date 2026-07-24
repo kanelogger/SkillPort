@@ -9,6 +9,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/rpc.test.ts", "tests/renderer-config.test.ts", "tests/packaging-config.test.ts"]
+    include: ["tests/rpc.test.ts", "tests/renderer-config.test.ts", "tests/packaging-config.test.ts", "tests/path-guard.test.ts"]
   }
 });
