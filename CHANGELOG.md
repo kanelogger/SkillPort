@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 - 2026-07-24
+
+### Changes
+
+- 兼容 node 22
+
 ## Unreleased
 
 ### Features
