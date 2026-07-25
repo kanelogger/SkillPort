@@ -6,8 +6,6 @@
 
 [English](README.md)
 
-**版本：0.5.1** · [更新日志](CHANGELOG.md)
-
 你给 Agent 装的每个 Skill，都是它新学会的一件事。装得多了，Skill 会散在不同项目里：有的重复，有的忘了放在哪里，还有的该更新了。
 
 Skill Port 是一个工具箱。Skill 只收一份，需要时再放进当前项目，或者放到所有 Agent 都能找到的地方。
@@ -15,65 +13,71 @@ Skill Port 是一个工具箱。Skill 只收一份，需要时再放进当前项
 - **Desktop** 给人用：点一点就能管理。
 - **CLI** 给 Agent 用：装好以后，你可以直接让 Agent 替你管理。
 
-## 最省事的办法：交给 Agent
+## 快速开始
 
 你需要 Node.js 22.16 或更新版本。安装 Git 仓库里的 Skill 时，还需要 Git。
 
-### 第 1 步：安装
+### 1. 安装 CLI
 
 ```bash
 npm install --global skill-port-cli
-```
-
-建议安装后验证：
-
-```bash
-command -v sklp
 sklp --version
-ls -ld ~/.agents/skills/skill-port
+sklp agent setup
 ```
 
-包名是 `skill-port-cli`，命令名是 `sklp`。
+安装时还会把内置管理 Skill 注册到 `~/.agents/skills/skill-port`。它负责告诉兼容的 Agent 如何操作 `sklp`，与之后由你加入的 Skill 相互独立。
 
-全局安装会执行两项操作：
+`sklp --version` 输出版本号，并且 `sklp agent setup` 提示 Agent 集成已注册，说明安装成功。`setup` 可以重复执行；如果 npm 没有完成自动注册，它会补建该入口。
 
-- npm 安装 CLI，并在全局可执行目录提供 `sklp` 命令。
-- 包内的 `postinstall` 脚本把内置管理 Skill 注册到 `~/.agents/skills/skill-port`。macOS 和 Linux 使用目录符号链接；Windows 无权创建符号链接时改用 junction。
+### 2. 初始化 Skill Port 并注册项目
 
-安装过程不会初始化 Hub、注册当前项目、安装用户 Skill，也不会修改 `AGENTS.md`。这些操作只会在你执行 `sklp init`、`sklp install` 等命令后发生。
-
-如果 `~/.agents/skills/skill-port` 已存在不受 Skill Port 管理的文件、目录或链接，安装程序会保留它并打印警告。如果通过 `--ignore-scripts` 禁用了 npm 生命周期脚本，之后可以执行 `sklp agent setup` 完成注册。
-
-### 第 2 步：打开一个新的 Agent 会话
-
-注册后的管理 Skill 会在以下位置提供一份简短使用说明：
-
-```text
-~/.agents/skills/skill-port
-```
-
-兼容的 Agent 会在新会话里发现它。你不用修改 `AGENTS.md`。
-
-### 第 3 步：像平常一样说话
-
-例如：
-
-```text
-帮我安装这个 Skill：https://github.com/example/my-skill.git
-把 my-skill 启用到当前项目。
-检查我的 Skills 有没有问题。
-```
-
-Agent 会自己调用 `sklp`，你不用记住命令。
-
-如果它没有发现 Skill Port，执行 `setup` 后再打开一个新会话。仍有问题时，用 `doctor` 检查：
+把示例路径替换为需要使用 Skill 的项目目录：
 
 ```bash
-sklp agent setup
+cd ~/projects/my-project
+sklp init
+```
+
+首次执行 `sklp init` 会在 `~/.skill-port` 创建共享 Hub，并把当前目录注册为项目。以后要注册其他项目，进入对应目录再次执行 `sklp init`；多个项目共用同一个 Hub。
+
+### 3. 把 Skill 加入 Hub
+
+选择一种方式执行：
+
+```bash
+# 从 Git 仓库安装
+sklp install https://github.com/owner/my-skill.git
+
+# 或者把本地 Skill 复制到 Hub
+sklp install ~/skills/my-skill
+
+# 或者链接本地 Skill，继续使用原目录
+sklp link ~/skills/my-skill
+```
+
+把 URL 或路径替换为真实的 Skill 来源。安装或链接成功后，命令会输出 Skill 名称，例如 `my-skill`。
+
+### 4. 启用 Skill
+
+选择一个目标，使用上一步输出的 Skill 名称：
+
+```bash
+# 启用到当前已注册项目
+sklp enable my-skill
+
+# 或者启用到共享的全局 Agent 目录
+sklp enable my-skill --global
+```
+
+然后检查状态：
+
+```bash
 sklp doctor
 ```
 
-`setup` 可以重复执行，也不会覆盖不属于 Skill Port 的同名文件。`doctor` 只检查，不会修改任何东西。
+启用后打开一个新的 Agent 会话，兼容的 Agent 就能发现这个 Skill。
+
+除了新增的 `~/.agents/skills/skill-port` 管理 Skill，`~/.agents/skills` 中原有的 Skill 不会被改动，可以继续使用。它们不会自动导入 Hub，因此无需处理。
 
 ## 不想敲命令
 

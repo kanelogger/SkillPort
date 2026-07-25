@@ -6,8 +6,6 @@
 
 [中文](README.zh-CN.md)
 
-**Version: 0.5.1** · [Changelog](CHANGELOG.md)
-
 Every Skill you install teaches your Agent one more thing. After a while, those Skills end up scattered across projects. Some are copied twice, some are forgotten, and some need an update.
 
 Skill Port is a toolbox. It keeps one local copy of each Skill, then makes that Skill available wherever you need it.
@@ -15,57 +13,71 @@ Skill Port is a toolbox. It keeps one local copy of each Skill, then makes that 
 - **Desktop** is for people: manage Skills by clicking.
 - **CLI** is for Agents: install it once, then ask your Agent to manage Skills for you.
 
-## The easiest way: ask your Agent
+## Quick start
 
 You need Node.js 22.16 or newer. Git is also required when a Skill comes from a Git repository.
 
-### Step 1: Install
+### 1. Install the CLI
 
 ```bash
 npm install --global skill-port-cli
+sklp --version
+sklp agent setup
 ```
 
-The package is named `skill-port-cli`. The command is `sklp`.
+The install also registers a bundled management Skill at `~/.agents/skills/skill-port`. It teaches compatible Agents how to operate `sklp`; it is separate from the Skills you add later.
 
-The global install performs two actions:
+Installation succeeded when `sklp --version` prints a version number and `sklp agent setup` reports that the Agent integration is registered. `setup` is safe to repeat and creates the entry if npm did not run the automatic setup.
 
-- npm installs the CLI and exposes `sklp` from its global binary directory.
-- The package's `postinstall` script registers the bundled management Skill at `~/.agents/skills/skill-port`. macOS and Linux use a directory symlink; Windows falls back to a junction when a symlink is not permitted.
+### 2. Initialize Skill Port and register a project
 
-Installation does not initialize the Hub, register the current project, install user Skills, or edit `AGENTS.md`. Those actions begin only when you run commands such as `sklp init` and `sklp install`.
-
-If `~/.agents/skills/skill-port` already contains an unmanaged file, directory, or link, installation preserves it and prints a warning. If npm lifecycle scripts are disabled with `--ignore-scripts`, register the integration later with `sklp agent setup`.
-
-### Step 2: Start a new Agent session
-
-The registered management Skill contains a short instruction at:
-
-```text
-~/.agents/skills/skill-port
-```
-
-Compatible Agents discover it in a new session. You do not need to edit `AGENTS.md`.
-
-### Step 3: Ask in plain language
-
-For example:
-
-```text
-Install this Skill for me: https://github.com/example/my-skill.git
-Enable my-skill in this project.
-Check whether my Skills are healthy.
-```
-
-Your Agent will call `sklp`, so you do not need to remember the commands.
-
-If it does not discover Skill Port, run `setup` and start another session. If the problem remains, use `doctor` to inspect it:
+Replace the example path with the project where you want to use Skills:
 
 ```bash
-sklp agent setup
+cd ~/projects/my-project
+sklp init
+```
+
+The first `sklp init` creates the shared Hub at `~/.skill-port` and registers the current directory as a project. To register another project later, enter that project and run `sklp init` again; both projects use the same Hub.
+
+### 3. Add a Skill to the Hub
+
+Choose one command:
+
+```bash
+# Install from a Git repository
+sklp install https://github.com/owner/my-skill.git
+
+# Or copy a local Skill into the Hub
+sklp install ~/skills/my-skill
+
+# Or link a local Skill and keep using its original directory
+sklp link ~/skills/my-skill
+```
+
+Replace the URL or path with the real Skill source. The command prints the Skill name after a successful install or link, for example `my-skill`.
+
+### 4. Enable the Skill
+
+Choose one target and use the Skill name printed by the previous command:
+
+```bash
+# Enable for the current registered project
+sklp enable my-skill
+
+# Or enable in the shared global Agent directory
+sklp enable my-skill --global
+```
+
+Then verify the setup:
+
+```bash
 sklp doctor
 ```
 
-`setup` is safe to run more than once and will not overwrite an entry that Skill Port does not own. `doctor` only checks; it does not change anything.
+Open a new Agent session after enabling the Skill so that a compatible Agent can discover it.
+
+Apart from the new `~/.agents/skills/skill-port` management Skill, existing Skills under `~/.agents/skills` remain unchanged and continue to work. They are not automatically imported into the Hub, so no action is required.
 
 ## Prefer buttons?
 
