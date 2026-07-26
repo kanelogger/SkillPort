@@ -17,6 +17,12 @@ Skill Port 是一个工具箱。Skill 只收一份，需要时再放进当前项
 
 你需要 Node.js 22.16 或更新版本。安装 Git 仓库里的 Skill 时，还需要 Git。
 
+### 让 Agent 帮你安装
+
+把下面这句话发给能够执行终端命令的编码 Agent：
+
+> 参考 https://github.com/kanelogger/SkillPort 帮我全局安装 Skill Port CLI。先检查 Node.js 是否满足版本要求，再执行 `sklp --version` 和 `sklp agent setup` 验证安装；遇到权限或 PATH 问题时先报告，不要自行绕过。
+
 ### 1. 安装 CLI
 
 ```bash

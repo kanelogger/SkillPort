@@ -17,6 +17,12 @@ Skill Port is a toolbox. It keeps one local copy of each Skill, then makes that 
 
 You need Node.js 22.16 or newer. Git is also required when a Skill comes from a Git repository.
 
+### Let your Agent install it
+
+Paste this into a coding Agent that can run terminal commands:
+
+> Base on https://github.com/kanelogger/SkillPort.Install Skill Port CLI globally with npm. Check that Node.js meets the requirement first, then run `sklp --version` and `sklp agent setup`. Report any permission or PATH errors.
+
 ### 1. Install the CLI
 
 ```bash
