@@ -143,6 +143,52 @@ test("desktop facade checks, previews, and updates copied Git Skills without cha
   });
 });
 
+test("desktop facade previews and moves pinned Git Skills to an explicit branch", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-retrack-"));
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(repo, "skills", "alpha"), "desktop-alpha-pinned", "Before alpha");
+  makeSkill(join(repo, "skills", "bravo"), "desktop-bravo-pinned", "Before bravo");
+  git(["init"], repo);
+  git(["branch", "-M", "main"], repo);
+  git(["add", "."], repo);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], repo);
+  const pinnedRevision = git(["rev-parse", "HEAD"], repo);
+
+  withEnvironment(root, () => {
+    const desktop = new DesktopSkillPort();
+    desktop.initialize({ project });
+    desktop.install(pathToFileURL(repo).href, { ref: pinnedRevision });
+    assert.deepEqual(desktop.checkAllUpdates().map((item) => item.status), ["pinned", "pinned"]);
+
+    makeSkill(join(repo, "skills", "alpha"), "desktop-alpha-pinned", "After alpha");
+    makeSkill(join(repo, "skills", "bravo"), "desktop-bravo-pinned", "After bravo");
+    git(["add", "."], repo);
+    git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], repo);
+    const branchRevision = git(["rev-parse", "HEAD"], repo);
+
+    assert.deepEqual(desktop.previewUpdate("desktop-alpha-pinned", "main").planned, [
+      { name: "desktop-alpha-pinned", revision: branchRevision }
+    ]);
+    const alpha = desktop.update("desktop-alpha-pinned", "main");
+    assert.equal(alpha.sourceRef, "main");
+    assert.equal(alpha.sourceTracking, "branch");
+    assert.equal(alpha.sourceRevision, branchRevision);
+
+    assert.deepEqual(desktop.previewAllUpdates("main").planned.map((item) => item.name), [
+      "desktop-alpha-pinned",
+      "desktop-bravo-pinned"
+    ]);
+    const result = desktop.updateAll("main");
+    assert.deepEqual(result.updated.map((item) => item.name), ["desktop-alpha-pinned", "desktop-bravo-pinned"]);
+    const bravo = desktop.getSkill("desktop-bravo-pinned");
+    assert.equal(bravo.sourceRef, "main");
+    assert.equal(bravo.sourceTracking, "branch");
+    assert.equal(bravo.sourceRevision, branchRevision);
+  });
+});
+
 test("desktop facade preserves unmanaged enablement conflicts", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-desktop-conflict-"));
   const project = join(root, "project");

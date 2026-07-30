@@ -20,11 +20,14 @@
 - Add the idempotent `sklp agent setup` recovery command and read-only doctor diagnostics for missing or conflicting Agent integration state.
 - Support the CLI on Node.js 22.16 or newer while preserving stderr-free JSON output on Node 22.
 - Add `sklp update [skill|--all] --ref <ref>` to move pinned Git Skills to an explicit branch, tag, or commit.
+- Let Desktop users preview and move one or all pinned Git Skills to an explicit branch, tag, or commit.
 
 ### Fixes
 
 - Stop reporting a successful update when a Git Skill is pinned to its existing tag or commit.
 - Reuse remote checks and Git clones by repository/ref during batch updates instead of repeating them for every Skill.
+- Carry Desktop tracking refs through the validated RPC bridge and require a successful ref-aware preview before confirmation.
+- Package the Desktop utility worker as a dedicated ESM bundle so it neither overwrites the main-process bundle nor rejects the core's top-level SQLite import.
 
 ### Safety
 

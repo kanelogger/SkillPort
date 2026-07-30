@@ -8,6 +8,11 @@ export default defineConfig({
     }
   },
   build: {
+    lib: {
+      entry: "src/worker.ts",
+      fileName: () => "worker.mjs",
+      formats: ["es"]
+    },
     rollupOptions: { external: ["electron", /^node:/] }
   }
 });

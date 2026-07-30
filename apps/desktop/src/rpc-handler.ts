@@ -23,10 +23,10 @@ export async function dispatchRpc(request: RpcRequest, desktop: DesktopOperation
     case "updateTags": return desktop.updateTags(params.name, params.tags);
     case "checkUpdate": return desktop.checkUpdate(params.name);
     case "checkAllUpdates": return desktop.checkAllUpdates();
-    case "previewUpdate": return desktop.previewUpdate(params.name);
-    case "previewAllUpdates": return desktop.previewAllUpdates();
-    case "update": return desktop.update(params.name);
-    case "updateAll": return desktop.updateAll();
+    case "previewUpdate": return desktop.previewUpdate(params.name, params.ref);
+    case "previewAllUpdates": return desktop.previewAllUpdates(params.ref);
+    case "update": return desktop.update(params.name, params.ref);
+    case "updateAll": return desktop.updateAll(params.ref);
     case "enable": return desktop.enable(params.name, params.target);
     case "disable": return desktop.disable(params.name, params.target);
     case "doctor": return desktop.doctor();

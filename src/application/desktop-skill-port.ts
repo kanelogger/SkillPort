@@ -147,21 +147,21 @@ export class DesktopSkillPort {
     return this.read((app) => app.checkAllUpdates());
   }
 
-  previewUpdate(name: string): UpdateSummary {
-    return this.read((app) => app.previewUpdate(name));
+  previewUpdate(name: string, ref?: string): UpdateSummary {
+    return this.read((app) => ref ? app.previewUpdateToRef(name, ref) : app.previewUpdate(name));
   }
 
-  previewAllUpdates(): UpdateSummary {
-    return this.read((app) => app.previewAllUpdates());
+  previewAllUpdates(ref?: string): UpdateSummary {
+    return this.read((app) => ref ? app.previewAllUpdatesToRef(ref) : app.previewAllUpdates());
   }
 
-  update(name: string): DesktopSkillDetails {
-    this.write((app) => app.update(name));
+  update(name: string, ref?: string): DesktopSkillDetails {
+    this.write((app) => ref ? app.updateToRef(name, ref) : app.update(name));
     return this.getSkill(name);
   }
 
-  updateAll(): BatchUpdateSummary {
-    return this.write((app) => app.updateAll());
+  updateAll(ref?: string): BatchUpdateSummary {
+    return this.write((app) => ref ? app.updateAllToRef(ref) : app.updateAll());
   }
 
   enable(name: string, target: DesktopTarget): Enablement {

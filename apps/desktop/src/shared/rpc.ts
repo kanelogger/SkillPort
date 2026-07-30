@@ -34,10 +34,10 @@ export type DesktopRpcApi = {
   updateTags(input: { name: string; tags: string[] }): Promise<DesktopSkillDetails>;
   checkUpdate(input: { name: string }): Promise<UpdateCheck>;
   checkAllUpdates(): Promise<FleetUpdateCheck[]>;
-  previewUpdate(input: { name: string }): Promise<UpdateSummary>;
-  previewAllUpdates(): Promise<UpdateSummary>;
-  update(input: { name: string }): Promise<DesktopSkillDetails>;
-  updateAll(): Promise<BatchUpdateSummary>;
+  previewUpdate(input: { name: string; ref?: string }): Promise<UpdateSummary>;
+  previewAllUpdates(input?: { ref?: string }): Promise<UpdateSummary>;
+  update(input: { name: string; ref?: string }): Promise<DesktopSkillDetails>;
+  updateAll(input?: { ref?: string }): Promise<BatchUpdateSummary>;
   enable(input: { name: string; target: DesktopTarget }): Promise<Enablement>;
   disable(input: { name: string; target: DesktopTarget }): Promise<void>;
   doctor(): Promise<Diagnostic[]>;
@@ -84,10 +84,10 @@ const parameterSchemas: Record<RpcMethod, z.ZodType> = {
   }).strict(),
   checkUpdate: z.object({ name: z.string().min(1) }).strict(),
   checkAllUpdates: z.object({}).strict(),
-  previewUpdate: z.object({ name: z.string().min(1) }).strict(),
-  previewAllUpdates: z.object({}).strict(),
-  update: z.object({ name: z.string().min(1) }).strict(),
-  updateAll: z.object({}).strict(),
+  previewUpdate: z.object({ name: z.string().min(1), ref: z.string().trim().min(1).optional() }).strict(),
+  previewAllUpdates: z.object({ ref: z.string().trim().min(1).optional() }).strict(),
+  update: z.object({ name: z.string().min(1), ref: z.string().trim().min(1).optional() }).strict(),
+  updateAll: z.object({ ref: z.string().trim().min(1).optional() }).strict(),
   enable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   disable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   doctor: z.object({}).strict(),

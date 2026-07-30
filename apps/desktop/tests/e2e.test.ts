@@ -168,7 +168,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
   }
 });
 
-test("desktop checks, previews, and updates a copied Git Skill", async () => {
+test("desktop previews and moves a pinned Git Skill to a branch", async () => {
   const root = mkdtempSync(join(tmpdir(), "skill-port-desktop-update-e2e-"));
   const project = join(root, "project");
   const hub = join(root, "hub");
@@ -180,6 +180,7 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
   git(["branch", "-M", "main"], gitSource);
   git(["add", "."], gitSource);
   git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], gitSource);
+  const pinnedRevision = git(["rev-parse", "HEAD"], gitSource);
   const desktopRoot = resolve(process.cwd());
   const repositoryRoot = resolve(desktopRoot, "../..");
   const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
@@ -193,7 +194,7 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
 
   try {
     expect(runCli(["init"]).status).toBe(0);
-    expect(runCli(["install", pathToFileURL(gitSource).href]).status).toBe(0);
+    expect(runCli(["install", pathToFileURL(gitSource).href, "--ref", pinnedRevision]).status).toBe(0);
     app = await electron.launch({
       executablePath,
       args: [desktopRoot],
@@ -216,7 +217,8 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
     const updatedRevision = git(["rev-parse", "HEAD"], gitSource);
     await page.locator(".detail-panel").getByRole("button", { name: /Check update/ }).click();
     const updateDialog = page.getByRole("dialog");
-    await expect(updateDialog.getByText(/desktop-update: outdated/)).toBeVisible();
+    await expect(updateDialog.getByText(/desktop-update: pinned/)).toBeVisible();
+    await updateDialog.getByLabel("Git ref (optional)").fill("main");
     await updateDialog.getByRole("button", { name: "Preview update" }).click();
     await expect(updateDialog.getByText(updatedRevision)).toBeVisible();
     await updateDialog.getByRole("button", { name: "Update previewed Skills" }).click();
@@ -224,6 +226,8 @@ test("desktop checks, previews, and updates a copied Git Skill", async () => {
     const updateInfo = runCli(["info", "desktop-update"]);
     expect(updateInfo.status).toBe(0);
     expect(JSON.parse(updateInfo.stdout).skill.sourceRevision).toBe(updatedRevision);
+    expect(JSON.parse(updateInfo.stdout).skill.sourceRef).toBe("main");
+    expect(JSON.parse(updateInfo.stdout).skill.sourceTracking).toBe("branch");
     expect(JSON.parse(updateInfo.stdout).enablements).toHaveLength(1);
   } finally {
     await app?.close().catch(() => undefined);

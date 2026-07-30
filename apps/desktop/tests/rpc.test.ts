@@ -26,6 +26,16 @@ describe("desktop RPC contract", () => {
       method: "checkUpdate",
       params: { name: "skill" }
     });
+    expect(parseRpcRequest({ id: "9", method: "update", params: { name: "skill", ref: "main" } })).toEqual({
+      id: "9",
+      method: "update",
+      params: { name: "skill", ref: "main" }
+    });
+    expect(parseRpcRequest({ id: "10", method: "updateAll", params: { ref: "main" } })).toEqual({
+      id: "10",
+      method: "updateAll",
+      params: { ref: "main" }
+    });
     expect(() => parseRpcRequest({ id: "9", method: "updateAll", params: { unexpected: true } })).toThrow();
   });
 
@@ -52,23 +62,23 @@ describe("desktop RPC contract", () => {
 
     await expect(dispatchRpc({ id: "1", method: "checkUpdate", params: { name: "sample-skill" } }, desktop))
       .resolves.toEqual({ name: "sample-skill", status: "outdated" });
-    await expect(dispatchRpc({ id: "2", method: "previewUpdate", params: { name: "sample-skill" } }, desktop))
+    await expect(dispatchRpc({ id: "2", method: "previewUpdate", params: { name: "sample-skill", ref: "main" } }, desktop))
       .resolves.toEqual({ planned: [{ name: "sample-skill", revision: "abc" }], skipped: [], failed: [] });
-    await expect(dispatchRpc({ id: "3", method: "update", params: { name: "sample-skill" } }, desktop))
+    await expect(dispatchRpc({ id: "3", method: "update", params: { name: "sample-skill", ref: "main" } }, desktop))
       .resolves.toEqual({ name: "sample-skill", sourceRevision: "abc" });
     await expect(dispatchRpc({ id: "4", method: "checkAllUpdates", params: {} }, desktop))
       .resolves.toEqual([{ name: "sample-skill", status: "outdated" }]);
-    await expect(dispatchRpc({ id: "5", method: "previewAllUpdates", params: {} }, desktop))
+    await expect(dispatchRpc({ id: "5", method: "previewAllUpdates", params: { ref: "main" } }, desktop))
       .resolves.toEqual({ planned: [{ name: "sample-skill", revision: "abc" }], skipped: [], failed: [] });
-    await expect(dispatchRpc({ id: "6", method: "updateAll", params: {} }, desktop))
+    await expect(dispatchRpc({ id: "6", method: "updateAll", params: { ref: "main" } }, desktop))
       .resolves.toEqual({ updated: [{ name: "sample-skill", revision: "abc" }], skipped: [], failed: [] });
 
     expect(checkUpdate).toHaveBeenCalledWith("sample-skill");
     expect(checkAllUpdates).toHaveBeenCalledWith();
-    expect(previewUpdate).toHaveBeenCalledWith("sample-skill");
-    expect(previewAllUpdates).toHaveBeenCalledWith();
-    expect(update).toHaveBeenCalledWith("sample-skill");
-    expect(updateAll).toHaveBeenCalledWith();
+    expect(previewUpdate).toHaveBeenCalledWith("sample-skill", "main");
+    expect(previewAllUpdates).toHaveBeenCalledWith("main");
+    expect(update).toHaveBeenCalledWith("sample-skill", "main");
+    expect(updateAll).toHaveBeenCalledWith("main");
   });
 
   it("dispatches only the allowlisted operation", async () => {

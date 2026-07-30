@@ -471,8 +471,16 @@ export class SkillPort {
     return this.planUpdates([this.requireSkill(name)]);
   }
 
+  previewUpdateToRef(name: string, ref: string): UpdateSummary {
+    return this.planRefUpdates([this.requireSkill(name)], ref);
+  }
+
   previewAllUpdates(): UpdateSummary {
     return this.planUpdates(this.store.skills(), new Map());
+  }
+
+  previewAllUpdatesToRef(ref: string): UpdateSummary {
+    return this.planRefUpdates(this.store.skills(), ref);
   }
 
   updateAll(): BatchUpdateSummary {
@@ -579,6 +587,43 @@ export class SkillPort {
       }
     }
     return { planned, skipped, failed };
+  }
+
+  private planRefUpdates(skills: Skill[], ref: string): UpdateSummary {
+    const planned: UpdateSummary["planned"] = [];
+    const skipped: UpdateSummary["skipped"] = [];
+    const failed: UpdateSummary["failed"] = [];
+    const cache = createGitSourceCache();
+    try {
+      for (const current of skills) {
+        if (this.isLinkedSkill(current)) {
+          skipped.push({ name: current.name, reason: "linked" });
+          continue;
+        }
+        if (current.sourceType !== "git") {
+          skipped.push({ name: current.name, reason: "local-copied" });
+          continue;
+        }
+        try {
+          const prepared = prepareSource(current.sourceLocation, this.paths.staging, ref, cache);
+          try {
+            const metadata = readSkillMetadata(prepared.root);
+            if (metadata.name !== current.name) {
+              throw new CliError("Updated Skill name changed; remove and reinstall it.");
+            }
+            if (!prepared.revision) throw new CliError("Git ref did not resolve to a revision.");
+            planned.push({ name: current.name, revision: prepared.revision });
+          } finally {
+            prepared.cleanup();
+          }
+        } catch (error) {
+          failed.push({ name: current.name, reason: sanitizeError(error) });
+        }
+      }
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
+    return { planned: planned.sort(byName), skipped: skipped.sort(byName), failed: failed.sort(byName) };
   }
 
   remove(name: string, force = false): void {

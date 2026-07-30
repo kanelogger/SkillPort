@@ -192,13 +192,13 @@ export function App() {
         t={t}
         busy={busy}
         onClose={() => setUpdateDialog(null)}
-        onPreview={() => run(() => updateDialog.name
-          ? window.skillPort.previewUpdate({ name: updateDialog.name })
-          : window.skillPort.previewAllUpdates())}
-        onConfirm={async () => {
+        onPreview={(ref) => run(() => updateDialog.name
+          ? window.skillPort.previewUpdate({ name: updateDialog.name, ...(ref ? { ref } : {}) })
+          : window.skillPort.previewAllUpdates(ref ? { ref } : undefined))}
+        onConfirm={async (ref) => {
           const result = await run(async (): Promise<BatchUpdateSummary> => {
-            if (!updateDialog.name) return window.skillPort.updateAll();
-            const updated = await window.skillPort.update({ name: updateDialog.name });
+            if (!updateDialog.name) return window.skillPort.updateAll(ref ? { ref } : undefined);
+            const updated = await window.skillPort.update({ name: updateDialog.name, ...(ref ? { ref } : {}) });
             return {
               updated: [{ name: updated.name, revision: updated.sourceRevision ?? "unknown" }],
               skipped: [],
@@ -401,22 +401,25 @@ function UpdateModal({ scopeName, checks, t, busy, onClose, onPreview, onConfirm
   t: (key: string) => string;
   busy: boolean;
   onClose: () => void;
-  onPreview: () => Promise<UpdateSummary | undefined>;
-  onConfirm: () => Promise<BatchUpdateSummary | undefined>;
+  onPreview: (ref?: string) => Promise<UpdateSummary | undefined>;
+  onConfirm: (ref?: string) => Promise<BatchUpdateSummary | undefined>;
 }) {
+  const [ref, setRef] = useState("");
   const [preview, setPreview] = useState<UpdateSummary | null>(null);
   const [result, setResult] = useState<BatchUpdateSummary | null>(null);
   const title = scopeName ? `${t("checkUpdate")}: ${scopeName}` : t("checkUpdates");
   async function previewUpdates() {
-    const value = await onPreview();
+    const value = await onPreview(ref.trim() || undefined);
     if (value) setPreview(value);
   }
   async function confirmUpdates() {
-    const value = await onConfirm();
+    const value = await onConfirm(ref.trim() || undefined);
     if (value) setResult(value);
   }
   return <Modal title={title} onClose={onClose}>
     <div className="preview-box"><strong>{t("checkResults")}</strong><PreviewGroup label={t("updateStatus")} items={checks.map(formatUpdateCheck)} /></div>
+    <label className="field"><span>{t("gitRef")}</span><input value={ref} placeholder="main" spellCheck={false} onChange={(event) => { setRef(event.target.value); setPreview(null); setResult(null); }} /></label>
+    <p className="field-help">{t("updateRefHelp")}</p>
     {preview && <div className="preview-box"><strong>{t("updatePreview")}</strong><PreviewGroup label={t("wouldUpdate")} items={preview.planned.map((item) => `${item.name} — ${item.revision}`)} /><PreviewGroup label={t("skipped")} items={preview.skipped.map((item) => `${item.name}: ${item.reason}`)} /><PreviewGroup label={t("failed")} items={preview.failed.map((item) => `${item.name}: ${item.reason}`)} /></div>}
     {result && <div className="preview-box"><strong>{t("updateComplete")}</strong><PreviewGroup label={t("updated")} items={result.updated.map((item) => `${item.name} — ${item.revision}`)} /><PreviewGroup label={t("skipped")} items={result.skipped.map((item) => `${item.name}: ${item.reason}`)} /><PreviewGroup label={t("failed")} items={result.failed.map((item) => `${item.name}: ${item.reason}`)} /></div>}
     <div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("close")}</button><button className="button" disabled={busy || Boolean(result)} onClick={() => void previewUpdates()}>{t("previewUpdate")}</button><button className="button primary" disabled={busy || !preview?.planned.length || Boolean(result)} onClick={() => void confirmUpdates()}>{t("confirmUpdate")}</button></div>

@@ -36,7 +36,7 @@ function resumeQuitWhenDrained(): void {
 }
 
 function createWorker(): UtilityProcess {
-  const child = utilityProcess.fork(join(dirname(fileURLToPath(import.meta.url)), "worker.js"), [], {
+  const child = utilityProcess.fork(join(dirname(fileURLToPath(import.meta.url)), "worker.mjs"), [], {
     serviceName: "Skill Port Core",
     stdio: "pipe"
   });
