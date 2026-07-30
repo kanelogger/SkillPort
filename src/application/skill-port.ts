@@ -12,8 +12,9 @@ import {
   createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
 import {
-  copySource, inspectGitSource, prepareInstallSources, prepareLocalSource, prepareSource,
-  type GitUpdateInspection, type PreparedSource
+  cleanupGitSourceCache, copySource, createGitSourceCache, inspectGitSource, prepareInstallSources,
+  prepareLocalSource, prepareSource, type GitRemoteCache, type GitSourceCache, type GitUpdateInspection,
+  type PreparedSource
 } from "../infrastructure/sources.js";
 import { globalTarget } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
@@ -380,17 +381,40 @@ export class SkillPort {
   }
 
   update(name: string, revision?: string): Skill {
+    return this.updateInternal(name, { revision });
+  }
+
+  updateToRef(name: string, ref: string): Skill {
+    return this.updateInternal(name, { sourceRef: ref });
+  }
+
+  private updateInternal(
+    name: string,
+    options: { revision?: string; sourceRef?: string; sourceCache?: GitSourceCache }
+  ): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
       const staged = join(this.paths.staging, `update-${randomUUID()}`);
       const backup = join(this.paths.staging, `backup-${randomUUID()}`);
       const destination = this.skillPath(current);
+      if (options.sourceRef !== undefined && current.sourceType !== "git") {
+        throw new CliError("--ref can only update Git-installed Skills.");
+      }
+      if (
+        options.sourceRef === undefined
+        && options.revision === undefined
+        && current.sourceType === "git"
+        && isPinnedGitSkill(current)
+      ) {
+        throw new CliError(`Skill is pinned to ${current.sourceTracking ?? "a fixed revision"}; use --ref <branch> to change its tracking ref.`);
+      }
       if (this.isLinkedSkill(current)) {
         checkpoint({ kind: "update", skill: current, destination, linked: true });
         return this.updateLinkedSkill(current);
       }
       checkpoint({ kind: "update", skill: current, destination, backup });
-      const prepared = prepareSource(current.sourceLocation, this.paths.staging, revision ?? current.sourceRef ?? undefined);
+      const requestedRef = options.sourceRef ?? options.revision ?? current.sourceRef ?? undefined;
+      const prepared = prepareSource(current.sourceLocation, this.paths.staging, requestedRef, options.sourceCache);
       try {
         const metadata = readSkillMetadata(prepared.root);
         if (metadata.name !== current.name) throw new CliError("Updated Skill name changed; remove and reinstall it.");
@@ -398,7 +422,9 @@ export class SkillPort {
         const updated: Skill = {
           ...current,
           description: metadata.description,
+          sourceRef: options.sourceRef === undefined ? current.sourceRef : prepared.ref,
           sourceRevision: prepared.revision ?? current.sourceRevision,
+          sourceTracking: options.sourceRef === undefined ? current.sourceTracking : prepared.sourceTracking,
           updatedAt: new Date().toISOString()
         };
         writeMeta(join(staged, "meta.json"), updated);
@@ -437,7 +463,8 @@ export class SkillPort {
   }
 
   checkAllUpdates(): FleetUpdateCheck[] {
-    return this.store.skills().map((skill) => this.checkFleetUpdate(skill));
+    const cache: GitRemoteCache = new Map();
+    return this.store.skills().map((skill) => this.checkFleetUpdate(skill, cache));
   }
 
   previewUpdate(name: string): UpdateSummary {
@@ -445,20 +472,25 @@ export class SkillPort {
   }
 
   previewAllUpdates(): UpdateSummary {
-    return this.planUpdates(this.store.skills());
+    return this.planUpdates(this.store.skills(), new Map());
   }
 
   updateAll(): BatchUpdateSummary {
     const plan = this.previewAllUpdates();
     const updated: BatchUpdateSummary["updated"] = [];
     const failed = [...plan.failed];
-    for (const item of plan.planned) {
-      try {
-        const skill = this.update(item.name, item.revision);
-        updated.push({ name: skill.name, revision: skill.sourceRevision ?? item.revision });
-      } catch (error) {
-        failed.push({ name: item.name, reason: sanitizeError(error) });
+    const cache = createGitSourceCache();
+    try {
+      for (const item of plan.planned) {
+        try {
+          const skill = this.updateInternal(item.name, { revision: item.revision, sourceCache: cache });
+          updated.push({ name: skill.name, revision: skill.sourceRevision ?? item.revision });
+        } catch (error) {
+          failed.push({ name: item.name, reason: sanitizeError(error) });
+        }
       }
+    } finally {
+      cleanupGitSourceCache(cache);
     }
     return {
       updated: updated.sort(byName),
@@ -467,12 +499,46 @@ export class SkillPort {
     };
   }
 
-  private checkGitUpdate(skill: Skill): UpdateCheck {
-    const inspection = inspectGitSource(skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking);
+  updateAllToRef(ref: string): BatchUpdateSummary {
+    const updated: BatchUpdateSummary["updated"] = [];
+    const skipped: BatchUpdateSummary["skipped"] = [];
+    const failed: BatchUpdateSummary["failed"] = [];
+    const cache = createGitSourceCache();
+    try {
+      for (const current of this.store.skills()) {
+        if (this.isLinkedSkill(current)) {
+          skipped.push({ name: current.name, reason: "linked" });
+          continue;
+        }
+        if (current.sourceType !== "git") {
+          skipped.push({ name: current.name, reason: "local-copied" });
+          continue;
+        }
+        try {
+          const skill = this.updateInternal(current.name, { sourceRef: ref, sourceCache: cache });
+          updated.push({ name: skill.name, revision: skill.sourceRevision ?? ref });
+        } catch (error) {
+          failed.push({ name: current.name, reason: sanitizeError(error) });
+        }
+      }
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
+    return { updated: updated.sort(byName), skipped: skipped.sort(byName), failed: failed.sort(byName) };
+  }
+
+  private checkGitUpdate(skill: Skill, cache?: GitRemoteCache): UpdateCheck {
+    const inspection = inspectGitSource(
+      skill.sourceLocation,
+      skill.sourceRef,
+      skill.sourceRevision,
+      skill.sourceTracking,
+      cache
+    );
     return { name: skill.name, currentRevision: skill.sourceRevision, ...inspection };
   }
 
-  private checkFleetUpdate(skill: Skill): FleetUpdateCheck {
+  private checkFleetUpdate(skill: Skill, cache?: GitRemoteCache): FleetUpdateCheck {
     if (this.isLinkedSkill(skill)) {
       return {
         name: skill.name,
@@ -493,14 +559,14 @@ export class SkillPort {
         reason: "local-copied"
       };
     }
-    return this.checkGitUpdate(skill);
+    return this.checkGitUpdate(skill, cache);
   }
 
-  private planUpdates(skills: Skill[]): UpdateSummary {
+  private planUpdates(skills: Skill[], cache?: GitRemoteCache): UpdateSummary {
     const planned: UpdateSummary["planned"] = [];
     const skipped: UpdateSummary["skipped"] = [];
     const failed: UpdateSummary["failed"] = [];
-    for (const check of skills.map((skill) => this.checkFleetUpdate(skill))) {
+    for (const check of skills.map((skill) => this.checkFleetUpdate(skill, cache))) {
       if (check.status === "skipped") {
         skipped.push({ name: check.name, reason: check.reason });
       } else if (check.status === "outdated") {
@@ -1229,6 +1295,12 @@ function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill,
 
 function byName(left: { name: string }, right: { name: string }): number {
   return left.name.localeCompare(right.name);
+}
+
+function isPinnedGitSkill(skill: Skill): boolean {
+  return skill.sourceTracking === "commit"
+    || skill.sourceTracking === "tag"
+    || (skill.sourceRef !== null && /^[0-9a-f]{40,64}$/i.test(skill.sourceRef));
 }
 
 function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | null {

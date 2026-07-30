@@ -1,5 +1,5 @@
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
+  cpSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
@@ -25,6 +25,11 @@ export type GitUpdateInspection = {
   reason?: string;
 };
 
+type GitRemoteCacheEntry = { stdout: string; failure: string | null };
+export type GitRemoteCache = Map<string, GitRemoteCacheEntry>;
+type CachedGitClone = { root: string; revision: string };
+export type GitSourceCache = { clones: Map<string, CachedGitClone> };
+
 type PrepareOptions = { ref?: string; gitPath?: string };
 type GitSourceSpec = {
   cloneUrl: string;
@@ -45,8 +50,13 @@ export function prepareInstallSources(input: string, staging: string, options: P
   return prepareSources(input, staging, options);
 }
 
-export function prepareSource(input: string, staging: string, ref?: string): PreparedSource {
-  const sources = prepareSources(input, staging, { ref });
+export function prepareSource(
+  input: string,
+  staging: string,
+  ref?: string,
+  cache?: GitSourceCache
+): PreparedSource {
+  const sources = prepareSources(input, staging, { ref }, cache);
   if (sources.length !== 1) {
     for (const source of sources) source.cleanup();
     throw new CliError("Skill source must contain exactly one Skill.");
@@ -58,22 +68,27 @@ export function inspectGitSource(
   source: string,
   ref: string | null,
   currentRevision: string | null,
-  sourceTracking: GitSourceTracking | null
+  sourceTracking: GitSourceTracking | null,
+  cache?: GitRemoteCache
 ): GitUpdateInspection {
   if (sourceTracking === "commit" || isCommitRef(ref)) {
     return { status: "pinned", sourceTracking: "commit", remoteRevision: null };
   }
   if (sourceTracking === "tag") return { status: "pinned", sourceTracking: "tag", remoteRevision: null };
-  if (sourceTracking === "branch") return inspectBranchGitRef(source, ref, currentRevision);
-  if (sourceTracking === "default-branch") return inspectDefaultBranch(source, currentRevision);
+  if (sourceTracking === "branch") return inspectBranchGitRef(source, ref, currentRevision, cache);
+  if (sourceTracking === "default-branch") return inspectDefaultBranch(source, currentRevision, cache);
 
   if (ref) {
-    return inspectNamedGitRef(source, ref, currentRevision);
+    return inspectNamedGitRef(source, ref, currentRevision, cache);
   }
-  return inspectDefaultBranch(source, currentRevision);
+  return inspectDefaultBranch(source, currentRevision, cache);
 }
 
-function inspectDefaultBranch(source: string, currentRevision: string | null): GitUpdateInspection {
+function inspectDefaultBranch(
+  source: string,
+  currentRevision: string | null,
+  cache?: GitRemoteCache
+): GitUpdateInspection {
   if (!currentRevision) {
     return {
       status: "unknown",
@@ -84,9 +99,8 @@ function inspectDefaultBranch(source: string, currentRevision: string | null): G
   }
   try {
     const spec = gitSourceSpec(source, {});
-    const result = runGit(["ls-remote", "--symref", "--", spec.cloneUrl, "HEAD"]);
-    if (result.error || result.status !== 0) throw gitCommandError("Git update check", result);
-    const remoteRevision = remoteHeadRevision(result.stdout);
+    const output = runRemoteGit(["ls-remote", "--symref", "--", spec.cloneUrl, "HEAD"], cache);
+    const remoteRevision = remoteHeadRevision(output);
     if (!remoteRevision) {
       return {
         status: "unknown",
@@ -110,7 +124,12 @@ function inspectDefaultBranch(source: string, currentRevision: string | null): G
   }
 }
 
-function inspectNamedGitRef(source: string, ref: string, currentRevision: string | null): GitUpdateInspection {
+function inspectNamedGitRef(
+  source: string,
+  ref: string,
+  currentRevision: string | null,
+  cache?: GitRemoteCache
+): GitUpdateInspection {
   if (!isValidRemoteRef(ref)) {
     return {
       status: "unknown",
@@ -121,8 +140,8 @@ function inspectNamedGitRef(source: string, ref: string, currentRevision: string
   }
   try {
     const spec = gitSourceSpec(source, {});
-    const branchRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref));
-    const tagRevision = remoteRefRevision(spec.cloneUrl, tagRef(ref));
+    const branchRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref), cache);
+    const tagRevision = remoteRefRevision(spec.cloneUrl, tagRef(ref), cache);
     if (branchRevision && tagRevision) {
       return {
         status: "unknown",
@@ -163,7 +182,12 @@ function inspectNamedGitRef(source: string, ref: string, currentRevision: string
   }
 }
 
-function inspectBranchGitRef(source: string, ref: string | null, currentRevision: string | null): GitUpdateInspection {
+function inspectBranchGitRef(
+  source: string,
+  ref: string | null,
+  currentRevision: string | null,
+  cache?: GitRemoteCache
+): GitUpdateInspection {
   if (!ref || !isValidRemoteRef(ref)) {
     return {
       status: "unknown",
@@ -174,7 +198,7 @@ function inspectBranchGitRef(source: string, ref: string | null, currentRevision
   }
   try {
     const spec = gitSourceSpec(source, {});
-    const remoteRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref));
+    const remoteRevision = remoteRefRevision(spec.cloneUrl, branchRef(ref), cache);
     if (!remoteRevision) {
       return {
         status: "unknown",
@@ -206,42 +230,61 @@ function inspectBranchGitRef(source: string, ref: string | null, currentRevision
   }
 }
 
-function prepareSources(input: string, staging: string, options: PrepareOptions): PreparedSource[] {
+function prepareSources(
+  input: string,
+  staging: string,
+  options: PrepareOptions,
+  cache?: GitSourceCache
+): PreparedSource[] {
   validateGitRef(options.ref);
   const local = resolve(input);
   if (existsSync(local)) {
     if (options.gitPath) throw new CliError("--path can only be used with Git sources.");
     return [prepareLocalSource(input)];
   }
-  return prepareGitSources(input, staging, options);
+  return prepareGitSources(input, staging, options, cache);
 }
 
-function prepareGitSources(input: string, staging: string, options: PrepareOptions): PreparedSource[] {
+function prepareGitSources(
+  input: string,
+  staging: string,
+  options: PrepareOptions,
+  cache?: GitSourceCache
+): PreparedSource[] {
   const spec = gitSourceSpec(input, options);
   const publisher = githubOwner(input);
-  const cloneRoot = join(staging, `git-${Date.now()}-${process.pid}`);
+  const cacheKey = `${spec.cloneUrl}\0${spec.ref ?? ""}`;
+  const cached = cache?.clones.get(cacheKey);
+  const cloneRoot = cached?.root ?? mkdtempSync(join(staging, "git-"));
   const stagedRoots: string[] = [];
-  mkdirSync(cloneRoot, { recursive: true });
-  const args = ["clone"];
-  if (!spec.ref) args.push("--depth", "1");
-  args.push("--", spec.cloneUrl, cloneRoot);
-  const result = runGit(args);
-  if (result.error || result.status !== 0) {
-    rmSync(cloneRoot, { recursive: true, force: true });
-    throw gitCommandError("Git source", result);
-  }
-  if (spec.ref) {
-    const checkout = runGit(["-C", cloneRoot, "checkout", "--detach", spec.ref]);
-    if (checkout.error || checkout.status !== 0) {
+  let revisionValue = cached?.revision ?? null;
+  if (!cached) {
+    const args = ["clone"];
+    if (!spec.ref) args.push("--depth", "1");
+    args.push("--", spec.cloneUrl, cloneRoot);
+    const result = runGit(args);
+    if (result.error || result.status !== 0) {
       rmSync(cloneRoot, { recursive: true, force: true });
-      throw gitCommandError("Git ref", checkout);
+      throw gitCommandError("Git source", result);
     }
+    if (spec.ref) {
+      const checkout = runGit(["-C", cloneRoot, "checkout", "--detach", spec.ref]);
+      if (checkout.error || checkout.status !== 0) {
+        rmSync(cloneRoot, { recursive: true, force: true });
+        throw gitCommandError("Git ref", checkout);
+      }
+    }
+    const revision = runGit(["-C", cloneRoot, "rev-parse", "HEAD"]);
+    if (revision.error || revision.status !== 0) {
+      rmSync(cloneRoot, { recursive: true, force: true });
+      throw gitCommandError("Git revision", revision);
+    }
+    revisionValue = revision.stdout.trim();
+    cache?.clones.set(cacheKey, { root: cloneRoot, revision: revisionValue });
   }
-  const revision = runGit(["-C", cloneRoot, "rev-parse", "HEAD"]);
-  if (revision.error || revision.status !== 0) {
-    rmSync(cloneRoot, { recursive: true, force: true });
-    throw gitCommandError("Git revision", revision);
-  }
+  const cleanupClone = () => {
+    if (!cache) rmSync(cloneRoot, { recursive: true, force: true });
+  };
   try {
     const selectedRoot = spec.path ? join(cloneRoot, spec.path) : cloneRoot;
     const roots = skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`);
@@ -252,10 +295,10 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
         type: "git",
         location: spec.location,
         ref: spec.ref,
-        revision: revision.status === 0 ? revision.stdout.trim() : null,
+        revision: revisionValue,
         sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
         publisher,
-        cleanup: () => rmSync(cloneRoot, { recursive: true, force: true })
+        cleanup: cleanupClone
       }];
     }
     const prepared = roots.map((root, index) => {
@@ -267,19 +310,28 @@ function prepareGitSources(input: string, staging: string, options: PrepareOptio
         type: "git" as const,
         location: sourceWithPathFragment(spec.cloneUrl, relative(cloneRoot, root).replaceAll("\\", "/")),
         ref: spec.ref,
-        revision: revision.status === 0 ? revision.stdout.trim() : null,
+        revision: revisionValue,
         sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
         publisher,
         cleanup: () => rmSync(stagedRoot, { recursive: true, force: true })
       };
     });
-    rmSync(cloneRoot, { recursive: true, force: true });
+    cleanupClone();
     return prepared;
   } catch (error) {
     for (const root of stagedRoots) rmSync(root, { recursive: true, force: true });
-    rmSync(cloneRoot, { recursive: true, force: true });
+    cleanupClone();
     throw error;
   }
+}
+
+export function createGitSourceCache(): GitSourceCache {
+  return { clones: new Map() };
+}
+
+export function cleanupGitSourceCache(cache: GitSourceCache): void {
+  for (const clone of cache.clones.values()) rmSync(clone.root, { recursive: true, force: true });
+  cache.clones.clear();
 }
 
 function runGit(args: string[]) {
@@ -325,14 +377,28 @@ function remoteHeadRevision(output: string): string | null {
   return null;
 }
 
-function remoteRefRevision(source: string, ref: string): string | null {
-  const result = runGit(["ls-remote", "--refs", "--", source, ref]);
-  if (result.error || result.status !== 0) throw gitCommandError("Git update check", result);
-  for (const line of result.stdout.split(/\r?\n/)) {
+function remoteRefRevision(source: string, ref: string, cache?: GitRemoteCache): string | null {
+  const output = runRemoteGit(["ls-remote", "--refs", "--", source, ref], cache);
+  for (const line of output.split(/\r?\n/)) {
     const match = /^([0-9a-f]{40,64})\t/.exec(line);
     if (match) return match[1]!;
   }
   return null;
+}
+
+function runRemoteGit(args: string[], cache?: GitRemoteCache): string {
+  const key = args.join("\0");
+  let cached = cache?.get(key);
+  if (!cached) {
+    const result = runGit(args);
+    cached = {
+      stdout: result.stdout,
+      failure: result.error || result.status !== 0 ? gitCommandError("Git update check", result).message : null
+    };
+    cache?.set(key, cached);
+  }
+  if (cached.failure) throw new CliError(cached.failure);
+  return cached.stdout;
 }
 
 function branchRef(ref: string): string {

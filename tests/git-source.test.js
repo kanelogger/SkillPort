@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { chmodSync, lstatSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync, lstatSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -124,6 +126,62 @@ test("Git update check keeps explicit commit selections pinned", () => {
       remoteRevision: null
     }
   });
+
+  makeSkill(source, "commit-pinned-skill", "Remote moved");
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "remote update"], source);
+  const pinnedUpdate = cli(["update", "commit-pinned-skill", "--json"], options);
+  assert.equal(pinnedUpdate.status, 1);
+  assert.match(JSON.parse(pinnedUpdate.stdout).error.message, /pinned.*--ref/i);
+  assert.equal(JSON.parse(cli(["info", "commit-pinned-skill"], options).stdout).skill.sourceRevision, commit);
+
+  const branch = git(["branch", "--show-current"], source).stdout.trim();
+  const invalidCombination = cli(["update", "commit-pinned-skill", "--ref", branch, "--check", "--json"], options);
+  assert.equal(invalidCombination.status, 1);
+  assert.match(JSON.parse(invalidCombination.stdout).error.message, /cannot be combined/);
+  const remoteRevision = git(["rev-parse", "HEAD"], source).stdout.trim();
+  const retracked = cli(["update", "commit-pinned-skill", "--ref", branch, "--json"], options);
+  assert.equal(retracked.status, 0, retracked.stderr);
+  const retrackedInfo = JSON.parse(cli(["info", "commit-pinned-skill"], options).stdout).skill;
+  assert.equal(retrackedInfo.sourceRef, branch);
+  assert.equal(retrackedInfo.sourceTracking, "branch");
+  assert.equal(retrackedInfo.sourceRevision, remoteRevision);
+});
+
+test("Git remote inspection and clone caches reuse one repository snapshot", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-git-cache-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const source = join(root, "repo");
+  const movedSource = join(root, "repo-moved");
+  const staging = join(root, "staging");
+  mkdirSync(source);
+  mkdirSync(staging);
+  makeSkill(join(source, "skills", "one"), "cache-one", "One");
+  makeSkill(join(source, "skills", "two"), "cache-two", "Two");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  const revision = git(["rev-parse", "HEAD"], source).stdout.trim();
+  const sourceUrl = pathToFileURL(source).href;
+  const {
+    cleanupGitSourceCache, createGitSourceCache, inspectGitSource, prepareSource
+  } = await import("../dist/infrastructure/sources.js");
+
+  const remoteCache = new Map();
+  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", remoteCache).status, "up-to-date");
+  makeSkill(join(source, "skills", "one"), "cache-one", "One updated");
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], source);
+  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", remoteCache).status, "up-to-date");
+  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch").status, "outdated");
+
+  const cloneCache = createGitSourceCache();
+  const first = prepareSource(`${sourceUrl}#sklp-path=skills%2Fone`, staging, revision, cloneCache);
+  assert.equal(readFileSync(join(first.root, "SKILL.md"), "utf8").includes("cache-one"), true);
+  renameSync(source, movedSource);
+  const second = prepareSource(`${sourceUrl}#sklp-path=skills%2Ftwo`, staging, revision, cloneCache);
+  assert.equal(readFileSync(join(second.root, "SKILL.md"), "utf8").includes("cache-two"), true);
+  cleanupGitSourceCache(cloneCache);
 });
 
 test("Git update check keeps explicit tag selections pinned", () => {

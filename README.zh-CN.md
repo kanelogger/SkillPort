@@ -85,6 +85,25 @@ sklp doctor
 
 除了新增的 `~/.agents/skills/skill-port` 管理 Skill，`~/.agents/skills` 中原有的 Skill 不会被改动，可以继续使用。它们不会自动导入 Hub，因此无需处理。
 
+### 更新 Git Skill
+
+先检查，再更新单个 Skill 或整个 Hub：
+
+```bash
+sklp update my-skill --check
+sklp update my-skill
+sklp update --all
+```
+
+从分支或仓库默认分支安装的 Skill 会跟随后续提交。从 tag 或 commit 安装的 Skill 会保持固定；普通更新会明确报告固定状态，不再重复安装同一个 revision。需要解除固定时，显式指定新的跟踪 ref：
+
+```bash
+sklp update my-skill --ref main
+sklp update --all --ref main
+```
+
+批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。同一次批量检查或更新会按仓库/ref 复用远程查询和 clone。
+
 ## 不想敲命令
 
 安装 [Skill Port Desktop 0.1.4](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4)。

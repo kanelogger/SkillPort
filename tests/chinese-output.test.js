@@ -66,6 +66,16 @@ test("Chinese help is available through SKLP_LANG", () => {
   assert.match(result.stdout, /本地 Agent Skill Hub/);
   assert.match(result.stdout, /初始化 Skill Port/);
   assert.match(result.stdout, /安装 Skill/);
+
+  const updateHelp = cli(["update", "--help"], {
+    cwd: root,
+    hub: join(root, "hub"),
+    home: root,
+    env: { SKLP_LANG: "zh-CN" }
+  });
+  assert.equal(updateHelp.status, 0, updateHelp.stderr);
+  assert.match(updateHelp.stdout, /--ref <ref>/);
+  assert.match(updateHelp.stdout, /改为跟踪指定 Git 分支/);
 });
 
 test("Chinese doctor output includes actionable suggestions", () => {

@@ -11,6 +11,8 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp update --all --check` exits `1` when any Git source is `unknown`. `sklp update <skill> --dry-run`, `sklp update --all --dry-run`, and `sklp update --all` exit `1` when their `failed` array is non-empty; skipped entries do not make the command fail.
 
+`sklp update <skill>` exits `1` when the Skill is pinned to a tag or commit and directs the caller to `--ref <ref>`. `sklp update <skill> --ref <ref>` exits `1` if the new ref cannot be fetched or validated. `sklp update --all --ref <ref>` exits `1` when any Git Skill fails, while continuing with other Git Skills and skipping local copied or linked Skills.
+
 `sklp uninstall` exits `0` after a cancellation or complete cleanup. It exits `1` after attempting every cleanup step it can perform when a managed entry, Hub resource, or npm package cannot be removed.
 
 `sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
@@ -49,6 +51,8 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 `sklp doctor --json` 适合自动化，字段名不会因为 `SKLP_LANG=zh-CN` 改变。
 
 `sklp update --all --check` 只要有任一 Git source 为 `unknown` 就返回 `1`。`sklp update <skill> --dry-run`、`sklp update --all --dry-run` 和 `sklp update --all` 只要 `failed` 数组非空就返回 `1`；跳过条目不会导致失败。
+
+`sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。
 
 `sklp uninstall` 在取消或完整清理后返回 `0`。受管入口、Hub 资源或 npm 包有任一无法移除时，它仍会尝试能够执行的其余清理步骤，并返回 `1`。
 

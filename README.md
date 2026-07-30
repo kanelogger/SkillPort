@@ -85,6 +85,25 @@ Open a new Agent session after enabling the Skill so that a compatible Agent can
 
 Apart from the new `~/.agents/skills/skill-port` management Skill, existing Skills under `~/.agents/skills` remain unchanged and continue to work. They are not automatically imported into the Hub, so no action is required.
 
+### Update Git Skills
+
+Check first, then update one Skill or the whole Hub:
+
+```bash
+sklp update my-skill --check
+sklp update my-skill
+sklp update --all
+```
+
+Skills installed from a branch or the repository's default branch follow later commits. A Skill installed from a tag or commit stays pinned; a normal update reports that pin instead of reinstalling the same revision. Change its tracking ref explicitly:
+
+```bash
+sklp update my-skill --ref main
+sklp update --all --ref main
+```
+
+The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
+
 ## Prefer buttons?
 
 Install [Skill Port Desktop 0.1.4](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4).

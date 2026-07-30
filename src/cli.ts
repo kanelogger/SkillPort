@@ -71,11 +71,15 @@ program.command("update")
   .option("--all", human("Check, preview, or update every installed Skill", "检查、预览或更新所有已安装 Skill"))
   .option("--check", human("Check whether a Git Skill has a remote update", "检查 Git Skill 是否有远程更新"))
   .option("--dry-run", human("Preview update results without changing state", "预览更新结果，不改写状态"))
+  .option("--ref <ref>", human("Change Git Skills to track this branch, tag, or commit", "改为跟踪指定 Git 分支、标签或提交"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => {
     validateUpdateTarget(skill, options);
     if (options.check && options.dryRun) {
       throw new CliError(human("Choose either --check or --dry-run.", "请选择 --check 或 --dry-run 其中之一。"));
+    }
+    if (options.ref && (options.check || options.dryRun)) {
+      throw new CliError(human("--ref cannot be combined with --check or --dry-run.", "--ref 不能与 --check 或 --dry-run 同时使用。"));
     }
     if (options.check) {
       const updates = withApp((app) => options.all ? app.checkAllUpdates() : [app.checkUpdate(skill)], { recover: false, readOnly: true });
@@ -92,14 +96,14 @@ program.command("update")
       return;
     }
     if (options.all) {
-      const result = withApp((app) => app.updateAll());
+      const result = withApp((app) => options.ref ? app.updateAllToRef(options.ref) : app.updateAll());
       if (options.json) printJson(result);
       else printBatchUpdateSummary(result);
       if (result.failed.length > 0) process.exitCode = 1;
       return;
     }
     return withApp((app) => {
-    const updated = app.update(skill);
+    const updated = options.ref ? app.updateToRef(skill, options.ref) : app.update(skill);
     if (options.json) printJson({ skill: publicSkill(updated) });
     else console.log(human(`Updated ${updated.name}`, `已更新 ${updated.name}`));
     });

@@ -95,6 +95,44 @@ test("batch update uses resolved revisions, preserves a failed Skill, and contin
   assert.equal(charlie.sourceRevision, charlieRevision);
 });
 
+test("batch update can explicitly move pinned Git Skills to a branch", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-batch-retrack-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(source, "skills", "alpha"), "alpha-pinned", "Before alpha");
+  makeSkill(join(source, "skills", "bravo"), "bravo-pinned", "Before bravo");
+  git(["init"], source);
+  git(["branch", "-M", "main"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  const pinnedRevision = git(["rev-parse", "HEAD"], source).stdout.trim();
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", pathToFileURL(source).href, "--ref", pinnedRevision], options).status, 0);
+
+  makeSkill(join(source, "skills", "alpha"), "alpha-pinned", "After alpha");
+  makeSkill(join(source, "skills", "bravo"), "bravo-pinned", "After bravo");
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], source);
+  const branchRevision = git(["rev-parse", "HEAD"], source).stdout.trim();
+
+  const result = cli(["update", "--all", "--ref", "main", "--json"], options);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).updated, [
+    { name: "alpha-pinned", revision: branchRevision },
+    { name: "bravo-pinned", revision: branchRevision }
+  ]);
+  for (const name of ["alpha-pinned", "bravo-pinned"]) {
+    const skill = JSON.parse(cli(["info", name], options).stdout).skill;
+    assert.equal(skill.sourceRef, "main");
+    assert.equal(skill.sourceRevision, branchRevision);
+    assert.equal(skill.sourceTracking, "branch");
+  }
+});
+
 test("batch check reports an unknown legacy source with a nonzero JSON result", (t) => {
   const fixture = setupFixture("unknown");
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));

@@ -1,6 +1,6 @@
 # Skill Port CLI Requirements Matrix
 
-Date: 2026-07-24
+Date: 2026-07-30
 
 Status keys:
 
@@ -60,8 +60,8 @@ Status keys:
 | R47 Chinese users can opt into Chinese human-readable CLI output | Chinese output test covers `SKLP_LANG=zh-CN` for command help, `init`, `install`, `enable`, and `doctor`; JSON output remains stable in Chinese mode | Passed |
 | R48 doctor diagnostics include actionable suggestions | JSON output test checks diagnostic `suggestion`; Chinese output test checks human-readable `建议:` output for doctor drift | Passed |
 | R49 exit codes are documented for scripts and Agents | `docs/exit-codes.md` documents command failure semantics, doctor warning/error behavior, JSON automation fields, and Chinese notes; existing tests cover success, warning-only doctor, and error doctor statuses | Passed |
-| R50 single Git Skill update checks are read-only and report stable tracking status | `tests/git-source.test.js` covers default branch, named branch, commit pin, stored source tracking, and Hub state snapshots; README and exit-code docs define the contract | Passed |
-| R51 fleet Git update checks, previews, and batch updates are deterministic and isolated | `tests/batch-update.test.js` covers name order, local/linked/tag skips, Chinese human output, JSON contracts, immutable Hub/managed-entry snapshots, resolved revisions, partial failure continuation, and preserved enablements; README and exit-code docs define the contract | Passed |
+| R50 single Git Skill update checks are read-only and report stable tracking status | `tests/git-source.test.js` covers default branch, named branch, commit pin, pinned-update refusal, explicit `--ref` retracking, stored source tracking, remote-query reuse, clone reuse, and Hub state snapshots; README and exit-code docs define the contract | Passed |
+| R51 fleet Git update checks, previews, and batch updates are deterministic and isolated | `tests/batch-update.test.js` covers name order, local/linked/tag skips, Chinese human output, JSON contracts, immutable Hub/managed-entry snapshots, resolved revisions, explicit batch `--ref` retracking, partial failure continuation, and preserved enablements; `tests/git-source.test.js` proves repository/ref remote-query and clone reuse; README and exit-code docs define the contract | Passed |
 | R52 `sklp uninstall` confirms with exact `y`, removes verified Agent integration, Hub-recorded Agent entries, Hub state and npm-global CLI, and preserves Hub-external linked sources | `tests/uninstall.test.js` covers cancellation, missing Hub, bundled integration cleanup and conflict preservation, copied and linked Skill cleanup, project/global entries, locator cleanup, unreadable state, a replaced user directory, Hub-lock failure with continued npm removal, npm success/failure, and Chinese output. `scripts/smoke/npm-install.mjs` verifies a packed installation removes its bootstrap integration, Hub, and isolated global executable through the npm CLI fallback. Previous CI run `29388487227` passed the pre-bootstrap smoke on macOS, Linux, and Windows; the expanded contract still needs a current matrix run. | Partial |
 | R53 Desktop reuses the current Hub without changing CLI contracts or SQLite schema | `src/application/desktop-skill-port.ts`; Desktop facade tests, including unchanged doctor behavior without CLI Agent integration; current full Node test suite; packed CLI lifecycle smoke | Passed |
 | R54 Desktop renderer has no direct Node, filesystem, SQLite, raw IPC, or unapproved local-path access | sandboxed BrowserWindow, context-isolated preload allowlist, path authority, validated serial RPC, utility process; 6 Desktop RPC tests; production Fuse inspection | Passed |
