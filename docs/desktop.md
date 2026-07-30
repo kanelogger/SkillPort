@@ -27,6 +27,7 @@ If the app exits immediately after Gatekeeper has allowed it, remove that versio
 3. Install a Skill from a local directory or Git source, or link a local Skill under active development.
 4. Open the Skill detail page and enable it for the selected project or globally.
 5. Use Diagnostics for read-only health checks. Review the preview before confirming any Git Skill update.
+6. Use **Export catalog** to choose an HTML output through the system save dialog and create an offline-searchable catalog.
 
 ## Application icon
 
@@ -70,6 +71,10 @@ The E2E command builds the production Vite bundles, then launches them through t
 
 The first-run screen requires a project directory and optionally accepts a custom Hub directory. Existing CLI users open the active Hub resolved by `SKLP_HOME`, the Hub locator, or `~/.skill-port`.
 
-The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, safe removal, and manual Git Skill updates. The Desktop can check one copied Git Skill or the full Hub, show a non-mutating update preview, then update only after confirmation. Leave the update dialog's Git ref field empty for a normal branch-tracking update. Enter a branch, tag, or commit to preview and move one or all Git-installed Skills to that ref; local copies and linked Skills remain skipped. A pinned Skill remains unchanged until the user explicitly enters a new ref. Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output.
+The MVP supports Skill installation and linking, Hub-private tag editing from the Skill detail page, project/global enablement, read-only diagnostics, safe removal, manual Git Skill updates, and static catalog export. Skill list and detail health use the same content, ownership, linked-source, and enablement checks as `sklp list --status`.
+
+The Desktop can check one copied Git Skill or the full Hub, show a non-mutating update preview, then update only after confirmation. Leave the update dialog's Git ref field empty for a normal branch-tracking update. Enter a branch, tag, or commit to preview and move one or all Git-installed Skills to that ref; local copies and linked Skills remain skipped. A pinned Skill remains unchanged until the user explicitly enters a new ref.
+
+Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output. Export creates the same localized, self-contained HTML catalog as `sklp export`: it contains only public Skill names and descriptions. The renderer can write only the exact output file selected through the system save dialog; replacing an existing file requires the dialog's overwrite confirmation.
 
 The Desktop does not include background update checks, repair, self-uninstallation, Developer ID signing, notarization, or automatic application updates.

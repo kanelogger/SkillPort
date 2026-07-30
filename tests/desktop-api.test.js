@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -209,6 +209,75 @@ test("desktop facade preserves unmanaged enablement conflicts", () => {
     assert.throws(() => desktop.remove("conflict-skill", true), /unmanaged/);
     assert.equal(desktop.getSkill("conflict-skill").health, "conflict");
   });
+});
+
+test("desktop facade reports the same content and source drift as CLI status", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-status-"));
+  const project = join(root, "project");
+  const missingSource = join(root, "missing-source");
+  const conflictSource = join(root, "conflict-source");
+  const linkedSource = join(root, "linked-source");
+  mkdirSync(project);
+  makeSkill(missingSource, "missing-skill", "Missing Skill");
+  makeSkill(conflictSource, "conflict-skill", "Conflict Skill");
+  makeSkill(linkedSource, "linked-skill", "Linked Skill");
+
+  try {
+    withEnvironment(root, ({ hub }) => {
+      const desktop = new DesktopSkillPort();
+      desktop.initialize({ project });
+      desktop.install(missingSource);
+      desktop.install(conflictSource);
+      desktop.link(linkedSource);
+
+      rmSync(join(hub, "skills", "missing-skill", "SKILL.md"));
+      writeFileSync(join(hub, "skills", "conflict-skill", "meta.json"), "{}\n");
+      rmSync(linkedSource, { recursive: true });
+
+      assert.deepEqual(
+        desktop.listSkills().map(({ name, health }) => ({ name, health })),
+        [
+          { name: "conflict-skill", health: "conflict" },
+          { name: "linked-skill", health: "missing" },
+          { name: "missing-skill", health: "missing" }
+        ]
+      );
+      assert.equal(desktop.getSkill("conflict-skill").health, "conflict");
+      assert.equal(desktop.getSkill("linked-skill").health, "missing");
+      assert.equal(desktop.getSkill("missing-skill").health, "missing");
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop facade exports a localized static catalog without mutating Hub state", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-export-"));
+  const project = join(root, "project");
+  const source = join(root, "source");
+  const output = join(root, "catalog.html");
+  mkdirSync(project);
+  makeSkill(source, "exported-skill", "Exported Skill");
+
+  try {
+    withEnvironment(root, () => {
+      const desktop = new DesktopSkillPort();
+      desktop.initialize({ project });
+      desktop.install(source);
+
+      const result = desktop.exportCatalog(output, { language: "zh-CN" });
+      assert.deepEqual(result, { output, skillCount: 1 });
+      const html = readFileSync(output, "utf8");
+      assert.match(html, /<html lang="zh-CN">/);
+      assert.match(html, /exported-skill/);
+      assert.match(html, /Exported Skill/);
+      assert.throws(() => desktop.exportCatalog(output), /already exists/);
+      assert.deepEqual(desktop.exportCatalog(output, { force: true }), { output, skillCount: 1 });
+      assert.equal(desktop.listSkills().length, 1);
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("desktop errors are stable and sanitized", () => {

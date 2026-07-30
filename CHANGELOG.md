@@ -30,12 +30,14 @@
 - Add `sklp list --status` for path-free installation, enablement, and health summaries.
 - Add read-only `sklp prune --dry-run --json` previews and confirmed `sklp prune --yes` cleanup for verified unused copies.
 - Add `sklp export [output]` for a self-contained, offline-searchable, privacy-limited static Skill catalog.
+- Let Desktop users export the same localized static catalog through a system save dialog.
 
 ### Fixes
 
 - Stop reporting a successful update when a Git Skill is pinned to its existing tag or commit.
 - Reuse remote checks and Git clones by repository/ref during batch updates instead of repeating them for every Skill.
 - Carry Desktop tracking refs through the validated RPC bridge and require a successful ref-aware preview before confirmation.
+- Make Desktop Skill health reuse the CLI status calculation for missing content, metadata drift, linked-source drift, and enablement conflicts.
 - Package the Desktop utility worker as a dedicated ESM bundle so it neither overwrites the main-process bundle nor rejects the core's top-level SQLite import.
 - Give every published-package install retry a fresh npm cache and prefer online metadata so an initial propagation miss cannot poison later attempts.
 
@@ -44,6 +46,7 @@
 - Refuse to overwrite or remove an unverified `~/.agents/skills/skill-port` entry, and clean up only the package-owned integration during CLI or npm-global uninstallation.
 - Preserve linked Skills and unverified copies during bulk prune operations.
 - Preserve existing static catalog outputs unless export is explicitly run with `--force`, and exclude private Hub/source state from the page.
+- Authorize Desktop exports only for the exact file selected through the system save dialog.
 
 ## 0.5.1 - 2026-07-22
 

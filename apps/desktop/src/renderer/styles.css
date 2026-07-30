@@ -59,8 +59,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .button.small { min-height:31px; padding:5px 9px; font-size:12px; }
 .button.block { width:100%; }
 .error-banner { display:flex; align-items:center; gap:12px; margin:16px 28px 0; padding:12px 14px; border:1px solid color-mix(in srgb,var(--red) 35%,var(--line)); border-radius:10px; background:var(--red-soft); color:var(--red); font-size:13px; }
-.error-banner span { flex:1; overflow-wrap:anywhere; }
-.error-banner button { margin-left:auto; border:0; background:transparent; color:inherit; cursor:pointer; font-size:19px; }
+.success-banner { display:flex; align-items:center; gap:12px; margin:16px 28px 0; padding:12px 14px; border:1px solid color-mix(in srgb,var(--green) 35%,var(--line)); border-radius:10px; background:var(--green-soft); color:var(--green); font-size:13px; }
+.error-banner span, .success-banner span { flex:1; overflow-wrap:anywhere; }
+.error-banner button, .success-banner button { margin-left:auto; border:0; background:transparent; color:inherit; cursor:pointer; font-size:19px; }
 .skills-layout { display:grid; grid-template-columns:minmax(330px,.8fr) minmax(420px,1.2fr); align-items:start; gap:20px; width:100%; max-width:1600px; margin:0 auto; padding:20px 28px 28px; }
 .skill-list-panel, .detail-panel, .content-card { min-width:0; border:1px solid var(--line); border-radius:15px; background:var(--surface); box-shadow:var(--shadow); }
 .skill-list-panel { min-height:440px; overflow:hidden; }

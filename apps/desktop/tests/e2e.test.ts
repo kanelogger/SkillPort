@@ -1,5 +1,5 @@
 import { expect, test, _electron as electron } from "@playwright/test";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,6 +17,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
   const project = join(root, "project");
   const source = join(root, "source");
   const selectedHub = join(root, "selected-hub");
+  const exportedCatalog = join(root, "skill-port-catalog.html");
   mkdirSync(project);
   mkdirSync(source);
   mkdirSync(selectedHub);
@@ -74,6 +75,12 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await expect(page.getByRole("heading", { name: "desktop-e2e" })).toBeVisible();
     await expect(page.getByText("No tags yet.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Check update", exact: true })).toHaveCount(0);
+    await app.evaluate(({ dialog }, selected) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected });
+    }, exportedCatalog);
+    await page.getByRole("button", { name: "Export catalog" }).click();
+    await expect(page.getByRole("status")).toContainText(`1 Skills · ${exportedCatalog}`);
+    expect(readFileSync(exportedCatalog, "utf8")).toContain("desktop-e2e");
     await page.getByRole("button", { name: "Edit tags" }).click();
     const tagsDialog = page.getByRole("dialog");
     await tagsDialog.getByLabel("Tags").fill("video, Productivity, VIDEO");
@@ -152,6 +159,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
 
     await page.getByRole("button", { name: "中文" }).click();
     await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "导出目录" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
     for (const size of [{ width: 1024, height: 720 }, { width: 1440, height: 900 }]) {

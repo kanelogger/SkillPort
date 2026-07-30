@@ -1,18 +1,22 @@
-import { existsSync, lstatSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import type { Diagnostic, Enablement, EnablementInfo, Skill } from "../domain/models.js";
 import { resolveHub } from "../infrastructure/config.js";
 import {
   SkillPort,
   type BatchUpdateSummary,
+  type ExportCatalogResult,
   type FleetUpdateCheck,
+  type SkillInstallationKind,
+  type SkillStatus,
+  type SkillStatusHealth,
   type UpdateCheck,
   type UpdateSummary
 } from "./skill-port.js";
 
-export type DesktopInstallationKind = "git-copy" | "local-copy" | "linked";
-export type DesktopHealth = "healthy" | "missing" | "conflict" | "not-enabled";
+export type DesktopInstallationKind = SkillInstallationKind;
+export type DesktopHealth = SkillStatusHealth;
 
 export type DesktopSkillSummary = {
   instanceId: string;
@@ -93,13 +97,15 @@ export class DesktopSkillPort {
   }
 
   listSkills(tag?: string): DesktopSkillSummary[] {
-    return this.read((app) => app.list(tag).map((skill) => this.summary(app, skill)));
+    return this.read((app) => app.listStatus(tag).map((status) => this.summary(status)));
   }
 
   getSkill(name: string): DesktopSkillDetails {
     return this.read((app) => {
       const value = app.info(name);
-      return this.details(app, value.skill, value.enablements);
+      const status = app.listStatus().find((item) => item.skill.instanceId === value.skill.instanceId);
+      if (!status) throw new CliError(`Skill not found: ${name}`);
+      return this.details(status, value.enablements);
     });
   }
 
@@ -176,6 +182,13 @@ export class DesktopSkillPort {
     return this.read((app) => app.doctor());
   }
 
+  exportCatalog(
+    output: string,
+    options: { force?: boolean; language?: "en" | "zh-CN" } = {}
+  ): ExportCatalogResult {
+    return this.read((app) => app.exportCatalog(output, options));
+  }
+
   remove(name: string, force = false): void {
     this.write((app) => app.remove(name, force));
   }
@@ -202,23 +215,24 @@ export class DesktopSkillPort {
     }
   }
 
-  private summary(app: SkillPort, skill: Skill): DesktopSkillSummary {
-    const enablements = app.info(skill.name).enablements;
+  private summary(status: SkillStatus): DesktopSkillSummary {
+    const { skill } = status;
     return {
       instanceId: skill.instanceId,
       name: skill.name,
       description: skill.description,
       tags: skill.tags,
-      installationKind: installationKind(app, skill),
+      installationKind: status.installationKind,
       sourceTracking: skill.sourceTracking,
-      enablementCount: enablements.length,
-      health: aggregateHealth(enablements)
+      enablementCount: status.enablementCount,
+      health: status.health
     };
   }
 
-  private details(app: SkillPort, skill: Skill, enablements: EnablementInfo[]): DesktopSkillDetails {
+  private details(status: SkillStatus, enablements: EnablementInfo[]): DesktopSkillDetails {
+    const { skill } = status;
     return {
-      ...this.summary(app, skill),
+      ...this.summary(status),
       sourceLocation: skill.sourceLocation,
       sourceRef: skill.sourceRef,
       sourceRevision: skill.sourceRevision,
@@ -238,20 +252,4 @@ export function toDesktopError(error: unknown): DesktopError {
 
 function targetOptions(target: DesktopTarget): { project?: string; global?: boolean } {
   return target.type === "global" ? { global: true } : { project: target.path };
-}
-
-function installationKind(app: SkillPort, skill: Skill): DesktopInstallationKind {
-  try {
-    if (lstatSync(join(app.paths.skills, skill.name)).isSymbolicLink()) return "linked";
-  } catch {
-    // A missing entry is represented by its recorded source type and surfaced by doctor.
-  }
-  return skill.sourceType === "git" ? "git-copy" : "local-copy";
-}
-
-function aggregateHealth(enablements: EnablementInfo[]): DesktopHealth {
-  if (enablements.length === 0) return "not-enabled";
-  if (enablements.some((item) => item.health === "conflict")) return "conflict";
-  if (enablements.some((item) => item.health === "missing")) return "missing";
-  return "healthy";
 }

@@ -8,6 +8,7 @@ import type {
   BatchUpdateSummary,
   Diagnostic,
   Enablement,
+  ExportCatalogResult,
   FleetUpdateCheck,
   UpdateSummary
 } from "skill-port-cli/desktop";
@@ -31,6 +32,7 @@ export function App() {
   const [view, setView] = useState<View>("skills");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportResult, setExportResult] = useState<ExportCatalogResult | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [enableOpen, setEnableOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -71,6 +73,14 @@ export function App() {
       ? [await window.skillPort.checkUpdate({ name })]
       : await window.skillPort.checkAllUpdates());
     if (checks) setUpdateDialog({ name, checks });
+  }
+
+  async function exportCatalog() {
+    setExportResult(null);
+    const output = await window.skillPort.selectExportPath({ language });
+    if (!output) return;
+    const result = await run(() => window.skillPort.exportCatalog({ output, language }));
+    if (result) setExportResult(result);
   }
 
   useEffect(() => {
@@ -123,10 +133,11 @@ export function App() {
           <div className="top-actions">
             {busy && <span className="busy-label"><span className="spinner" />{t("busy")}</span>}
             <button className="button ghost" onClick={() => setLanguage(language === "en" ? "zh-CN" : "en")}>{t("language")}</button>
-            {view === "skills" && <><button className="button ghost" onClick={() => void checkUpdates()}>↻ {t("checkUpdates")}</button><button className="button primary" onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button></>}
+            {view === "skills" && <><button className="button ghost" disabled={busy} onClick={() => void exportCatalog()}>⇩ {t("exportCatalog")}</button><button className="button ghost" disabled={busy} onClick={() => void checkUpdates()}>↻ {t("checkUpdates")}</button><button className="button primary" disabled={busy} onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button></>}
           </div>
         </header>
         {error && <div className="error-banner" role="alert"><strong>{t("operationFailed")}</strong><span>{error}</span><button onClick={() => setError(null)} aria-label={t("close")}>×</button></div>}
+        {exportResult && <div className="success-banner" role="status"><strong>{t("exportComplete")}</strong><span>{exportResult.skillCount} {t("skills")} · {exportResult.output}</span><button onClick={() => setExportResult(null)} aria-label={t("close")}>×</button></div>}
 
         {view === "skills" && (
           <SkillsView

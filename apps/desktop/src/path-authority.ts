@@ -2,7 +2,11 @@ import { existsSync, lstatSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type { RpcRequest } from "./shared/rpc.js";
 
-export function authorizeRpcPaths(request: RpcRequest, approvedPaths: ReadonlySet<string>): void {
+export function authorizeRpcPaths(
+  request: RpcRequest,
+  approvedPaths: ReadonlySet<string>,
+  approvedOutputPaths: ReadonlySet<string>
+): void {
   const params = request.params as Record<string, unknown>;
   switch (request.method) {
     case "initialize":
@@ -19,6 +23,9 @@ export function authorizeRpcPaths(request: RpcRequest, approvedPaths: ReadonlySe
     case "previewInstall":
     case "install":
       if (!isRemoteGitSource(params.source)) requireApproved(params.source, approvedPaths);
+      break;
+    case "exportCatalog":
+      requireApprovedOutput(params.output, approvedOutputPaths);
       break;
   }
 }
@@ -51,6 +58,12 @@ function requireInitializationPath(
 function requireApproved(value: unknown, approvedPaths: ReadonlySet<string>): void {
   if (typeof value !== "string" || !approvedPaths.has(resolve(value))) {
     throw new Error("Local path must be selected through the system dialog.");
+  }
+}
+
+function requireApprovedOutput(value: unknown, approvedOutputPaths: ReadonlySet<string>): void {
+  if (typeof value !== "string" || !approvedOutputPaths.has(resolve(value))) {
+    throw new Error("Export path must be selected through the system save dialog.");
   }
 }
 

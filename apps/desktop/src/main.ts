@@ -24,6 +24,7 @@ protocol.registerSchemesAsPrivileged([{
 
 const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 const approvedPaths = new Set<string>();
+const approvedOutputPaths = new Set<string>();
 let worker: UtilityProcess | null = null;
 let acceptingRequests = true;
 let drainingForQuit = false;
@@ -88,15 +89,35 @@ async function choosePath(event: IpcMainInvokeEvent, kind: "directory" | "regist
   return selected;
 }
 
+async function chooseExportPath(
+  event: IpcMainInvokeEvent,
+  input: { language?: unknown }
+): Promise<string | null> {
+  requireTrusted(event);
+  const chinese = input?.language === "zh-CN";
+  if (!chinese && input?.language !== "en") throw new Error("Unsupported export language.");
+  const result = await dialog.showSaveDialog({
+    title: chinese ? "导出 Skill 目录" : "Export Skill catalog",
+    defaultPath: chinese ? "skill-port-技能目录.html" : "skill-port-catalog.html",
+    buttonLabel: chinese ? "导出" : "Export",
+    filters: [{ name: "HTML", extensions: ["html"] }],
+    properties: ["createDirectory", "showOverwriteConfirmation"]
+  });
+  const selected = result.canceled ? null : result.filePath ?? null;
+  if (selected) approvedOutputPaths.add(resolve(selected));
+  return selected;
+}
+
 function registerIpc(): void {
   ipcMain.handle("skill-port:rpc", (event, value) => {
     requireTrusted(event);
     const request = parseRpcRequest(value);
-    authorizeRpcPaths(request, approvedPaths);
+    authorizeRpcPaths(request, approvedPaths, approvedOutputPaths);
     return invokeWorker(request);
   });
   ipcMain.handle("skill-port:select-directory", (event) => choosePath(event, "directory"));
   ipcMain.handle("skill-port:select-registry", (event) => choosePath(event, "registry"));
+  ipcMain.handle("skill-port:select-export-path", (event, input) => chooseExportPath(event, input));
   ipcMain.handle("skill-port:locale", (event) => {
     requireTrusted(event);
     return app.getLocale();

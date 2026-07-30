@@ -9,6 +9,7 @@ import type {
   BatchUpdateSummary,
   Diagnostic,
   Enablement,
+  ExportCatalogResult,
   FleetUpdateCheck,
   UpdateCheck,
   UpdateSummary
@@ -41,6 +42,7 @@ export type DesktopRpcApi = {
   enable(input: { name: string; target: DesktopTarget }): Promise<Enablement>;
   disable(input: { name: string; target: DesktopTarget }): Promise<void>;
   doctor(): Promise<Diagnostic[]>;
+  exportCatalog(input: { output: string; language: "en" | "zh-CN" }): Promise<ExportCatalogResult>;
   remove(input: { name: string; force?: boolean }): Promise<void>;
   unlink(input: { name: string; force?: boolean }): Promise<void>;
 };
@@ -48,6 +50,7 @@ export type DesktopRpcApi = {
 export type DesktopBridge = DesktopRpcApi & {
   selectDirectory(): Promise<string | null>;
   selectRegistry(): Promise<string | null>;
+  selectExportPath(input: { language: "en" | "zh-CN" }): Promise<string | null>;
   locale(): Promise<string>;
 };
 
@@ -91,6 +94,10 @@ const parameterSchemas: Record<RpcMethod, z.ZodType> = {
   enable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   disable: z.object({ name: z.string().min(1), target: targetSchema }).strict(),
   doctor: z.object({}).strict(),
+  exportCatalog: z.object({
+    output: z.string().min(1),
+    language: z.enum(["en", "zh-CN"])
+  }).strict(),
   remove: z.object({ name: z.string().min(1), force: z.boolean().optional() }).strict(),
   unlink: z.object({ name: z.string().min(1), force: z.boolean().optional() }).strict()
 };

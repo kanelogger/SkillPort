@@ -30,10 +30,12 @@ const bridge: DesktopBridge = {
   enable: (input) => invoke("enable", input),
   disable: (input) => invoke("disable", input),
   doctor: () => invoke("doctor"),
+  exportCatalog: (input) => invoke("exportCatalog", input),
   remove: (input) => invoke("remove", input),
   unlink: (input) => invoke("unlink", input),
   selectDirectory: () => ipcRenderer.invoke("skill-port:select-directory"),
   selectRegistry: () => ipcRenderer.invoke("skill-port:select-registry"),
+  selectExportPath: (input) => ipcRenderer.invoke("skill-port:select-export-path", input),
   locale: () => ipcRenderer.invoke("skill-port:locale")
 };
 

@@ -36,7 +36,26 @@ describe("desktop RPC contract", () => {
       method: "updateAll",
       params: { ref: "main" }
     });
-    expect(() => parseRpcRequest({ id: "9", method: "updateAll", params: { unexpected: true } })).toThrow();
+    expect(() => parseRpcRequest({ id: "11", method: "updateAll", params: { unexpected: true } })).toThrow();
+    expect(parseRpcRequest({
+      id: "12",
+      method: "exportCatalog",
+      params: { output: "/tmp/catalog.html", language: "zh-CN" }
+    })).toEqual({
+      id: "12",
+      method: "exportCatalog",
+      params: { output: "/tmp/catalog.html", language: "zh-CN" }
+    });
+    expect(() => parseRpcRequest({
+      id: "13",
+      method: "exportCatalog",
+      params: { output: "/tmp/catalog.html", language: "fr" }
+    })).toThrow();
+    expect(() => parseRpcRequest({
+      id: "14",
+      method: "exportCatalog",
+      params: { output: "/tmp/catalog.html", language: "en", force: true }
+    })).toThrow();
   });
 
   it("dispatches tag updates through the allowlisted facade", async () => {
@@ -89,6 +108,21 @@ describe("desktop RPC contract", () => {
     expect(listSkills).toHaveBeenCalledWith("owner");
   });
 
+  it("dispatches catalog export with overwrite authority granted by the save dialog", async () => {
+    const exportCatalog = vi.fn(() => ({ output: "/tmp/catalog.html", skillCount: 1 }));
+    const desktop = { exportCatalog } as unknown as DesktopOperations;
+    const value = await dispatchRpc({
+      id: "1",
+      method: "exportCatalog",
+      params: { output: "/tmp/catalog.html", language: "en" }
+    }, desktop);
+    expect(value).toEqual({ output: "/tmp/catalog.html", skillCount: 1 });
+    expect(exportCatalog).toHaveBeenCalledWith("/tmp/catalog.html", {
+      force: true,
+      language: "en"
+    });
+  });
+
   it("serializes operations and continues after a failure", async () => {
     const events: string[] = [];
     const dispatch = createSerialDispatcher(async (request) => {
@@ -109,29 +143,55 @@ describe("desktop RPC contract", () => {
     const approved = new Set([selected]);
     expect(() => authorizeRpcPaths(
       { id: "1", method: "previewInstall", params: { source: selected } },
-      approved
+      approved,
+      new Set()
     )).not.toThrow();
     expect(() => authorizeRpcPaths(
       { id: "2", method: "previewInstall", params: { source: "https://github.com/example/skill.git" } },
-      approved
+      approved,
+      new Set()
     )).not.toThrow();
     expect(() => authorizeRpcPaths(
       { id: "3", method: "previewLink", params: { source: resolve("unselected-skill") } },
-      approved
+      approved,
+      new Set()
     )).toThrow("system dialog");
     expect(() => authorizeRpcPaths(
       { id: "4", method: "initialize", params: { project: resolve("unselected-project") } },
-      approved
+      approved,
+      new Set()
     )).toThrow("existing directory");
+  });
+
+  it("accepts exports only for the exact path approved by the save dialog", () => {
+    const source = resolve("fixture-skill");
+    const output = resolve("catalog.html");
+    expect(() => authorizeRpcPaths(
+      { id: "1", method: "exportCatalog", params: { output, language: "en" } },
+      new Set([source]),
+      new Set()
+    )).toThrow("system save dialog");
+    expect(() => authorizeRpcPaths(
+      { id: "2", method: "exportCatalog", params: { output, language: "en" } },
+      new Set(),
+      new Set([output])
+    )).not.toThrow();
+    expect(() => authorizeRpcPaths(
+      { id: "3", method: "exportCatalog", params: { output: resolve("other.html"), language: "en" } },
+      new Set(),
+      new Set([output])
+    )).toThrow("system save dialog");
   });
 
   it("validates manually entered initialization directories in the main process", () => {
     expect(() => authorizeRpcPaths(
       { id: "1", method: "initialize", params: { project: resolve("."), hub: resolve("typed-hub") } },
+      new Set(),
       new Set()
     )).not.toThrow();
     expect(() => authorizeRpcPaths(
       { id: "2", method: "initialize", params: { project: "relative-project" } },
+      new Set(),
       new Set()
     )).toThrow("absolute");
   });

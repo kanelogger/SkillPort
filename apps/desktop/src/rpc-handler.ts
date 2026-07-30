@@ -5,6 +5,7 @@ export type DesktopOperations = Pick<DesktopSkillPort,
   "getBootstrapState" | "initialize" | "listSkills" | "getSkill" | "listProjects" | "registerProject"
   | "previewInstall" | "install" | "previewLink" | "link" | "enable" | "disable" | "doctor" | "remove" | "unlink"
   | "updateTags" | "checkUpdate" | "checkAllUpdates" | "previewUpdate" | "previewAllUpdates" | "update" | "updateAll"
+  | "exportCatalog"
 >;
 
 export async function dispatchRpc(request: RpcRequest, desktop: DesktopOperations = new DesktopSkillPort()): Promise<unknown> {
@@ -30,6 +31,10 @@ export async function dispatchRpc(request: RpcRequest, desktop: DesktopOperation
     case "enable": return desktop.enable(params.name, params.target);
     case "disable": return desktop.disable(params.name, params.target);
     case "doctor": return desktop.doctor();
+    case "exportCatalog": return desktop.exportCatalog(params.output, {
+      force: true,
+      language: params.language
+    });
     case "remove": return desktop.remove(params.name, params.force);
     case "unlink": return desktop.unlink(params.name, params.force);
   }

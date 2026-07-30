@@ -13,6 +13,7 @@ export {
 export type { Diagnostic, Enablement, EnablementInfo } from "./domain/models.js";
 export type {
   BatchUpdateSummary,
+  ExportCatalogResult,
   FleetUpdateCheck,
   UpdateCheck,
   UpdateSummary
