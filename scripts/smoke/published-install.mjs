@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { publishedInstallEnvironment } from "./published-install-environment.mjs";
 
 const rawVersion = process.argv[2] ?? process.env.SKLP_PUBLISHED_VERSION;
 assert.ok(rawVersion, "Usage: npm run smoke:published -- <version>");
@@ -20,16 +21,15 @@ const env = {
   HOME: root,
   USERPROFILE: root,
   SKLP_TEST_HOME: root,
-  npm_config_cache: join(root, "npm-cache"),
   npm_config_fund: "false",
   npm_config_audit: "false"
 };
 
-const runNpm = (args, options = {}) => spawnSync(process.execPath, [npmCli, ...args], {
+const runNpm = (args, attempt, options = {}) => spawnSync(process.execPath, [npmCli, ...args], {
   ...options,
   encoding: "utf8",
   shell: false,
-  env
+  env: publishedInstallEnvironment(env, root, attempt)
 });
 
 const prefix = join(root, "prefix");
@@ -44,7 +44,7 @@ for (let attempt = 1; attempt <= retries; attempt += 1) {
     "--prefix",
     prefix,
     `skill-port-cli@${version}`
-  ]);
+  ], attempt);
   if (install.status === 0) {
     break;
   }
