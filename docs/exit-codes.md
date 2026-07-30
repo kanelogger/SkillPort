@@ -17,6 +17,10 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
 
+`sklp prune --dry-run` is read-only and exits `0` after returning its `planned` and `skipped` arrays. Mutating prune requires `--yes`; omitting both `--dry-run` and `--yes` exits `1` without changing state. `sklp prune --yes` continues after individual removal failures and exits `1` when its `failed` array is non-empty. Linked Skills and unverified copies appear in `skipped` and do not make the command fail.
+
+`sklp export [output]` exits `0` after atomically writing a self-contained HTML catalog. It exits `1` without changing the existing output when that path already exists; pass `--force` to replace it. Hub state is opened read-only.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:
@@ -37,7 +41,9 @@ The JSON payload includes:
 - `healthy`: `true` when there are no diagnostics.
 - `diagnostics`: diagnostic objects with `code`, `severity`, `message`, and `suggestion`.
 
-For other runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
+`sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
+
+For runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
 
 ## 中文说明
 
@@ -57,5 +63,11 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 `sklp uninstall` 在取消或完整清理后返回 `0`。受管入口、Hub 资源或 npm 包有任一无法移除时，它仍会尝试能够执行的其余清理步骤，并返回 `1`。
 
 `sklp agent setup` 在成功创建内置 Agent 集成或确认正确入口已经存在时返回 `0`。保留路径被非受管内容占用，或无法验证内置 Skill 时返回 `1`。
+
+`sklp prune --dry-run` 只读并返回 `planned` 与 `skipped`。真正清理必须使用 `--yes`；既没有 `--dry-run` 也没有 `--yes` 时返回 `1`，且不改写状态。`sklp prune --yes` 会继续处理其他候选，只要 `failed` 非空就返回 `1`。linked Skill 和无法验证所有权的副本只进入 `skipped`，不会导致失败。
+
+`sklp export [output]` 会在只读打开 Hub 后原子写入自包含 HTML，并在成功时返回 `0`。输出路径已存在时默认返回 `1` 且不改写文件；显式使用 `--force` 才会替换。
+
+`sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

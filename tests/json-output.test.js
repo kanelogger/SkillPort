@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { cli, makeSkill } from "./helpers.js";
 
@@ -24,9 +24,38 @@ test("machine-readable output is available for core automation commands", () => 
   assert.equal(installedValue.skills[0].name, "json-skill");
   assert.deepEqual(installedValue.skills[0].tags, []);
 
+  const exported = cli(["export", join(root, "catalog.html"), "--json"], { cwd: project, hub, home: root });
+  assert.equal(exported.status, 0, exported.stderr);
+  assert.deepEqual(JSON.parse(exported.stdout), {
+    output: resolve(root, "catalog.html"),
+    skillCount: 1
+  });
+
   const listed = cli(["list", "--json"], { cwd: project, hub, home: root });
   assert.equal(listed.status, 0, listed.stderr);
   assert.deepEqual(JSON.parse(listed.stdout).skills.map((skill) => skill.name), ["json-skill"]);
+
+  const statusListed = cli(["list", "--status", "--json"], { cwd: project, hub, home: root });
+  assert.equal(statusListed.status, 0, statusListed.stderr);
+  assert.deepEqual(JSON.parse(statusListed.stdout).skills.map((skill) => ({
+    name: skill.name,
+    installationKind: skill.installationKind,
+    enablementCount: skill.enablementCount,
+    health: skill.health
+  })), [{
+    name: "json-skill",
+    installationKind: "local-copy",
+    enablementCount: 0,
+    health: "not-enabled"
+  }]);
+
+  const prunePreview = cli(["prune", "--dry-run", "--json"], { cwd: project, hub, home: root });
+  assert.equal(prunePreview.status, 0, prunePreview.stderr);
+  assert.deepEqual(JSON.parse(prunePreview.stdout), {
+    dryRun: true,
+    planned: [{ name: "json-skill" }],
+    skipped: []
+  });
 
   const enabled = cli(["enable", "json-skill", "--json"], { cwd: project, hub, home: root });
   assert.equal(enabled.status, 0, enabled.stderr);

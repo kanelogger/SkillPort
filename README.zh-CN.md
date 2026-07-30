@@ -104,6 +104,38 @@ sklp update --all --ref main
 
 批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。同一次批量检查或更新会按仓库/ref 复用远程查询和 clone。
 
+### 查看状态并清理 Hub
+
+查看安装类型、启用数量和健康状态，同时不暴露项目路径：
+
+```bash
+sklp list --status
+sklp list --status --json
+```
+
+先预览，再清理未启用的 Skill 副本：
+
+```bash
+sklp prune --dry-run --json
+sklp prune --yes
+```
+
+`prune` 只考虑没有任何启用记录的 Skill。它只移除所有权可验证的本地或 Git 副本，保留 linked Skill 及其外部源，并跳过无法验证属于 Skill Port 的副本。没有 `--yes` 时不会开始删除。
+
+### 导出可分享目录
+
+生成一个可离线打开、可直接分享的自包含 HTML 文件：
+
+```bash
+sklp export
+sklp export ./team-skills.html --json
+sklp export ./team-skills.html --force
+```
+
+默认输出为当前目录下的 `skill-port-catalog.html`。页面支持按名称/描述实时搜索、深浅主题、响应式卡片和点击复制 Skill 名称。已有输出默认保留，只有显式使用 `--force` 才会替换。
+
+导出页面只包含 Skill 名称和描述，不包含 instance ID、发布者标签、安装/启用状态、项目路径或 source URL/path。
+
 ## 不想敲命令
 
 安装 [Skill Port Desktop 0.1.4](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4)。
@@ -120,7 +152,9 @@ macOS 第一次打开时，可以右键应用并选择“打开”。不要安�
 - 删除前先确认目标确实属于 Skill Port。
 - `doctor` 永远只读。
 - `link` 不会修改或删除你的原始 Skill 目录。
+- `prune` 只移除所有权可验证的未启用副本，并保留 linked Skill。
 - Git 地址里的凭据不会写进公开目录。
+- 静态目录导出只包含公开的名称和描述。
 
 完全卸载：
 

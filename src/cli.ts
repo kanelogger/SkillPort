@@ -5,7 +5,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { CliError, sanitizeError } from "./domain/errors.js";
-import { SkillPort, type BatchUpdateSummary, type FleetUpdateCheck, type UpdateSummary } from "./application/skill-port.js";
+import {
+  SkillPort,
+  type BatchUpdateSummary,
+  type FleetUpdateCheck,
+  type PrunePreview,
+  type PruneResult,
+  type PruneSkipReason,
+  type SkillInstallationKind,
+  type SkillStatus,
+  type SkillStatusHealth,
+  type UpdateSummary
+} from "./application/skill-port.js";
 import {
   diagnoseAgentIntegration, removeAgentIntegration, setupAgentIntegration
 } from "./application/agent-integration.js";
@@ -120,6 +131,30 @@ program.command("remove")
     else console.log(human(`Removed ${skill}`, `已移除 ${skill}`));
   })));
 
+program.command("prune")
+  .description(human("Remove unused copied Skills", "清理未启用的 Skill 副本"))
+  .option("--dry-run", human("Preview removals without changing state", "预览清理结果，不改写状态"))
+  .option("--yes", human("Confirm removal of every planned Skill", "确认移除所有计划清理的 Skill"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((options) => {
+    if (!options.dryRun && !options.yes) {
+      throw new CliError(human(
+        "Pass --yes to remove unused copied Skills, or use --dry-run to preview.",
+        "请使用 --yes 确认清理未启用的 Skill 副本，或先使用 --dry-run 预览。"
+      ));
+    }
+    if (options.dryRun) {
+      const preview = withApp((app) => app.previewPrune(), { recover: false, readOnly: true });
+      if (options.json) printJson({ dryRun: true, ...preview });
+      else printPrunePreview(preview);
+      return;
+    }
+    const result = withApp((app) => app.prune());
+    if (options.json) printJson(result);
+    else printPruneResult(result);
+    if (result.failed.length > 0) process.exitCode = 1;
+  }));
+
 program.command("unlink")
   .description(human("Unlink a linked Skill", "取消链接 linked Skill"))
   .argument("<skill>")
@@ -185,12 +220,36 @@ agentCommand.command("setup")
 program.command("list")
   .description(human("List installed Skills", "列出已安装 Skill"))
   .option("--tag <tag>", human("Filter Skills by Publisher tag", "按发布者标签筛选 Skill"))
+  .option("--status", human("Include installation, enablement, and health status", "包含安装类型、启用数量和健康状态"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => withApp((app) => {
+    if (options.status) {
+      const statuses = app.listStatus(options.tag);
+      if (options.json) printJson({ skills: statuses.map(skillStatusPayload) });
+      else printSkillStatuses(statuses);
+      return;
+    }
     const skills = app.list(options.tag);
     if (options.json) printJson({ skills: skills.map(publicSkill) });
     else for (const skill of skills) console.log(`${skill.name}\t${skill.description}${skill.tags.length ? `\t${skill.tags.join(", ")}` : ""}`);
   })));
+
+program.command("export")
+  .description(human("Export a shareable static Skill catalog", "导出可分享的静态 Skill 目录"))
+  .argument("[output]", human("Output HTML path", "输出 HTML 路径"), "skill-port-catalog.html")
+  .option("--force", human("Replace an existing output file", "替换已有输出文件"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((output, options) => {
+    const result = withApp((app) => app.exportCatalog(output, {
+      force: Boolean(options.force),
+      language: isChineseOutput() ? "zh-CN" : "en"
+    }), { recover: false, readOnly: true });
+    if (options.json) printJson(result);
+    else console.log(human(
+      `Exported static catalog\nOutput: ${result.output}\nSkills: ${result.skillCount}`,
+      `已导出静态目录\n输出: ${result.output}\nSkill 数量: ${result.skillCount}`
+    ));
+  }));
 
 program.command("info")
   .description(human("Show one installed Skill", "显示单个 Skill 信息"))
@@ -405,6 +464,83 @@ function printInstallResult(result: { skills: Skill[]; skipped: Array<{ name: st
   for (const skill of result.skills) {
     console.log(human(`Installed ${skill.name}\nInstance: ${skill.instanceId}`, `已安装 ${skill.name}\n实例: ${skill.instanceId}`));
   }
+}
+
+function printPrunePreview(preview: PrunePreview): void {
+  if (preview.planned.length === 0 && preview.skipped.length === 0) {
+    console.log(human("No unused copied Skills to prune.", "没有可清理的未启用 Skill 副本。"));
+    return;
+  }
+  console.log(human("Prune preview", "清理预览"));
+  for (const item of preview.planned) console.log(human(`Would remove ${item.name}`, `将移除 ${item.name}`));
+  for (const item of preview.skipped) {
+    console.log(human(
+      `Would skip ${item.name}: ${pruneReason(item.reason, false)}`,
+      `将跳过 ${item.name}：${pruneReason(item.reason, true)}`
+    ));
+  }
+}
+
+function printPruneResult(result: PruneResult): void {
+  if (result.removed.length === 0 && result.skipped.length === 0 && result.failed.length === 0) {
+    console.log(human("No unused copied Skills to prune.", "没有可清理的未启用 Skill 副本。"));
+    return;
+  }
+  console.log(human("Prune summary", "清理汇总"));
+  for (const item of result.removed) console.log(human(`Removed ${item.name}`, `已移除 ${item.name}`));
+  for (const item of result.skipped) {
+    console.log(human(
+      `Skipped ${item.name}: ${pruneReason(item.reason, false)}`,
+      `已跳过 ${item.name}：${pruneReason(item.reason, true)}`
+    ));
+  }
+  for (const item of result.failed) console.log(human(`Failed ${item.name}: ${item.reason}`, `失败 ${item.name}：${item.reason}`));
+}
+
+function pruneReason(reason: PruneSkipReason, chinese: boolean): string {
+  if (reason === "linked") return chinese ? "linked Skill 保留外部源" : "linked Skill preserves its external source";
+  return chinese ? "无法验证受管副本所有权" : "managed copy ownership could not be verified";
+}
+
+function skillStatusPayload(status: SkillStatus) {
+  return {
+    ...publicSkill(status.skill),
+    installationKind: status.installationKind,
+    enablementCount: status.enablementCount,
+    health: status.health
+  };
+}
+
+function printSkillStatuses(statuses: SkillStatus[]): void {
+  console.log(human(
+    "NAME\tKIND\tENABLED\tHEALTH\tDESCRIPTION\tTAGS",
+    "名称\t类型\t启用数\t健康状态\t描述\t标签"
+  ));
+  for (const status of statuses) {
+    console.log([
+      status.skill.name,
+      installationKindLabel(status.installationKind),
+      status.enablementCount,
+      healthLabel(status.health),
+      status.skill.description,
+      status.skill.tags.join(", ")
+    ].join("\t"));
+  }
+}
+
+function installationKindLabel(kind: SkillInstallationKind): string {
+  if (!isChineseOutput()) return kind;
+  if (kind === "git-copy") return "Git 副本";
+  if (kind === "local-copy") return "本地副本";
+  return "链接";
+}
+
+function healthLabel(health: SkillStatusHealth): string {
+  if (!isChineseOutput()) return health;
+  if (health === "healthy") return "正常";
+  if (health === "missing") return "缺失";
+  if (health === "conflict") return "冲突";
+  return "未启用";
 }
 
 function printUpdateCheck(update: FleetUpdateCheck): void {

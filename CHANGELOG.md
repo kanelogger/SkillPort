@@ -21,6 +21,9 @@
 - Support the CLI on Node.js 22.16 or newer while preserving stderr-free JSON output on Node 22.
 - Add `sklp update [skill|--all] --ref <ref>` to move pinned Git Skills to an explicit branch, tag, or commit.
 - Let Desktop users preview and move one or all pinned Git Skills to an explicit branch, tag, or commit.
+- Add `sklp list --status` for path-free installation, enablement, and health summaries.
+- Add read-only `sklp prune --dry-run --json` previews and confirmed `sklp prune --yes` cleanup for verified unused copies.
+- Add `sklp export [output]` for a self-contained, offline-searchable, privacy-limited static Skill catalog.
 
 ### Fixes
 
@@ -32,6 +35,8 @@
 ### Safety
 
 - Refuse to overwrite or remove an unverified `~/.agents/skills/skill-port` entry, and clean up only the package-owned integration during CLI or npm-global uninstallation.
+- Preserve linked Skills and unverified copies during bulk prune operations.
+- Preserve existing static catalog outputs unless export is explicitly run with `--force`, and exclude private Hub/source state from the page.
 
 ## 0.5.1 - 2026-07-22
 

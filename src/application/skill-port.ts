@@ -9,7 +9,7 @@ import type { Diagnostic, Enablement, EnablementInfo, Skill } from "../domain/mo
 import { initializeHub, removeHubLocator, resolveHub, type HubPaths } from "../infrastructure/config.js";
 import { StateStore } from "../infrastructure/database.js";
 import {
-  createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
+  atomicWrite, createDirectoryLink, isInside, managedLinkState, removeOwnedLink, withHubLock
 } from "../infrastructure/filesystem.js";
 import {
   cleanupGitSourceCache, copySource, createGitSourceCache, inspectGitSource, prepareInstallSources,
@@ -18,6 +18,7 @@ import {
 } from "../infrastructure/sources.js";
 import { globalTarget } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
+import { renderStaticCatalog, type StaticCatalogLanguage } from "../projections/static-catalog.js";
 
 type RecoveryPayload =
   | { kind: "install"; skill: Skill; destination: string }
@@ -58,6 +59,34 @@ export type UpdateSummary = {
 
 export type BatchUpdateSummary = Omit<UpdateSummary, "planned"> & {
   updated: Array<{ name: string; revision: string }>;
+};
+
+export type SkillInstallationKind = "git-copy" | "local-copy" | "linked";
+export type SkillStatusHealth = "healthy" | "missing" | "conflict" | "not-enabled";
+
+export type SkillStatus = {
+  skill: Skill;
+  installationKind: SkillInstallationKind;
+  enablementCount: number;
+  health: SkillStatusHealth;
+};
+
+export type PruneSkipReason = "linked" | "unverified";
+
+export type PrunePreview = {
+  planned: Array<{ name: string }>;
+  skipped: Array<{ name: string; reason: PruneSkipReason }>;
+};
+
+export type PruneResult = {
+  removed: Array<{ name: string }>;
+  skipped: Array<{ name: string; reason: PruneSkipReason }>;
+  failed: Array<{ name: string; reason: string }>;
+};
+
+export type ExportCatalogResult = {
+  output: string;
+  skillCount: number;
 };
 
 export type UninstallResult = {
@@ -627,12 +656,23 @@ export class SkillPort {
   }
 
   remove(name: string, force = false): void {
+    this.removeWithRequirements(name, force);
+  }
+
+  private removeWithRequirements(name: string, force = false, requirements: { unusedCopied?: boolean } = {}): void {
     this.mutate("remove", (checkpoint) => {
       const skill = this.requireSkill(name);
       const active = this.store.enablements(skill.instanceId);
       const disabled: Enablement[] = [];
       const destination = this.skillPath(skill);
       const backup = join(this.paths.staging, `remove-${randomUUID()}`);
+      if (requirements.unusedCopied) {
+        if (active.length > 0) throw new CliError(`Skill is enabled: ${skill.name}`);
+        if (this.isLinkedSkill(skill)) throw new CliError(`Skill is linked: ${skill.name}`);
+        if (!this.isVerifiedCopiedSkill(skill)) {
+          throw new CliError(`Skill Port ownership could not be verified: ${skill.name}`);
+        }
+      }
       if (active.length > 0 && !force) {
         throw new CliError(`Skill is enabled at: ${active.map((item) => item.targetKey).join(", ")}`);
       }
@@ -670,6 +710,37 @@ export class SkillPort {
         throw error;
       }
     });
+  }
+
+  previewPrune(): PrunePreview {
+    const planned: PrunePreview["planned"] = [];
+    const skipped: PrunePreview["skipped"] = [];
+    for (const skill of this.list()) {
+      if (this.store.enablements(skill.instanceId).length > 0) continue;
+      if (this.isLinkedSkill(skill)) {
+        skipped.push({ name: skill.name, reason: "linked" });
+      } else if (!this.isVerifiedCopiedSkill(skill)) {
+        skipped.push({ name: skill.name, reason: "unverified" });
+      } else {
+        planned.push({ name: skill.name });
+      }
+    }
+    return { planned, skipped };
+  }
+
+  prune(): PruneResult {
+    const preview = this.previewPrune();
+    const removed: PruneResult["removed"] = [];
+    const failed: PruneResult["failed"] = [];
+    for (const item of preview.planned) {
+      try {
+        this.removeWithRequirements(item.name, false, { unusedCopied: true });
+        removed.push(item);
+      } catch (error) {
+        failed.push({ name: item.name, reason: sanitizeError(error) });
+      }
+    }
+    return { removed, skipped: preview.skipped, failed };
   }
 
   unlink(name: string, force = false): void {
@@ -759,6 +830,34 @@ export class SkillPort {
 
   list(tag?: string): Skill[] {
     return tag ? this.store.skillsWithTag(tag) : this.store.skills();
+  }
+
+  exportCatalog(
+    output: string,
+    options: { force?: boolean; language?: StaticCatalogLanguage } = {}
+  ): ExportCatalogResult {
+    const destination = resolve(output);
+    if (!options.force && pathExistsLexically(destination)) {
+      throw new CliError(`Output already exists: ${destination}. Pass --force to replace it.`);
+    }
+    const skills = this.list().map(({ name, description }) => ({ name, description }));
+    atomicWrite(destination, renderStaticCatalog(skills, options.language));
+    return { output: destination, skillCount: skills.length };
+  }
+
+  listStatus(tag?: string): SkillStatus[] {
+    return this.list(tag).map((skill) => {
+      const enablements = this.store.enablements(skill.instanceId).map((enablement) => ({
+        ...enablement,
+        health: enablementHealth(enablement.entryPath, this.skillPath(skill))
+      }));
+      return {
+        skill,
+        installationKind: this.installationKind(skill),
+        enablementCount: enablements.length,
+        health: this.skillStatusHealth(skill, enablements)
+      };
+    });
   }
 
   projects(): string[] {
@@ -1167,6 +1266,54 @@ export class SkillPort {
     } catch {
       return false;
     }
+  }
+
+  private installationKind(skill: Skill): SkillInstallationKind {
+    if (this.isLinkedSkill(skill)) return "linked";
+    return skill.sourceType === "git" ? "git-copy" : "local-copy";
+  }
+
+  private isVerifiedCopiedSkill(skill: Skill): boolean {
+    const destination = this.skillPath(skill);
+    const metaPath = join(destination, "meta.json");
+    try {
+      const destinationStat = lstatSync(destination);
+      const metaStat = lstatSync(metaPath);
+      if (!destinationStat.isDirectory() || destinationStat.isSymbolicLink()) return false;
+      if (!metaStat.isFile() || metaStat.isSymbolicLink()) return false;
+      const metadata = readSkillMetadata(destination);
+      if (metadata.name !== skill.name || metadata.description !== skill.description) return false;
+      const meta = JSON.parse(readFileSync(metaPath, "utf8")) as unknown;
+      return isRecord(meta)
+        && Object.keys(meta).sort().join(",") === "description,instanceId,name"
+        && meta.instanceId === skill.instanceId
+        && meta.name === skill.name
+        && meta.description === skill.description;
+    } catch {
+      return false;
+    }
+  }
+
+  private skillStatusHealth(skill: Skill, enablements: EnablementInfo[]): SkillStatusHealth {
+    const destination = this.skillPath(skill);
+    if (!existsSync(join(destination, "SKILL.md"))) return "missing";
+    try {
+      const metadata = readSkillMetadata(destination);
+      if (metadata.name !== skill.name || metadata.description !== skill.description) return "conflict";
+    } catch {
+      return "conflict";
+    }
+    if (this.isLinkedSkill(skill)) {
+      if (skill.sourceType !== "local") return "conflict";
+      const linkState = managedLinkState(destination, skill.sourceLocation);
+      if (linkState === "absent") return "missing";
+      if (linkState === "conflict") return "conflict";
+    } else if (!this.isVerifiedCopiedSkill(skill)) {
+      return "conflict";
+    }
+    if (enablements.some((item) => item.health === "conflict")) return "conflict";
+    if (enablements.some((item) => item.health === "missing")) return "missing";
+    return enablements.length === 0 ? "not-enabled" : "healthy";
   }
 
   private updateLinkedSkill(current: Skill): Skill {

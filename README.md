@@ -104,6 +104,38 @@ sklp update --all --ref main
 
 The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
 
+### Inspect and prune the Hub
+
+Show installation kind, enablement count, and health without exposing project paths:
+
+```bash
+sklp list --status
+sklp list --status --json
+```
+
+Preview unused copied Skills before removing them:
+
+```bash
+sklp prune --dry-run --json
+sklp prune --yes
+```
+
+`prune` considers only Skills with no enablements. It removes verified local or Git copies, preserves linked Skills and their external sources, and skips copies whose Skill Port ownership cannot be verified. Removal never starts without `--yes`.
+
+### Export a shareable catalog
+
+Generate one self-contained HTML file that can be opened offline or shared directly:
+
+```bash
+sklp export
+sklp export ./team-skills.html --json
+sklp export ./team-skills.html --force
+```
+
+The default output is `skill-port-catalog.html` in the current directory. The page supports live name/description search, light and dark themes, responsive cards, and click-to-copy Skill names. Existing output is preserved unless `--force` is explicit.
+
+The exported page contains only Skill names and descriptions. It excludes instance IDs, Publisher tags, installation and enablement state, project paths, and source URLs or paths.
+
 ## Prefer buttons?
 
 Install [Skill Port Desktop 0.1.4](https://github.com/kanelogger/SkillPort/releases/tag/desktop-v0.1.4).
@@ -120,7 +152,9 @@ On the first macOS launch, right-click the app and choose **Open**. Do not insta
 - It verifies managed entries before deleting them.
 - `doctor` is always read-only.
 - `link` does not modify or delete your original Skill directory.
+- `prune` removes only unused copied Skills whose ownership metadata can be verified; linked Skills are preserved.
 - Credentials in Git URLs do not enter public catalogs.
+- Static catalog exports contain only public names and descriptions.
 
 To remove Skill Port completely:
 
