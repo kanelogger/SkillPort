@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 - 2026-07-30
+
+### Changes
+
+- update
+
 ## 0.6.0 - 2026-07-24
 
 ### Changes
