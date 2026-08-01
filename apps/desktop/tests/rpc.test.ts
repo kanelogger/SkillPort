@@ -56,6 +56,18 @@ describe("desktop RPC contract", () => {
       method: "exportCatalog",
       params: { output: "/tmp/catalog.html", language: "en", force: true }
     })).toThrow();
+    expect(parseRpcRequest({ id: "15", method: "previewSyncAll", params: { prune: true } })).toEqual({
+      id: "15",
+      method: "previewSyncAll",
+      params: { prune: true }
+    });
+    expect(parseRpcRequest({ id: "16", method: "syncAllSources", params: { prune: true, force: true } })).toEqual({
+      id: "16",
+      method: "syncAllSources",
+      params: { prune: true, force: true }
+    });
+    expect(() => parseRpcRequest({ id: "17", method: "syncAllSources", params: { force: true } })).toThrow();
+    expect(() => parseRpcRequest({ id: "18", method: "previewSyncAll", params: { prune: true, ref: "main" } })).toThrow();
   });
 
   it("dispatches tag updates through the allowlisted facade", async () => {
@@ -98,6 +110,20 @@ describe("desktop RPC contract", () => {
     expect(previewAllUpdates).toHaveBeenCalledWith("main");
     expect(update).toHaveBeenCalledWith("sample-skill", "main");
     expect(updateAll).toHaveBeenCalledWith("main");
+  });
+
+  it("dispatches source sync operations through the allowlisted facade", async () => {
+    const summary = { sources: [], failed: [] };
+    const previewSyncAll = vi.fn(() => summary);
+    const syncAllSources = vi.fn(() => summary);
+    const desktop = { previewSyncAll, syncAllSources } as unknown as DesktopOperations;
+
+    await expect(dispatchRpc({ id: "1", method: "previewSyncAll", params: { prune: true } }, desktop))
+      .resolves.toEqual(summary);
+    await expect(dispatchRpc({ id: "2", method: "syncAllSources", params: { prune: true, force: true } }, desktop))
+      .resolves.toEqual(summary);
+    expect(previewSyncAll).toHaveBeenCalledWith({ prune: true });
+    expect(syncAllSources).toHaveBeenCalledWith({ prune: true, force: true });
   });
 
   it("dispatches only the allowlisted operation", async () => {

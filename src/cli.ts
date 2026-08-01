@@ -15,6 +15,7 @@ import {
   type SkillInstallationKind,
   type SkillStatus,
   type SkillStatusHealth,
+  type SyncSummary,
   type UpdateSummary
 } from "./application/skill-port.js";
 import {
@@ -118,6 +119,45 @@ program.command("update")
     if (options.json) printJson({ skill: publicSkill(updated) });
     else console.log(human(`Updated ${updated.name}`, `已更新 ${updated.name}`));
     });
+  }));
+
+program.command("sync")
+  .description(human("Reconcile a Git source collection", "同步 Git 来源集合"))
+  .argument("[source]")
+  .option("--all", human("Sync every registered Git source collection", "同步所有已登记 Git 来源集合"))
+  .option("--ref <ref>", human("Git branch, tag, or commit", "Git 分支、标签或提交"))
+  .option("--path <path>", human("Scan this path inside the Git repository", "扫描 Git 仓库内指定路径"))
+  .option("--dry-run", human("Preview the full reconciliation without changing state", "预览完整同步差异，不改写状态"))
+  .option("--prune", human("Remove upstream-missing Skills when safe", "安全移除上游已缺失的 Skill"))
+  .option("--force", human("Disable managed targets before pruning missing Skills", "清理缺失 Skill 前先停用受管目标"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((source, options) => {
+    validateSyncTarget(source, options);
+    if (options.force && !options.prune) {
+      throw new CliError(human("--force requires --prune.", "--force 必须与 --prune 一起使用。"));
+    }
+    if (options.all && (options.ref || options.path)) {
+      throw new CliError(human(
+        "--ref and --path cannot be combined with --all; registered sources keep their own scope.",
+        "--ref 和 --path 不能与 --all 一起使用；已登记来源会保留各自范围。"
+      ));
+    }
+    const syncOptions = {
+      ref: options.ref,
+      gitPath: options.path,
+      prune: Boolean(options.prune),
+      force: Boolean(options.force)
+    };
+    const result = options.dryRun
+      ? withApp((app) => options.all
+        ? app.previewSyncAll(syncOptions)
+        : app.previewSync(source!, syncOptions), { recover: false, readOnly: true })
+      : withApp((app) => options.all
+        ? app.syncAllSources(syncOptions)
+        : app.syncSource(source!, syncOptions));
+    if (options.json) printJson(options.dryRun ? { dryRun: true, ...result } : result);
+    else printSyncSummary(result, Boolean(options.dryRun));
+    if (syncHasFailures(result)) process.exitCode = 1;
   }));
 
 program.command("remove")
@@ -597,6 +637,49 @@ function printBatchUpdateSummary(summary: BatchUpdateSummary): void {
   printSkippedAndFailed(summary);
 }
 
+function printSyncSummary(summary: SyncSummary, dryRun: boolean): void {
+  if (summary.sources.length === 0 && summary.failed.length === 0) {
+    console.log(human("No registered Git source collections.", "没有已登记的 Git 来源集合。"));
+    return;
+  }
+  console.log(human(dryRun ? "Sync preview" : "Sync summary", dryRun ? "同步预览" : "同步汇总"));
+  for (const item of summary.sources) {
+    console.log(human(
+      `Source ${item.source.location} (${item.source.path})`,
+      `来源 ${item.source.location}（${item.source.path}）`
+    ));
+    for (const change of item.added) console.log(human(`${dryRun ? "Would add" : "Added"} ${change.name}`, `${dryRun ? "将新增" : "已新增"} ${change.name}`));
+    for (const change of item.updated) console.log(human(`${dryRun ? "Would update" : "Updated"} ${change.name}`, `${dryRun ? "将更新" : "已更新"} ${change.name}`));
+    for (const change of item.unchanged) console.log(human(`Unchanged ${change.name}`, `未变化 ${change.name}`));
+    for (const missing of item.missing) {
+      console.log(human(
+        `Missing ${missing.name}: ${syncMissingAction(missing.action, false)}`,
+        `缺失 ${missing.name}：${syncMissingAction(missing.action, true)}`
+      ));
+    }
+    for (const removed of item.removed) console.log(human(`Removed ${removed.name}`, `已移除 ${removed.name}`));
+    for (const failure of item.failed) {
+      console.log(human(
+        `Failed ${failure.name ?? failure.path ?? "source"}: ${failure.reason}`,
+        `失败 ${failure.name ?? failure.path ?? "来源"}：${failure.reason}`
+      ));
+    }
+  }
+  for (const failure of summary.failed) {
+    console.log(human(`Failed source ${failure.source}: ${failure.reason}`, `来源失败 ${failure.source}：${failure.reason}`));
+  }
+}
+
+function syncMissingAction(action: "retain" | "remove" | "skip-enabled", chinese: boolean): string {
+  if (action === "remove") return chinese ? "将移除" : "remove";
+  if (action === "skip-enabled") return chinese ? "已启用，跳过移除" : "skip removal because it is enabled";
+  return chinese ? "保留本地副本" : "retain local copy";
+}
+
+function syncHasFailures(summary: SyncSummary): boolean {
+  return summary.failed.length > 0 || summary.sources.some((source) => source.failed.length > 0);
+}
+
 function printSkippedAndFailed(summary: Pick<UpdateSummary, "skipped" | "failed">): void {
   for (const item of summary.skipped) console.log(human(`Skipped ${item.name}: ${item.reason}`, `已跳过 ${item.name}: ${item.reason}`));
   for (const item of summary.failed) console.log(human(`Failed ${item.name}: ${item.reason}`, `失败 ${item.name}: ${item.reason}`));
@@ -605,6 +688,12 @@ function printSkippedAndFailed(summary: Pick<UpdateSummary, "skipped" | "failed"
 function validateUpdateTarget(skill: string | undefined, options: { all?: boolean }): void {
   if (Boolean(skill) === Boolean(options.all)) {
     throw new CliError(human("Specify exactly one Skill name or --all.", "请仅指定一个 Skill 名称或 --all。"));
+  }
+}
+
+function validateSyncTarget(source: string | undefined, options: { all?: boolean }): void {
+  if (Boolean(source) === Boolean(options.all)) {
+    throw new CliError(human("Specify exactly one Git source or --all.", "请仅指定一个 Git 来源或 --all。"));
   }
 }
 

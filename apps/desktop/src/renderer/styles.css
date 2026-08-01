@@ -46,7 +46,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar { position:sticky; top:0; z-index:5; display:flex; justify-content:space-between; align-items:center; gap:20px; min-height:86px; padding:18px 28px; border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(14px); }
 .topbar h1 { font-size:26px; }
 .topbar p { color:var(--muted); font-size:12px; }
-.top-actions { display:flex; align-items:center; gap:9px; }
+.top-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:9px; }
 .busy-label { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
 .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }

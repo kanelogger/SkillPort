@@ -34,6 +34,8 @@
 
 ### Features
 
+- Add source-aware `sklp sync` reconciliation for Git collections, including read-only previews, fleet sync, additions, updates, missing-state tracking, and explicit safe pruning.
+- Let Desktop users preview and synchronize every registered Git source collection, with default retention and separately confirmed pruning of enabled missing Skills.
 - Add atomic `sklp tag add <tag> <skills...>` batch tagging with read-only preview, JSON output, case-insensitive matching, and shared CLI/Desktop Hub visibility.
 - Bundle a compact `skill-port` management Skill and register it during npm-global installation so compatible Agents can discover `sklp` without changes to `AGENTS.md`.
 - Add the idempotent `sklp agent setup` recovery command and read-only doctor diagnostics for missing or conflicting Agent integration state.
@@ -56,6 +58,7 @@
 
 ### Safety
 
+- Keep upstream-missing Skills by default, require `--prune` for removal, protect enabled entries unless `--force` is explicit, and never infer deletion from invalid upstream metadata.
 - Refuse to overwrite or remove an unverified `~/.agents/skills/skill-port` entry, and clean up only the package-owned integration during CLI or npm-global uninstallation.
 - Preserve linked Skills and unverified copies during bulk prune operations.
 - Preserve existing static catalog outputs unless export is explicitly run with `--force`, and exclude private Hub/source state from the page.

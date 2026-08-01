@@ -104,6 +104,28 @@ sklp update --all --ref main
 
 The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
 
+### Sync a Git Skill collection
+
+`update` refreshes already-installed Skills. Use `sync` when a repository directory can add or remove Skills:
+
+```bash
+# Preview additions, content updates, and upstream-missing Skills
+sklp sync https://github.com/owner/skills.git --path skills --dry-run --json
+
+# Add new Skills, update existing Skills, and retain missing local copies
+sklp sync https://github.com/owner/skills.git --path skills
+
+# Remove missing Skills that are not enabled
+sklp sync --all --prune
+
+# Explicitly disable managed targets before removing enabled missing Skills
+sklp sync --all --prune --force
+```
+
+Git installs now register their repository URL, ref, and scan path as a source collection, so later `sklp sync --all` can reconcile every registered collection. For a Git Skill installed before this feature, run one explicit `sklp sync <repo> --path <path>` to adopt matching installed Skills safely.
+
+Sync output separates `added`, `updated`, `unchanged`, `missing`, `removed`, and `failed` entries. A normal sync records upstream-missing membership but keeps the local copy. `--prune` is the deletion boundary: enabled missing Skills are skipped unless `--force` is also present. Invalid or duplicate upstream metadata is reported as a failure and is never treated as evidence that an installed Skill was deleted. Without a stable manifest identifier, a changed Skill name is represented as one addition and one missing Skill.
+
 ### Inspect and prune the Hub
 
 Add one private tag to an explicit set of installed Skills:

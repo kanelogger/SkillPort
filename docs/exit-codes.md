@@ -13,6 +13,8 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp update <skill>` exits `1` when the Skill is pinned to a tag or commit and directs the caller to `--ref <ref>`. `sklp update <skill> --ref <ref>` exits `1` if the new ref cannot be fetched or validated. `sklp update --all --ref <ref>` exits `1` when any Git Skill fails, while continuing with other Git Skills and skipping local copied or linked Skills.
 
+`sklp sync <source>` and `sklp sync --all` exit `1` when a source cannot be fetched or any collection-level `failed` array is non-empty. `--all` continues with other registered sources after one source fails. Missing Skills with action `retain` or `skip-enabled` do not fail the command. `--prune` removes only upstream-missing Skills; enabled Skills use `skip-enabled` unless `--force` explicitly authorizes disabling managed targets first. `--force` without `--prune` exits `1` before opening the Hub.
+
 `sklp uninstall` exits `0` after a cancellation or complete cleanup. It exits `1` after attempting every cleanup step it can perform when a managed entry, Hub resource, or npm package cannot be removed.
 
 `sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
@@ -45,6 +47,8 @@ The JSON payload includes:
 
 `sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp tag add --json` returns `tag` and the updated public `skills`; its preview also returns `dryRun: true`. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
 
+`sklp sync --json` returns `sources` plus top-level source-fetch `failed` entries. Each source contains its normalized `location`, `ref`, scan `path`, resolved `revision`, and the stable arrays `added`, `updated`, `unchanged`, `missing`, `removed`, and `failed`. Each missing entry includes the language-stable `action` code `retain`, `remove`, or `skip-enabled`. Preview adds `dryRun: true` without changing Hub state.
+
 For runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
 
 ## 中文说明
@@ -62,6 +66,8 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。
 
+`sklp sync <source>` 和 `sklp sync --all` 在来源无法拉取或任一集合的 `failed` 非空时返回 `1`。`--all` 遇到单个来源失败后会继续同步其他已登记来源。缺失项的 action 为 `retain` 或 `skip-enabled` 时不会导致失败。`--prune` 只移除上游缺失 Skill；已启用 Skill 默认使用 `skip-enabled`，只有显式传入 `--force` 才会先停用受管目标。单独使用 `--force` 会在打开 Hub 前返回 `1`。
+
 `sklp uninstall` 在取消或完整清理后返回 `0`。受管入口、Hub 资源或 npm 包有任一无法移除时，它仍会尝试能够执行的其余清理步骤，并返回 `1`。
 
 `sklp agent setup` 在成功创建内置 Agent 集成或确认正确入口已经存在时返回 `0`。保留路径被非受管内容占用，或无法验证内置 Skill 时返回 `1`。
@@ -73,5 +79,7 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 `sklp tag add <tag> <skills...>` 会在给所有指定 Skill 原子追加标签后返回 `0`。任一 Skill 不存在、标签无效或合并后的标签超过 32 个时返回 `1`，且不修改任何标签。`--dry-run` 以只读方式返回计划中的 Skill 数据并退出 `0`。
 
 `sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp tag add --json` 返回 `tag` 和更新后的公开 `skills`；预览还会返回 `dryRun: true`。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
+
+`sklp sync --json` 返回 `sources` 和顶层来源拉取 `failed`。每个来源包含规范化后的 `location`、`ref`、扫描 `path`、解析出的 `revision`，以及稳定的 `added`、`updated`、`unchanged`、`missing`、`removed`、`failed` 数组。每个缺失项都包含不随语言改变的 `action`：`retain`、`remove` 或 `skip-enabled`。预览额外返回 `dryRun: true`，且不修改 Hub 状态。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

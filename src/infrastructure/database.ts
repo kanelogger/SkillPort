@@ -2,7 +2,9 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
-import type { Enablement, Skill } from "../domain/models.js";
+import type {
+  Enablement, Skill, SourceCollection, SourceMembership, SourceMembershipStatus
+} from "../domain/models.js";
 import type { HubPaths } from "./config.js";
 
 type Row = Record<string, unknown>;
@@ -31,6 +33,7 @@ export class StateStore {
   readonly readOnly: boolean;
   private readonly readOnlySnapshot: string | null;
   private readonly hasSkillTagsTable: boolean;
+  private readonly hasSourceCollectionTables: boolean;
 
   constructor(paths: HubPaths, options: { readOnly?: boolean } = {}) {
     this.readOnly = options.readOnly === true;
@@ -46,6 +49,7 @@ export class StateStore {
       this.migrate();
     }
     this.hasSkillTagsTable = this.hasTable("skill_tags");
+    this.hasSourceCollectionTables = this.hasTable("sources") && this.hasTable("source_memberships");
   }
 
   close(): void {
@@ -145,6 +149,36 @@ export class StateStore {
         this.db.exec("CREATE INDEX skill_tags_tag_skill_id ON skill_tags(tag COLLATE NOCASE, skill_id)");
         this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(5, ?)").run(now());
       });
+      version = 5;
+    }
+    if (version < 6 && this.hasTable("skills")) {
+      this.transaction(() => {
+        this.db.exec(`
+          CREATE TABLE sources (
+            id TEXT PRIMARY KEY,
+            source_key TEXT NOT NULL UNIQUE,
+            location TEXT NOT NULL,
+            source_ref TEXT,
+            source_tracking TEXT,
+            scan_path TEXT NOT NULL,
+            last_revision TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE TABLE source_memberships (
+            source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+            skill_id TEXT NOT NULL UNIQUE REFERENCES skills(instance_id) ON DELETE CASCADE,
+            skill_path TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('active','missing')),
+            last_seen_revision TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (source_id, skill_id)
+          );
+          CREATE INDEX source_memberships_source_status
+            ON source_memberships(source_id, status, skill_path);
+        `);
+        this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(6, ?)").run(now());
+      });
     }
   }
 
@@ -220,6 +254,87 @@ export class StateStore {
 
   deleteSkill(id: string): void {
     this.db.prepare("DELETE FROM skills WHERE instance_id=?").run(id);
+  }
+
+  sources(): SourceCollection[] {
+    if (!this.hasSourceCollectionTables) return [];
+    return (this.db.prepare("SELECT * FROM sources ORDER BY location,source_ref,scan_path").all() as Row[])
+      .map(toSourceCollection);
+  }
+
+  sourceByKey(key: string): SourceCollection | null {
+    if (!this.hasSourceCollectionTables) return null;
+    const row = this.db.prepare("SELECT * FROM sources WHERE source_key=?").get(key) as Row | undefined;
+    return row ? toSourceCollection(row) : null;
+  }
+
+  source(id: string): SourceCollection | null {
+    if (!this.hasSourceCollectionTables) return null;
+    const row = this.db.prepare("SELECT * FROM sources WHERE id=?").get(id) as Row | undefined;
+    return row ? toSourceCollection(row) : null;
+  }
+
+  insertSource(source: SourceCollection): void {
+    this.db.prepare(`
+      INSERT INTO sources(id,source_key,location,source_ref,source_tracking,scan_path,last_revision,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?)
+    `).run(source.id, source.key, source.location, source.ref, source.tracking, source.scanPath,
+      source.lastRevision, source.createdAt, source.updatedAt);
+  }
+
+  updateSource(source: SourceCollection): void {
+    this.db.prepare(`
+      UPDATE sources
+      SET location=?,source_ref=?,source_tracking=?,scan_path=?,last_revision=?,updated_at=?
+      WHERE id=?
+    `).run(source.location, source.ref, source.tracking, source.scanPath, source.lastRevision,
+      source.updatedAt, source.id);
+  }
+
+  deleteSource(id: string): void {
+    this.db.prepare("DELETE FROM sources WHERE id=?").run(id);
+  }
+
+  deleteSourceIfEmpty(id: string): void {
+    this.db.prepare(`
+      DELETE FROM sources WHERE id=? AND NOT EXISTS (
+        SELECT 1 FROM source_memberships WHERE source_memberships.source_id=sources.id
+      )
+    `).run(id);
+  }
+
+  sourceMemberships(sourceId: string): SourceMembership[] {
+    if (!this.hasSourceCollectionTables) return [];
+    return (this.db.prepare(`
+      SELECT * FROM source_memberships WHERE source_id=? ORDER BY skill_path,skill_id
+    `).all(sourceId) as Row[]).map(toSourceMembership);
+  }
+
+  sourceMembershipForSkill(skillId: string): SourceMembership | null {
+    if (!this.hasSourceCollectionTables) return null;
+    const row = this.db.prepare("SELECT * FROM source_memberships WHERE skill_id=?").get(skillId) as Row | undefined;
+    return row ? toSourceMembership(row) : null;
+  }
+
+  assignSourceMembership(membership: SourceMembership): void {
+    this.db.prepare("DELETE FROM source_memberships WHERE skill_id=?").run(membership.skillId);
+    this.db.prepare(`
+      INSERT INTO source_memberships(source_id,skill_id,skill_path,status,last_seen_revision,updated_at)
+      VALUES(?,?,?,?,?,?)
+    `).run(membership.sourceId, membership.skillId, membership.skillPath, membership.status,
+      membership.lastSeenRevision, membership.updatedAt);
+  }
+
+  updateSourceMembership(
+    sourceId: string,
+    skillId: string,
+    status: SourceMembershipStatus,
+    lastSeenRevision: string | null
+  ): void {
+    this.db.prepare(`
+      UPDATE source_memberships SET status=?,last_seen_revision=?,updated_at=?
+      WHERE source_id=? AND skill_id=?
+    `).run(status, lastSeenRevision, now(), sourceId, skillId);
   }
 
   enablements(skillId?: string): Enablement[] {
@@ -316,6 +431,31 @@ function toEnablement(row: Row): Enablement {
     targetPath: String(row.target_path),
     entryPath: String(row.entry_path),
     linkType: String(row.link_type)
+  };
+}
+
+function toSourceCollection(row: Row): SourceCollection {
+  return {
+    id: String(row.id),
+    key: String(row.source_key),
+    location: String(row.location),
+    ref: row.source_ref == null ? null : String(row.source_ref),
+    tracking: row.source_tracking == null ? null : row.source_tracking as SourceCollection["tracking"],
+    scanPath: String(row.scan_path),
+    lastRevision: row.last_revision == null ? null : String(row.last_revision),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at)
+  };
+}
+
+function toSourceMembership(row: Row): SourceMembership {
+  return {
+    sourceId: String(row.source_id),
+    skillId: String(row.skill_id),
+    skillPath: String(row.skill_path),
+    status: row.status as SourceMembership["status"],
+    lastSeenRevision: row.last_seen_revision == null ? null : String(row.last_seen_revision),
+    updatedAt: String(row.updated_at)
   };
 }
 

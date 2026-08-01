@@ -160,6 +160,7 @@ test("desktop and CLI share the core Skill lifecycle", async () => {
     await page.getByRole("button", { name: "中文" }).click();
     await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
     await expect(page.getByRole("button", { name: "导出目录" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "同步来源" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "技能" })).toBeVisible();
     for (const size of [{ width: 1024, height: 720 }, { width: 1440, height: 900 }]) {
@@ -237,6 +238,87 @@ test("desktop previews and moves a pinned Git Skill to a branch", async () => {
     expect(JSON.parse(updateInfo.stdout).skill.sourceRef).toBe("main");
     expect(JSON.parse(updateInfo.stdout).skill.sourceTracking).toBe("branch");
     expect(JSON.parse(updateInfo.stdout).enablements).toHaveLength(1);
+  } finally {
+    await app?.close().catch(() => undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop previews and synchronizes registered Git sources with guarded pruning", async () => {
+  const root = mkdtempSync(join(tmpdir(), "skill-port-desktop-sync-e2e-"));
+  const project = join(root, "project");
+  const hub = join(root, "hub");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  mkdirSync(join(repo, "skills", "alpha"), { recursive: true });
+  mkdirSync(join(repo, "skills", "beta"), { recursive: true });
+  writeFileSync(join(repo, "skills", "alpha", "SKILL.md"), "---\nname: desktop-sync-alpha\ndescription: Alpha before\n---\n");
+  writeFileSync(join(repo, "skills", "beta", "SKILL.md"), "---\nname: desktop-sync-beta\ndescription: Beta before\n---\n");
+  git(["init"], repo);
+  git(["branch", "-M", "main"], repo);
+  git(["add", "."], repo);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], repo);
+  const desktopRoot = resolve(process.cwd());
+  const repositoryRoot = resolve(desktopRoot, "../..");
+  const executablePath = createRequire(join(desktopRoot, "package.json"))("electron") as string;
+  const cliEnv: NodeJS.ProcessEnv = { ...process.env, HOME: root, USERPROFILE: root, SKLP_HOME: hub, SKLP_TEST_HOME: root };
+  const runCli = (args: string[]) => spawnSync(
+    process.execPath,
+    [join(repositoryRoot, "dist", "cli.js"), ...args],
+    { cwd: project, env: cliEnv, encoding: "utf8" }
+  );
+  let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
+
+  try {
+    expect(runCli(["init"]).status).toBe(0);
+    expect(runCli(["install", pathToFileURL(repo).href, "--path", "skills"]).status).toBe(0);
+    expect(runCli(["enable", "desktop-sync-beta"]).status).toBe(0);
+
+    writeFileSync(join(repo, "skills", "alpha", "SKILL.md"), "---\nname: desktop-sync-alpha\ndescription: Alpha after\n---\n");
+    mkdirSync(join(repo, "skills", "gamma"));
+    writeFileSync(join(repo, "skills", "gamma", "SKILL.md"), "---\nname: desktop-sync-gamma\ndescription: Gamma added\n---\n");
+    rmSync(join(repo, "skills", "beta"), { recursive: true });
+    git(["add", "."], repo);
+    git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "reconcile"], repo);
+
+    app = await electron.launch({
+      executablePath,
+      args: [desktopRoot],
+      env: { ...cliEnv, LANG: "en_US.UTF-8" }
+    });
+    const page = await app.firstWindow({ timeout: 30_000 });
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: /Skills|技能/ })).toBeVisible({ timeout: 30_000 });
+    const switchToEnglish = page.getByRole("button", { name: "English" });
+    if (await switchToEnglish.isVisible()) await switchToEnglish.click();
+
+    await page.getByRole("button", { name: "Sync sources" }).click();
+    let syncDialog = page.getByRole("dialog");
+    await syncDialog.getByRole("button", { name: "Preview sync" }).click();
+    await expect(syncDialog.getByText("desktop-sync-gamma — skills/gamma")).toBeVisible();
+    await expect(syncDialog.getByText("desktop-sync-alpha — skills/alpha")).toBeVisible();
+    await expect(syncDialog.getByText("desktop-sync-beta — keep local copy")).toBeVisible();
+    await syncDialog.getByRole("button", { name: "Sync previewed sources" }).click();
+    await expect(syncDialog.getByText("Sync complete")).toBeVisible();
+    expect(runCli(["info", "desktop-sync-gamma"]).status).toBe(0);
+    expect(runCli(["info", "desktop-sync-beta"]).status).toBe(0);
+    await syncDialog.locator(".modal-actions").getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("button", { name: /desktop-sync-gamma/ })).toBeVisible();
+
+    await page.getByRole("button", { name: "Sync sources" }).click();
+    syncDialog = page.getByRole("dialog");
+    await syncDialog.getByLabel("Remove upstream-missing Skills that are safe to remove").check();
+    await syncDialog.getByRole("button", { name: "Preview sync" }).click();
+    await expect(syncDialog.getByText("desktop-sync-beta — skip because enabled")).toBeVisible();
+    await syncDialog.getByLabel("Disable and remove enabled upstream-missing Skills").check();
+    await expect(syncDialog.getByText("Options changed. Preview again before syncing.")).toBeVisible();
+    await expect(syncDialog.getByRole("button", { name: "Sync previewed sources" })).toBeDisabled();
+    await syncDialog.getByRole("button", { name: "Preview sync" }).click();
+    await expect(syncDialog.getByText("desktop-sync-beta — remove")).toBeVisible();
+    await syncDialog.getByRole("button", { name: "Sync previewed sources" }).click();
+    await expect(syncDialog.getByText("Sync complete")).toBeVisible();
+    expect(runCli(["info", "desktop-sync-beta"]).status).not.toBe(0);
+    expect(existsSync(join(project, ".agents", "skills", "desktop-sync-beta"))).toBe(false);
   } finally {
     await app?.close().catch(() => undefined);
     rmSync(root, { recursive: true, force: true });

@@ -90,7 +90,25 @@ const messages: Record<Language, Record<string, string>> = {
     wouldUpdate: "Will update",
     confirmUpdate: "Update previewed Skills",
     updateComplete: "Update complete",
-    updated: "Updated"
+    updated: "Updated",
+    syncSources: "Sync sources",
+    syncDescription: "Preview and reconcile every registered Git source. Missing Skills are kept unless pruning is enabled.",
+    syncPrune: "Remove upstream-missing Skills that are safe to remove",
+    syncForce: "Disable and remove enabled upstream-missing Skills",
+    syncPreviewStale: "Options changed. Preview again before syncing.",
+    syncPreview: "Sync preview",
+    syncComplete: "Sync complete",
+    previewSync: "Preview sync",
+    confirmSync: "Sync previewed sources",
+    noSyncSources: "No registered Git sources.",
+    registeredSources: "Sources",
+    added: "Added",
+    unchanged: "Unchanged",
+    missing: "Missing upstream",
+    removed: "Removed",
+    "syncAction.retain": "keep local copy",
+    "syncAction.remove": "remove",
+    "syncAction.skip-enabled": "skip because enabled"
   },
   "zh-CN": {
     appName: "Skill Port",
@@ -181,7 +199,25 @@ const messages: Record<Language, Record<string, string>> = {
     wouldUpdate: "将更新",
     confirmUpdate: "更新已预览的技能",
     updateComplete: "更新完成",
-    updated: "已更新"
+    updated: "已更新",
+    syncSources: "同步来源",
+    syncDescription: "预览并对账全部已登记的 Git 来源。未启用清理时，上游缺失的技能会保留在本地。",
+    syncPrune: "移除可安全删除的上游缺失技能",
+    syncForce: "停用并移除仍在启用的上游缺失技能",
+    syncPreviewStale: "选项已变化，请重新预览后再同步。",
+    syncPreview: "同步预览",
+    syncComplete: "同步完成",
+    previewSync: "预览同步",
+    confirmSync: "同步已预览的来源",
+    noSyncSources: "尚未登记 Git 来源。",
+    registeredSources: "来源",
+    added: "已新增",
+    unchanged: "未变化",
+    missing: "上游缺失",
+    removed: "已移除",
+    "syncAction.retain": "保留本地副本",
+    "syncAction.remove": "移除",
+    "syncAction.skip-enabled": "因仍在启用而跳过"
   }
 };
 

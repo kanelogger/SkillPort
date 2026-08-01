@@ -5,12 +5,14 @@ import type {
   DesktopInstallOptions,
   DesktopSkillDetails,
   DesktopSkillSummary,
+  DesktopSyncOptions,
   DesktopTarget,
   BatchUpdateSummary,
   Diagnostic,
   Enablement,
   ExportCatalogResult,
   FleetUpdateCheck,
+  SyncSummary,
   UpdateCheck,
   UpdateSummary
 } from "skill-port-cli/desktop";
@@ -30,6 +32,8 @@ export type DesktopRpcApi = {
   registerProject(input: { path: string }): Promise<string>;
   previewInstall(input: { source: string; options?: DesktopInstallOptions }): Promise<InstallPreview>;
   install(input: { source: string; options?: DesktopInstallOptions }): Promise<DesktopSkillDetails[]>;
+  previewSyncAll(input?: DesktopSyncOptions): Promise<SyncSummary>;
+  syncAllSources(input?: DesktopSyncOptions): Promise<SyncSummary>;
   previewLink(input: { source: string }): Promise<{ name: string; description: string }>;
   link(input: { source: string }): Promise<DesktopSkillDetails>;
   updateTags(input: { name: string; tags: string[] }): Promise<DesktopSkillDetails>;
@@ -69,6 +73,12 @@ const optionsSchema = z.object({
   gitPath: z.string().min(1).optional(),
   skipExisting: z.boolean().optional()
 }).strict();
+const syncOptionsSchema = z.object({
+  prune: z.boolean().optional(),
+  force: z.boolean().optional()
+}).strict().refine((options) => !options.force || options.prune, {
+  message: "force requires prune"
+});
 
 const parameterSchemas: Record<RpcMethod, z.ZodType> = {
   getBootstrapState: z.object({}).strict(),
@@ -79,6 +89,8 @@ const parameterSchemas: Record<RpcMethod, z.ZodType> = {
   registerProject: z.object({ path: z.string().min(1) }).strict(),
   previewInstall: z.object({ source: z.string().min(1), options: optionsSchema.optional() }).strict(),
   install: z.object({ source: z.string().min(1), options: optionsSchema.optional() }).strict(),
+  previewSyncAll: syncOptionsSchema,
+  syncAllSources: syncOptionsSchema,
   previewLink: z.object({ source: z.string().min(1) }).strict(),
   link: z.object({ source: z.string().min(1) }).strict(),
   updateTags: z.object({

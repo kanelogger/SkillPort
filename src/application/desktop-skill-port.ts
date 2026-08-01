@@ -11,6 +11,7 @@ import {
   type SkillInstallationKind,
   type SkillStatus,
   type SkillStatusHealth,
+  type SyncSummary,
   type UpdateCheck,
   type UpdateSummary
 } from "./skill-port.js";
@@ -50,6 +51,11 @@ export type DesktopInstallOptions = {
   ref?: string;
   gitPath?: string;
   skipExisting?: boolean;
+};
+
+export type DesktopSyncOptions = {
+  prune?: boolean;
+  force?: boolean;
 };
 
 export type DesktopTarget =
@@ -129,6 +135,14 @@ export class DesktopSkillPort {
       gitPath: options.gitPath,
       skipExisting: options.skipExisting
     })).skills.map((skill) => this.getSkill(skill.name));
+  }
+
+  previewSyncAll(options: DesktopSyncOptions = {}): SyncSummary {
+    return this.read((app) => app.previewSyncAll(options));
+  }
+
+  syncAllSources(options: DesktopSyncOptions = {}): SyncSummary {
+    return this.write((app) => app.syncAllSources(options));
   }
 
   previewLink(source: string) {

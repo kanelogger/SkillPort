@@ -104,6 +104,28 @@ sklp update --all --ref main
 
 批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。同一次批量检查或更新会按仓库/ref 复用远程查询和 clone。
 
+### 同步 Git Skill 集合
+
+`update` 只刷新已经安装的 Skill。当仓库目录可能新增或删除 Skill 时，使用 `sync`：
+
+```bash
+# 预览新增、内容更新和上游缺失项
+sklp sync https://github.com/owner/skills.git --path skills --dry-run --json
+
+# 安装新增项、更新已有项，并保留上游缺失的本地副本
+sklp sync https://github.com/owner/skills.git --path skills
+
+# 移除未启用的上游缺失 Skill
+sklp sync --all --prune
+
+# 显式停用受管目标后，移除已启用的缺失 Skill
+sklp sync --all --prune --force
+```
+
+新的 Git 安装会把仓库 URL、ref 和扫描目录登记为来源集合，之后 `sklp sync --all` 可以对账全部已登记集合。升级前已经安装的 Git Skill，需要执行一次显式的 `sklp sync <repo> --path <path>`；只有来源匹配的现有 Skill 才会被安全收编。
+
+同步结果会分别列出 `added`、`updated`、`unchanged`、`missing`、`removed` 和 `failed`。普通同步只记录上游缺失状态，保留本地副本。`--prune` 是删除边界：已启用的缺失 Skill 默认跳过，只有同时传入 `--force` 才会先停用再移除。上游 metadata 无效或名称重复时会报告失败，绝不会把它当成删除依据。没有稳定 manifest 标识时，Skill 改名会表现为一个新增项和一个缺失项。
+
 ### 查看状态并清理 Hub
 
 为一组明确指定的已安装 Skill 添加同一个私有标签：

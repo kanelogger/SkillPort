@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import { isValidSkillName, readSkillMetadata } from "../domain/metadata.js";
-import type { Diagnostic, Enablement, EnablementInfo, Skill } from "../domain/models.js";
+import type {
+  Diagnostic, Enablement, EnablementInfo, Skill, SourceCollection, SourceMembership
+} from "../domain/models.js";
 import { initializeHub, removeHubLocator, resolveHub, type HubPaths } from "../infrastructure/config.js";
 import { StateStore } from "../infrastructure/database.js";
 import {
@@ -13,8 +15,8 @@ import {
 } from "../infrastructure/filesystem.js";
 import {
   cleanupGitSourceCache, copySource, createGitSourceCache, inspectGitSource, prepareInstallSources,
-  prepareLocalSource, prepareSource, type GitRemoteCache, type GitSourceCache, type GitUpdateInspection,
-  type PreparedSource
+  prepareGitSyncSources, prepareLocalSource, prepareSource, type GitRemoteCache, type GitSourceCache, type GitUpdateInspection,
+  type PreparedGitCollection, type PreparedSource
 } from "../infrastructure/sources.js";
 import { globalTarget } from "../infrastructure/targets.js";
 import { renderCatalogJson, renderCatalogMarkdown, writeCatalogs, writeMeta } from "../projections/catalog.js";
@@ -27,7 +29,14 @@ type RecoveryPayload =
   | { kind: "update"; skill: Skill; destination: string; linked: true }
   | { kind: "update-tags"; skill: Skill; tags: string[] }
   | { kind: "add-tags"; changes: TagChange[] }
-  | { kind: "remove"; skill: Skill; destination: string; backup: string; enablements: Enablement[] }
+  | {
+    kind: "remove";
+    skill: Skill;
+    destination: string;
+    backup: string;
+    enablements: Enablement[];
+    sourceMembership?: SourceMembership;
+  }
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
   | { kind: "disable"; skill: Skill; enablement: Enablement };
 
@@ -38,6 +47,17 @@ type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
 type InstallOptions = { skipExisting?: boolean; gitPath?: string };
 type UpdateSkipReason = "linked" | "local-copied" | "pinned" | "up-to-date";
 type TagChange = { skill: Skill; tags: string[] };
+type SyncOptions = { ref?: string; gitPath?: string; prune?: boolean; force?: boolean };
+type SyncCandidate = { prepared: PreparedSource; metadata: InstallMetadata; current?: Skill };
+type SyncPlan = {
+  collection: PreparedGitCollection;
+  source: SourceCollection | null;
+  added: SyncCandidate[];
+  updated: Array<SyncCandidate & { current: Skill }>;
+  unchanged: Array<SyncCandidate & { current: Skill }>;
+  missing: Array<{ skill: Skill; membership: SourceMembership; enabled: boolean; action: SyncMissingAction }>;
+  failed: SyncFailure[];
+};
 
 export type UpdateCheck = GitUpdateInspection & {
   name: string;
@@ -61,6 +81,47 @@ export type UpdateSummary = {
 
 export type BatchUpdateSummary = Omit<UpdateSummary, "planned"> & {
   updated: Array<{ name: string; revision: string }>;
+};
+
+export type SyncMissingAction = "retain" | "remove" | "skip-enabled";
+
+export type SyncChange = {
+  name: string;
+  path: string;
+  revision: string;
+};
+
+export type SyncMissing = {
+  name: string;
+  path: string;
+  enabled: boolean;
+  action: SyncMissingAction;
+};
+
+export type SyncFailure = {
+  name?: string;
+  path?: string;
+  reason: string;
+};
+
+export type SyncSourceSummary = {
+  source: {
+    location: string;
+    ref: string | null;
+    path: string;
+    revision: string;
+  };
+  added: SyncChange[];
+  updated: SyncChange[];
+  unchanged: SyncChange[];
+  missing: SyncMissing[];
+  removed: Array<{ name: string }>;
+  failed: SyncFailure[];
+};
+
+export type SyncSummary = {
+  sources: SyncSourceSummary[];
+  failed: Array<{ source: string; reason: string }>;
 };
 
 export type SkillInstallationKind = "git-copy" | "local-copy" | "linked";
@@ -170,7 +231,9 @@ export class SkillPort {
   }
 
   install(source: string, ref?: string): Skill {
-    return this.installPreparedSource(prepareSource(source, this.paths.staging, ref));
+    const prepared = prepareSource(source, this.paths.staging, ref);
+    const registered = prepared.collection ? this.ensureSourceCollection(prepared.collection) : null;
+    return this.installPreparedSource(prepared, [], registered);
   }
 
   installAll(source: string, ref?: string, options: InstallOptions = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
@@ -178,8 +241,14 @@ export class SkillPort {
     try {
       const plan = this.installPlan(preparedSources, options);
       const publisher = plan.candidates.length >= 2 ? plan.candidates[0]?.prepared.publisher : null;
+      const collection = commonPreparedCollection(preparedSources);
+      const registered = collection ? this.ensureSourceCollection(collection) : null;
       return {
-        skills: plan.candidates.map((candidate) => this.installPreparedSource(candidate.prepared, publisher ? [publisher] : [])),
+        skills: plan.candidates.map((candidate) => this.installPreparedSource(
+          candidate.prepared,
+          publisher ? [publisher] : [],
+          registered
+        )),
         skipped: plan.skipped
       };
     } finally {
@@ -205,7 +274,218 @@ export class SkillPort {
     }
   }
 
-  private installPreparedSource(prepared: PreparedSource, tags: string[] = []): Skill {
+  previewSync(source: string, options: SyncOptions = {}): SyncSummary {
+    return this.syncOneSource(source, options, false);
+  }
+
+  syncSource(source: string, options: SyncOptions = {}): SyncSummary {
+    return this.syncOneSource(source, options, true);
+  }
+
+  previewSyncAll(options: Pick<SyncOptions, "prune" | "force"> = {}): SyncSummary {
+    return this.syncRegisteredSources(options, false);
+  }
+
+  syncAllSources(options: Pick<SyncOptions, "prune" | "force"> = {}): SyncSummary {
+    return this.syncRegisteredSources(options, true);
+  }
+
+  private syncOneSource(source: string, options: SyncOptions, apply: boolean): SyncSummary {
+    const prepared = prepareGitSyncSources(source, this.paths.staging, {
+      ref: options.ref,
+      gitPath: options.gitPath
+    });
+    try {
+      const plan = this.planSync(prepared.collection, prepared.sources, options);
+      return { sources: [apply ? this.applySyncPlan(plan) : syncPlanSummary(plan)], failed: [] };
+    } finally {
+      prepared.cleanup();
+    }
+  }
+
+  private syncRegisteredSources(
+    options: Pick<SyncOptions, "prune" | "force">,
+    apply: boolean
+  ): SyncSummary {
+    const summaries: SyncSourceSummary[] = [];
+    const failed: SyncSummary["failed"] = [];
+    const cache = createGitSourceCache();
+    try {
+      for (const registered of this.store.sources()) {
+        if (!this.store.source(registered.id)) continue;
+        try {
+          const prepared = prepareGitSyncSources(registered.location, this.paths.staging, {
+            ref: registered.ref ?? undefined,
+            gitPath: registered.scanPath === "." ? undefined : registered.scanPath
+          }, cache);
+          try {
+            const plan = this.planSync(prepared.collection, prepared.sources, options);
+            summaries.push(apply ? this.applySyncPlan(plan) : syncPlanSummary(plan));
+          } finally {
+            prepared.cleanup();
+          }
+        } catch (error) {
+          failed.push({ source: registered.location, reason: sanitizeError(error) });
+        }
+      }
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
+    return { sources: summaries, failed };
+  }
+
+  private planSync(
+    collection: PreparedGitCollection,
+    preparedSources: PreparedSource[],
+    options: Pick<SyncOptions, "prune" | "force">
+  ): SyncPlan {
+    const source = this.store.sourceByKey(collection.key);
+    const memberships = source ? this.store.sourceMemberships(source.id) : [];
+    const skillsById = new Map(this.store.skills().map((skill) => [skill.instanceId, skill]));
+    const failed: SyncFailure[] = [];
+    const protectedPaths = new Set<string>();
+    const metadata = preparedSources.map((prepared) => {
+      try {
+        return { prepared, metadata: readSkillMetadata(prepared.root) };
+      } catch (error) {
+        if (prepared.skillPath) protectedPaths.add(prepared.skillPath);
+        failed.push({ path: prepared.skillPath ?? undefined, reason: sanitizeError(error) });
+        return null;
+      }
+    }).filter((item): item is { prepared: PreparedSource; metadata: InstallMetadata } => item !== null);
+    const counts = new Map<string, number>();
+    for (const item of metadata) {
+      const key = item.metadata.name.toLocaleLowerCase("en-US");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const candidates = metadata.filter((item) => {
+      const duplicate = (counts.get(item.metadata.name.toLocaleLowerCase("en-US")) ?? 0) > 1;
+      if (!duplicate) return true;
+      if (item.prepared.skillPath) protectedPaths.add(item.prepared.skillPath);
+      failed.push({
+        name: item.metadata.name,
+        path: item.prepared.skillPath ?? undefined,
+        reason: `Duplicate Skill name in sync source: ${item.metadata.name}`
+      });
+      return false;
+    });
+    const added: SyncCandidate[] = [];
+    const updated: SyncPlan["updated"] = [];
+    const unchanged: SyncPlan["unchanged"] = [];
+    const matchedMemberships = new Set<string>();
+    for (const candidate of candidates) {
+      const path = candidate.prepared.skillPath!;
+      const exactMembership = memberships.find((membership) => {
+        const skill = skillsById.get(membership.skillId);
+        return membership.skillPath === path && skill?.name === candidate.metadata.name;
+      });
+      let current = exactMembership ? skillsById.get(exactMembership.skillId) : undefined;
+      if (exactMembership && current) matchedMemberships.add(exactMembership.skillId);
+      if (!current) {
+        const installed = this.store.skill(candidate.metadata.name);
+        if (installed) {
+          const membership = this.store.sourceMembershipForSkill(installed.instanceId);
+          if (membership) {
+            const owner = this.store.source(membership.sourceId);
+            if (source && membership.sourceId === source.id) {
+              matchedMemberships.add(installed.instanceId);
+            } else if (!owner || !sameSourceRepository(owner, collection)) {
+              failed.push({ name: candidate.metadata.name, path, reason: `Skill already belongs to another source: ${candidate.metadata.name}` });
+              continue;
+            }
+          } else if (!skillMatchesCollection(installed, candidate.prepared, collection)) {
+            failed.push({ name: candidate.metadata.name, path, reason: `Skill already installed from another source: ${candidate.metadata.name}` });
+            continue;
+          }
+          current = installed;
+        }
+      }
+      if (!current) {
+        added.push(candidate);
+        continue;
+      }
+      const membership = this.store.sourceMembershipForSkill(current.instanceId);
+      const needsUpdate = current.description !== candidate.metadata.description
+        || (current.sourceLocation !== candidate.prepared.location
+          && !skillMatchesCollection(current, candidate.prepared, collection))
+        || current.sourceRevision !== collection.revision
+        || membership?.status === "missing";
+      const resolved = { ...candidate, current };
+      if (needsUpdate) updated.push(resolved);
+      else unchanged.push(resolved);
+    }
+    const missing = memberships.flatMap((membership) => {
+      if (matchedMemberships.has(membership.skillId) || protectedPaths.has(membership.skillPath)) return [];
+      const skill = skillsById.get(membership.skillId);
+      if (!skill) return [];
+      const enabled = this.store.enablements(skill.instanceId).length > 0;
+      const action: SyncMissingAction = !options.prune
+        ? "retain"
+        : enabled && !options.force ? "skip-enabled" : "remove";
+      return [{ skill, membership, enabled, action }];
+    });
+    return { collection, source, added, updated, unchanged, missing, failed };
+  }
+
+  private applySyncPlan(plan: SyncPlan): SyncSourceSummary {
+    const registered = this.ensureSourceCollection(plan.collection);
+    const added: SyncChange[] = [];
+    const updated: SyncChange[] = [];
+    const unchanged: SyncChange[] = [];
+    const removed: Array<{ name: string }> = [];
+    const failed = [...plan.failed];
+    const publisher = plan.added.length >= 2 ? plan.added[0]?.prepared.publisher : null;
+    for (const candidate of plan.added) {
+      try {
+        const skill = this.installPreparedSource(candidate.prepared, publisher ? [publisher] : [], registered);
+        added.push(syncChange(skill, candidate.prepared, plan.collection.revision));
+      } catch (error) {
+        failed.push(syncCandidateFailure(candidate, error));
+      }
+    }
+    for (const candidate of plan.updated) {
+      try {
+        const skill = this.updatePreparedForSync(candidate.current, candidate.prepared);
+        this.recordSourceMembership(registered, skill, candidate.prepared.skillPath!, plan.collection.revision);
+        updated.push(syncChange(skill, candidate.prepared, plan.collection.revision));
+      } catch (error) {
+        failed.push(syncCandidateFailure(candidate, error));
+      }
+    }
+    for (const candidate of plan.unchanged) {
+      try {
+        this.recordSourceMembership(registered, candidate.current, candidate.prepared.skillPath!, plan.collection.revision);
+        unchanged.push(syncChange(candidate.current, candidate.prepared, plan.collection.revision));
+      } catch (error) {
+        failed.push(syncCandidateFailure(candidate, error));
+      }
+    }
+    for (const item of plan.missing) {
+      try {
+        this.markSourceMembershipMissing(registered.id, item.skill.instanceId, item.membership.lastSeenRevision);
+        if (item.action === "remove") {
+          this.remove(item.skill.name, item.enabled);
+          removed.push({ name: item.skill.name });
+        }
+      } catch (error) {
+        failed.push({ name: item.skill.name, path: item.membership.skillPath, reason: sanitizeError(error) });
+      }
+    }
+    return {
+      ...syncPlanSummary(plan),
+      added: added.sort(byName),
+      updated: updated.sort(byName),
+      unchanged: unchanged.sort(byName),
+      removed: removed.sort(byName),
+      failed: failed.sort(bySyncFailure)
+    };
+  }
+
+  private installPreparedSource(
+    prepared: PreparedSource,
+    tags: string[] = [],
+    source: SourceCollection | null = null
+  ): Skill {
     return this.mutate("install", (checkpoint) => {
       const staged = join(this.paths.staging, `install-${randomUUID()}`);
       try {
@@ -242,7 +522,12 @@ export class SkillPort {
           throw new CliError(`Hub destination already exists and is not registered: ${destination}`);
         }
         checkpoint({ kind: "install", skill, destination });
-        this.store.transaction(() => this.store.insertSkill(skill));
+        this.store.transaction(() => {
+          this.store.insertSkill(skill);
+          if (source && prepared.skillPath) {
+            this.store.assignSourceMembership(sourceMembership(source, skill, prepared.skillPath, prepared.revision));
+          }
+        });
         let published = false;
         try {
           renameSync(staged, destination);
@@ -529,6 +814,104 @@ export class SkillPort {
     });
   }
 
+  private updatePreparedForSync(current: Skill, prepared: PreparedSource): Skill {
+    return this.mutate("update", (checkpoint) => {
+      const installed = this.requireSkill(current.name);
+      if (installed.instanceId !== current.instanceId) throw new CliError(`Skill identity changed during sync: ${current.name}`);
+      const staged = join(this.paths.staging, `sync-update-${randomUUID()}`);
+      const backup = join(this.paths.staging, `sync-backup-${randomUUID()}`);
+      const destination = this.skillPath(current);
+      const metadata = readSkillMetadata(prepared.root);
+      if (metadata.name !== current.name) {
+        throw new CliError("Updated Skill name changed; remove and reinstall it.");
+      }
+      checkpoint({ kind: "update", skill: current, destination, backup });
+      try {
+        copySource(prepared.root, staged);
+        const updated: Skill = {
+          ...current,
+          description: metadata.description,
+          sourceLocation: prepared.location,
+          sourceRef: prepared.ref,
+          sourceRevision: prepared.revision ?? current.sourceRevision,
+          sourceTracking: prepared.sourceTracking,
+          updatedAt: new Date().toISOString()
+        };
+        writeMeta(join(staged, "meta.json"), updated);
+        renameSync(destination, backup);
+        try {
+          renameSync(staged, destination);
+          this.store.transaction(() => this.store.updateSkill(updated));
+          writeCatalogs(this.paths, this.store.skills());
+          this.assertEnablementsHealthy(updated);
+          rmSync(backup, { recursive: true, force: true });
+          return updated;
+        } catch (error) {
+          try {
+            if (pathExistsLexically(destination)) this.removeRecoveryOwnedSkill(destination, current.instanceId);
+            renameSync(backup, destination);
+            this.store.transaction(() => this.store.updateSkill(current));
+          } catch (rollbackError) {
+            throw new RecoveryPendingError("Sync update", rollbackError);
+          }
+          this.writeCatalogsBestEffort();
+          throw error;
+        }
+      } finally {
+        rmSync(staged, { recursive: true, force: true });
+      }
+    });
+  }
+
+  private ensureSourceCollection(collection: PreparedGitCollection): SourceCollection {
+    return this.mutate("sync-source", () => {
+      const current = this.store.sourceByKey(collection.key);
+      const timestamp = new Date().toISOString();
+      const source: SourceCollection = current ? {
+        ...current,
+        location: collection.location,
+        ref: collection.ref,
+        tracking: collection.tracking,
+        scanPath: collection.scanPath,
+        lastRevision: collection.revision,
+        updatedAt: timestamp
+      } : {
+        id: randomUUID(),
+        key: collection.key,
+        location: collection.location,
+        ref: collection.ref,
+        tracking: collection.tracking,
+        scanPath: collection.scanPath,
+        lastRevision: collection.revision,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      this.store.transaction(() => current ? this.store.updateSource(source) : this.store.insertSource(source));
+      return source;
+    });
+  }
+
+  private recordSourceMembership(
+    source: SourceCollection,
+    skill: Skill,
+    skillPath: string,
+    revision: string | null
+  ): void {
+    this.mutate("sync-membership", () => {
+      const previous = this.store.sourceMembershipForSkill(skill.instanceId);
+      this.store.transaction(() => {
+        this.store.assignSourceMembership(sourceMembership(source, skill, skillPath, revision));
+        if (previous && previous.sourceId !== source.id) this.store.deleteSourceIfEmpty(previous.sourceId);
+      });
+    });
+  }
+
+  private markSourceMembershipMissing(sourceId: string, skillId: string, revision: string | null): void {
+    this.mutate("sync-membership", () => {
+      this.store.transaction(() => this.store.updateSourceMembership(sourceId, skillId, "missing", revision));
+    });
+  }
+
   checkUpdate(name: string): UpdateCheck {
     const skill = this.requireSkill(name);
     if (skill.sourceType !== "git") throw new CliError("Update checks are only available for Git-installed Skills.");
@@ -708,6 +1091,7 @@ export class SkillPort {
       const skill = this.requireSkill(name);
       const active = this.store.enablements(skill.instanceId);
       const disabled: Enablement[] = [];
+      const sourceMembership = this.store.sourceMembershipForSkill(skill.instanceId) ?? undefined;
       const destination = this.skillPath(skill);
       const backup = join(this.paths.staging, `remove-${randomUUID()}`);
       if (requirements.unusedCopied) {
@@ -720,7 +1104,7 @@ export class SkillPort {
       if (active.length > 0 && !force) {
         throw new CliError(`Skill is enabled at: ${active.map((item) => item.targetKey).join(", ")}`);
       }
-      checkpoint({ kind: "remove", skill, destination, backup, enablements: active });
+      checkpoint({ kind: "remove", skill, destination, backup, enablements: active, sourceMembership });
       try {
         if (force) {
           for (const enablement of active) {
@@ -740,7 +1124,12 @@ export class SkillPort {
       } catch (error) {
         try {
           if (!existsSync(destination) && existsSync(backup)) renameSync(backup, destination);
-          if (!this.store.skill(skill.name)) this.store.transaction(() => this.store.insertSkill(skill));
+          if (!this.store.skill(skill.name)) {
+            this.store.transaction(() => {
+              this.store.insertSkill(skill);
+              if (sourceMembership) this.store.assignSourceMembership(sourceMembership);
+            });
+          }
           for (const enablement of disabled) {
             if (managedLinkState(enablement.entryPath, destination) === "absent") {
               const linkType = createDirectoryLink(destination, enablement.entryPath);
@@ -1225,7 +1614,12 @@ export class SkillPort {
     if (!existsSync(payload.destination)) {
       throw new CliError(`Interrupted removal cannot restore Skill content: ${payload.skill.name}`);
     }
-    if (!current) this.store.transaction(() => this.store.insertSkill(payload.skill));
+    if (!current || payload.sourceMembership && !this.store.sourceMembershipForSkill(payload.skill.instanceId)) {
+      this.store.transaction(() => {
+        if (!current) this.store.insertSkill(payload.skill);
+        if (payload.sourceMembership) this.store.assignSourceMembership(payload.sourceMembership);
+      });
+    }
     for (const enablement of payload.enablements) this.restoreEnablement(payload.skill, enablement);
     writeCatalogs(this.paths, this.store.skills());
     return false;
@@ -1304,6 +1698,11 @@ export class SkillPort {
     if ("enablements" in payload
       && !payload.enablements.every((item) => this.recoveryEnablementPathIsValid(item, payload.skill))) {
       throw new CliError(`Interrupted ${payload.kind} operation contains an invalid entry path.`);
+    }
+    if (payload.kind === "remove" && payload.sourceMembership
+      && (payload.sourceMembership.skillId !== payload.skill.instanceId
+        || !this.store.source(payload.sourceMembership.sourceId))) {
+      throw new CliError("Interrupted remove operation contains an invalid source membership.");
     }
   }
 
@@ -1496,6 +1895,105 @@ function managedTargetPaths(enablements: Enablement[]): string[] {
   return [...new Set(enablements.map((item) => item.targetPath))];
 }
 
+function commonPreparedCollection(sources: PreparedSource[]): PreparedGitCollection | null {
+  const collections = sources.flatMap((source) => source.collection ? [source.collection] : []);
+  if (collections.length === 0) return null;
+  const first = collections[0]!;
+  if (collections.length !== sources.length || collections.some((collection) => collection.key !== first.key)) {
+    throw new CliError("Install source resolved to inconsistent Git collections.");
+  }
+  return first;
+}
+
+function sourceMembership(
+  source: SourceCollection,
+  skill: Skill,
+  skillPath: string,
+  revision: string | null
+): SourceMembership {
+  return {
+    sourceId: source.id,
+    skillId: skill.instanceId,
+    skillPath,
+    status: "active",
+    lastSeenRevision: revision,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function syncPlanSummary(plan: SyncPlan): SyncSourceSummary {
+  return {
+    source: {
+      location: plan.collection.location,
+      ref: plan.collection.ref,
+      path: plan.collection.scanPath,
+      revision: plan.collection.revision
+    },
+    added: plan.added.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
+    updated: plan.updated.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
+    unchanged: plan.unchanged.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
+    missing: plan.missing.map((item) => ({
+      name: item.skill.name,
+      path: item.membership.skillPath,
+      enabled: item.enabled,
+      action: item.action
+    })).sort(byName),
+    removed: [],
+    failed: [...plan.failed].sort(bySyncFailure)
+  };
+}
+
+function syncChange(
+  skill: Pick<Skill, "name"> | InstallMetadata,
+  prepared: PreparedSource,
+  revision: string
+): SyncChange {
+  return { name: skill.name, path: prepared.skillPath!, revision };
+}
+
+function syncCandidateFailure(candidate: SyncCandidate, error: unknown): SyncFailure {
+  return {
+    name: candidate.metadata.name,
+    path: candidate.prepared.skillPath ?? undefined,
+    reason: sanitizeError(error)
+  };
+}
+
+function bySyncFailure(left: SyncFailure, right: SyncFailure): number {
+  return (left.name ?? left.path ?? "").localeCompare(right.name ?? right.path ?? "");
+}
+
+function sameSourceRepository(source: SourceCollection, collection: PreparedGitCollection): boolean {
+  return source.location === collection.location && source.ref === collection.ref;
+}
+
+function skillMatchesCollection(
+  skill: Skill,
+  prepared: PreparedSource,
+  collection: PreparedGitCollection
+): boolean {
+  return skill.sourceType === "git"
+    && skill.sourceRef === collection.ref
+    && (skill.sourceLocation === prepared.location || gitLocationBase(skill.sourceLocation) === collection.location);
+}
+
+function gitLocationBase(location: string): string {
+  try {
+    const url = new URL(location);
+    const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    if (url.hostname.toLowerCase() === "github.com" && segments.length >= 4 && segments[2] === "tree") {
+      url.pathname = `/${segments[0]}/${segments[1]!.replace(/\.git$/, "")}.git`;
+      url.search = "";
+    }
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return location.replace(/#sklp-path=.+$/, "").replace(/\/+$/, "");
+  }
+}
+
 function enablementHealth(entryPath: string, expected: string): EnablementInfo["health"] {
   const state = managedLinkState(entryPath, expected);
   if (state === "absent") return "missing";
@@ -1590,13 +2088,15 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
     return { kind, skill: value.skill, tags: value.tags };
   }
   if (kind === "remove" && typeof value.destination === "string" && typeof value.backup === "string"
-    && Array.isArray(value.enablements) && value.enablements.every((item) => isEnablement(item))) {
+    && Array.isArray(value.enablements) && value.enablements.every((item) => isEnablement(item))
+    && (value.sourceMembership == null || isSourceMembership(value.sourceMembership))) {
     return {
       kind,
       skill: value.skill,
       destination: value.destination,
       backup: value.backup,
-      enablements: value.enablements
+      enablements: value.enablements,
+      ...(value.sourceMembership ? { sourceMembership: value.sourceMembership } : {})
     };
   }
   if (kind === "enable" && isEnablement(value.enablement, false)) {
@@ -1663,6 +2163,16 @@ function isEnablement(value: unknown, requireId = true): value is Enablement {
     && typeof value.targetPath === "string"
     && typeof value.entryPath === "string"
     && typeof value.linkType === "string";
+}
+
+function isSourceMembership(value: unknown): value is SourceMembership {
+  return isRecord(value)
+    && typeof value.sourceId === "string"
+    && typeof value.skillId === "string"
+    && typeof value.skillPath === "string"
+    && (value.status === "active" || value.status === "missing")
+    && (value.lastSeenRevision === null || typeof value.lastSeenRevision === "string")
+    && typeof value.updatedAt === "string";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

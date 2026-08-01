@@ -206,6 +206,65 @@ test("an interrupted forced removal restores content, state, and managed entries
   assert.equal(existsSync(backup), false);
 });
 
+test("an interrupted removal restores source collection membership", () => {
+  const fixture = setup("source-membership-remove");
+  cli(["install", fixture.source], fixture.options);
+  const info = JSON.parse(cli(["info", "sample-skill"], fixture.options).stdout);
+  const destination = join(fixture.hub, "skills", "sample-skill");
+  const backup = join(fixture.hub, ".staging", "recovery-source-membership-backup");
+  const timestamp = new Date().toISOString();
+  const sourceMembership = {
+    sourceId: "recovery-source",
+    skillId: info.skill.instanceId,
+    skillPath: "skills/sample",
+    status: "missing",
+    lastSeenRevision: "old-revision",
+    updatedAt: timestamp
+  };
+  const payload = {
+    kind: "remove",
+    skill: info.skill,
+    destination,
+    backup,
+    enablements: [],
+    sourceMembership
+  };
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.prepare(`
+    INSERT INTO sources(id,source_key,location,source_ref,source_tracking,scan_path,last_revision,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?)
+  `).run("recovery-source", "recovery-source-key", "https://example.invalid/repo.git", null,
+    "default-branch", "skills", "old-revision", timestamp, timestamp);
+  db.prepare(`
+    INSERT INTO source_memberships(source_id,skill_id,skill_path,status,last_seen_revision,updated_at)
+    VALUES(?,?,?,?,?,?)
+  `).run(sourceMembership.sourceId, sourceMembership.skillId, sourceMembership.skillPath,
+    sourceMembership.status, sourceMembership.lastSeenRevision, sourceMembership.updatedAt);
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("crashed-source-remove", "remove", "started", JSON.stringify(payload), timestamp);
+  db.prepare("DELETE FROM source_memberships WHERE skill_id=?").run(info.skill.instanceId);
+  db.prepare("DELETE FROM skills WHERE instance_id=?").run(info.skill.instanceId);
+  db.close();
+  renameSync(destination, backup);
+
+  const recovered = cli(["info", "sample-skill"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  const recoveredDb = new DatabaseSync(join(fixture.hub, "state.db"));
+  const restoredMembership = recoveredDb.prepare(`
+    SELECT source_id,skill_id,skill_path,status,last_seen_revision
+    FROM source_memberships WHERE skill_id=?
+  `).get(info.skill.instanceId);
+  assert.deepEqual({ ...restoredMembership }, {
+    source_id: sourceMembership.sourceId,
+    skill_id: sourceMembership.skillId,
+    skill_path: sourceMembership.skillPath,
+    status: sourceMembership.status,
+    last_seen_revision: sourceMembership.lastSeenRevision
+  });
+  recoveredDb.close();
+  assert.equal(existsSync(backup), false);
+});
+
 test("recovery rejects a journal path outside the managed Hub", () => {
   const fixture = setup("unsafe");
   cli(["install", fixture.source], fixture.options);
@@ -312,9 +371,47 @@ test("a version 2 database preserves legacy Skills while adding source tracking"
   assert.equal(columns.includes("source_tracking"), true);
   assert.equal(store.skill("legacy-skill")?.sourceTracking, null);
   assert.deepEqual(store.skill("legacy-skill")?.tags, []);
-  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3, 4, 5]);
+  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3, 4, 5, 6]);
   assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='index' AND name='skill_tags_tag_skill_id'").get() !== undefined, true);
+  assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sources'").get() !== undefined, true);
+  assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_memberships'").get() !== undefined, true);
+  assert.equal(store.skill("legacy-skill")?.name, "legacy-skill");
   store.close();
+});
+
+test("a read-only version 5 database exposes no registered sync sources without migrating", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-readonly-v5-"));
+  const paths = resolveHub(join(root, "hub"));
+  mkdirSync(paths.root, { recursive: true });
+  const db = new DatabaseSync(paths.database);
+  db.exec(`
+    CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+    CREATE TABLE skills (
+      instance_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      description TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_location TEXT NOT NULL,
+      source_ref TEXT,
+      source_revision TEXT,
+      source_tracking TEXT,
+      installed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO schema_migrations(version, applied_at) VALUES(5, 'test');
+  `);
+  db.close();
+
+  const store = new StateStore(paths, { readOnly: true });
+  assert.deepEqual(store.sources(), []);
+  assert.equal(store.sourceByKey("missing"), null);
+  assert.deepEqual(store.sourceMemberships("missing"), []);
+  assert.equal(store.sourceMembershipForSkill("missing"), null);
+  store.close();
+  const unchanged = new DatabaseSync(paths.database);
+  assert.deepEqual(unchanged.prepare("SELECT version FROM schema_migrations").all().map((row) => row.version), [5]);
+  assert.equal(unchanged.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sources'").get(), undefined);
+  unchanged.close();
 });
 
 function setup(name) {

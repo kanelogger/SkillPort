@@ -166,6 +166,58 @@ test("desktop facade checks, previews, and updates copied Git Skills without cha
   });
 });
 
+test("desktop facade previews and synchronizes registered Git collections with explicit pruning", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-sync-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  makeSkill(join(repo, "skills", "alpha"), "desktop-sync-alpha", "Alpha before");
+  makeSkill(join(repo, "skills", "beta"), "desktop-sync-beta", "Beta before");
+  git(["init"], repo);
+  git(["branch", "-M", "main"], repo);
+  git(["add", "."], repo);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], repo);
+
+  withEnvironment(root, ({ hub }) => {
+    const desktop = new DesktopSkillPort();
+    desktop.initialize({ project });
+    desktop.install(pathToFileURL(repo).href, { gitPath: "skills" });
+    desktop.enable("desktop-sync-beta", { type: "project", path: project });
+
+    makeSkill(join(repo, "skills", "alpha"), "desktop-sync-alpha", "Alpha after");
+    makeSkill(join(repo, "skills", "gamma"), "desktop-sync-gamma", "Gamma added");
+    rmSync(join(repo, "skills", "beta"), { recursive: true });
+    git(["add", "."], repo);
+    git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "reconcile"], repo);
+
+    const preview = desktop.previewSyncAll();
+    assert.deepEqual(preview.sources[0].added.map((item) => item.name), ["desktop-sync-gamma"]);
+    assert.deepEqual(preview.sources[0].updated.map((item) => item.name), ["desktop-sync-alpha"]);
+    assert.deepEqual(preview.sources[0].missing, [{
+      name: "desktop-sync-beta",
+      path: "skills/beta",
+      enabled: true,
+      action: "retain"
+    }]);
+    assert.match(readFileSync(join(hub, "skills", "desktop-sync-alpha", "SKILL.md"), "utf8"), /Alpha before/);
+
+    const synced = desktop.syncAllSources();
+    assert.deepEqual(synced.sources[0].added.map((item) => item.name), ["desktop-sync-gamma"]);
+    assert.match(readFileSync(join(hub, "skills", "desktop-sync-alpha", "SKILL.md"), "utf8"), /Alpha after/);
+    assert.equal(existsSync(join(hub, "skills", "desktop-sync-beta", "SKILL.md")), true);
+
+    const protectedPreview = desktop.previewSyncAll({ prune: true });
+    assert.equal(protectedPreview.sources[0].missing[0].action, "skip-enabled");
+    assert.deepEqual(protectedPreview.sources[0].removed, []);
+
+    const pruned = desktop.syncAllSources({ prune: true, force: true });
+    assert.deepEqual(pruned.sources[0].removed, [{ name: "desktop-sync-beta" }]);
+    assert.equal(existsSync(join(hub, "skills", "desktop-sync-beta")), false);
+    assert.equal(existsSync(join(project, ".agents", "skills", "desktop-sync-beta")), false);
+  });
+});
+
 test("desktop facade previews and moves pinned Git Skills to an explicit branch", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-desktop-retrack-"));
   const project = join(root, "project");

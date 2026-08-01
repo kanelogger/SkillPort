@@ -13,11 +13,21 @@ test("help exposes the v1 command surface without deferred aliases", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-help-"));
   const result = cli(["--help"], { cwd: root, hub: join(root, "hub"), home: root });
   assert.equal(result.status, 0);
-  for (const command of ["init", "install", "link", "unlink", "update", "remove", "prune", "uninstall", "list", "tag", "export", "info", "enable", "disable", "doctor", "agent"]) {
+  for (const command of ["init", "install", "link", "unlink", "update", "sync", "remove", "prune", "uninstall", "list", "tag", "export", "info", "enable", "disable", "doctor", "agent"]) {
     assert.match(result.stdout, new RegExp(`\\b${command}\\b`));
   }
   for (const command of ["repair", "catalog", "import"]) {
     assert.doesNotMatch(result.stdout, new RegExp(`^\\s+${command}\\b`, "m"));
+  }
+});
+
+test("sync help documents reconciliation and removal controls", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-sync-help-"));
+  const result = cli(["sync", "--help"], { cwd: root, hub: join(root, "hub"), home: root });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /sklp sync \[options\] \[source\]/);
+  for (const option of ["--all", "--path", "--dry-run", "--prune", "--force", "--json"]) {
+    assert.match(result.stdout, new RegExp(option));
   }
 });
 

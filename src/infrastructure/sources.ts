@@ -15,6 +15,23 @@ export type PreparedSource = {
   revision: string | null;
   sourceTracking: GitSourceTracking | null;
   publisher: string | null;
+  collection: PreparedGitCollection | null;
+  skillPath: string | null;
+  cleanup: () => void;
+};
+
+export type PreparedGitCollection = {
+  key: string;
+  location: string;
+  ref: string | null;
+  tracking: GitSourceTracking | null;
+  scanPath: string;
+  revision: string;
+};
+
+export type PreparedGitSourceSet = {
+  collection: PreparedGitCollection;
+  sources: PreparedSource[];
   cleanup: () => void;
 };
 
@@ -62,6 +79,17 @@ export function prepareSource(
     throw new CliError("Skill source must contain exactly one Skill.");
   }
   return sources[0]!;
+}
+
+export function prepareGitSyncSources(
+  input: string,
+  staging: string,
+  options: PrepareOptions = {},
+  cache?: GitSourceCache
+): PreparedGitSourceSet {
+  validateGitRef(options.ref);
+  if (existsSync(resolve(input))) throw new CliError("Sync sources must be Git URLs.");
+  return prepareGitSourceSet(input, staging, options, cache, true);
 }
 
 export function inspectGitSource(
@@ -251,6 +279,16 @@ function prepareGitSources(
   options: PrepareOptions,
   cache?: GitSourceCache
 ): PreparedSource[] {
+  return prepareGitSourceSet(input, staging, options, cache, false).sources;
+}
+
+function prepareGitSourceSet(
+  input: string,
+  staging: string,
+  options: PrepareOptions,
+  cache: GitSourceCache | undefined,
+  allowEmpty: boolean
+): PreparedGitSourceSet {
   const spec = gitSourceSpec(input, options);
   const publisher = githubOwner(input);
   const cacheKey = `${spec.cloneUrl}\0${spec.ref ?? ""}`;
@@ -287,19 +325,40 @@ function prepareGitSources(
   };
   try {
     const selectedRoot = spec.path ? join(cloneRoot, spec.path) : cloneRoot;
-    const roots = skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`);
+    const roots = allowEmpty && (!existsSync(selectedRoot) || !lstatSync(selectedRoot).isDirectory())
+      ? []
+      : skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`, allowEmpty);
+    const tracking = sourceTrackingForGitRef(spec.ref, cloneRoot);
+    const collectionLocation = normalizeGitCollectionLocation(spec.cloneUrl);
+    const scanPath = spec.path ?? ".";
+    const collection: PreparedGitCollection = {
+      key: gitCollectionKey(collectionLocation, spec.ref, scanPath),
+      location: collectionLocation,
+      ref: spec.ref,
+      tracking,
+      scanPath,
+      revision: revisionValue!
+    };
+    if (roots.length === 0) {
+      cleanupClone();
+      return { collection, sources: [], cleanup: () => undefined };
+    }
     if (roots.length === 1) {
       validateTree(roots[0]!);
-      return [{
+      const skillPath = relative(cloneRoot, roots[0]!).replaceAll("\\", "/") || ".";
+      const sources = [{
         root: roots[0]!,
-        type: "git",
-        location: spec.location,
+        type: "git" as const,
+        location: skillPath === scanPath ? spec.location : sourceWithPathFragment(spec.cloneUrl, skillPath),
         ref: spec.ref,
         revision: revisionValue,
-        sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
+        sourceTracking: tracking,
         publisher,
+        collection,
+        skillPath,
         cleanup: cleanupClone
       }];
+      return { collection, sources, cleanup: () => sources[0]!.cleanup() };
     }
     const prepared = roots.map((root, index) => {
       const stagedRoot = join(staging, `git-skill-${Date.now()}-${process.pid}-${index}`);
@@ -311,13 +370,21 @@ function prepareGitSources(
         location: sourceWithPathFragment(spec.cloneUrl, relative(cloneRoot, root).replaceAll("\\", "/")),
         ref: spec.ref,
         revision: revisionValue,
-        sourceTracking: sourceTrackingForGitRef(spec.ref, cloneRoot),
+        sourceTracking: tracking,
         publisher,
+        collection,
+        skillPath: relative(cloneRoot, root).replaceAll("\\", "/") || ".",
         cleanup: () => rmSync(stagedRoot, { recursive: true, force: true })
       };
     });
     cleanupClone();
-    return prepared;
+    return {
+      collection,
+      sources: prepared,
+      cleanup: () => {
+        for (const source of prepared) source.cleanup();
+      }
+    };
   } catch (error) {
     for (const root of stagedRoots) rmSync(root, { recursive: true, force: true });
     cleanupClone();
@@ -445,7 +512,7 @@ function registrySkillRoots(registryPath: string, localPath: string, key: string
   return skillRoots(root, `No Skill found for registry source: ${key}`);
 }
 
-function skillRoots(root: string, emptyMessage: string): string[] {
+function skillRoots(root: string, emptyMessage: string, allowEmpty = false): string[] {
   if (!existsSync(root) || !lstatSync(root).isDirectory()) {
     throw new CliError(`Skill source path is not a directory: ${root}`);
   }
@@ -455,7 +522,7 @@ function skillRoots(root: string, emptyMessage: string): string[] {
     if (basename(path) === "SKILL.md") roots.push(dirname(path));
   });
   roots.sort((a, b) => a.localeCompare(b));
-  if (roots.length === 0) throw new CliError(emptyMessage);
+  if (roots.length === 0 && !allowEmpty) throw new CliError(emptyMessage);
   return roots;
 }
 
@@ -478,6 +545,8 @@ export function prepareLocalSource(input: string): PreparedSource {
     revision: null,
     sourceTracking: null,
     publisher: null,
+    collection: null,
+    skillPath: null,
     cleanup: () => undefined
   };
 }
@@ -624,6 +693,23 @@ function sanitizeSource(value: string): string {
   } catch {
     return value.replace(/(https?:\/\/)[^/@]+@/, "$1[redacted]@");
   }
+}
+
+function normalizeGitCollectionLocation(value: string): string {
+  const sanitized = sanitizeSource(value);
+  try {
+    const url = new URL(sanitized);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return sanitized.replace(/\/+$/, "");
+  }
+}
+
+function gitCollectionKey(location: string, ref: string | null, scanPath: string): string {
+  return JSON.stringify([location, ref, scanPath]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

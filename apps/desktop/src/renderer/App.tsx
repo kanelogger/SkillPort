@@ -10,6 +10,7 @@ import type {
   Enablement,
   ExportCatalogResult,
   FleetUpdateCheck,
+  SyncSummary,
   UpdateSummary
 } from "skill-port-cli/desktop";
 import type { InstallPreview } from "../shared/rpc.js";
@@ -37,6 +38,7 @@ export function App() {
   const [enableOpen, setEnableOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [updateDialog, setUpdateDialog] = useState<{ name?: string; checks: FleetUpdateCheck[] } | null>(null);
   const t = (key: string) => translate(language, key);
 
@@ -133,7 +135,7 @@ export function App() {
           <div className="top-actions">
             {busy && <span className="busy-label"><span className="spinner" />{t("busy")}</span>}
             <button className="button ghost" onClick={() => setLanguage(language === "en" ? "zh-CN" : "en")}>{t("language")}</button>
-            {view === "skills" && <><button className="button ghost" disabled={busy} onClick={() => void exportCatalog()}>⇩ {t("exportCatalog")}</button><button className="button ghost" disabled={busy} onClick={() => void checkUpdates()}>↻ {t("checkUpdates")}</button><button className="button primary" disabled={busy} onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button></>}
+            {view === "skills" && <><button className="button ghost" disabled={busy} onClick={() => void exportCatalog()}>⇩ {t("exportCatalog")}</button><button className="button ghost" disabled={busy} onClick={() => setSyncOpen(true)}>↭ {t("syncSources")}</button><button className="button ghost" disabled={busy} onClick={() => void checkUpdates()}>↻ {t("checkUpdates")}</button><button className="button primary" disabled={busy} onClick={() => setAddOpen(true)}>＋ {t("addSkill")}</button></>}
           </div>
         </header>
         {error && <div className="error-banner" role="alert"><strong>{t("operationFailed")}</strong><span>{error}</span><button onClick={() => setError(null)} aria-label={t("close")}>×</button></div>}
@@ -197,6 +199,13 @@ export function App() {
           await refresh();
         });
       }} />}
+      {syncOpen && <SyncModal
+        t={t}
+        busy={busy}
+        onClose={() => setSyncOpen(false)}
+        onRun={run}
+        onComplete={() => refresh()}
+      />}
       {updateDialog && <UpdateModal
         scopeName={updateDialog.name}
         checks={updateDialog.checks}
@@ -404,6 +413,86 @@ function RemoveModal({ skill, t, busy, onClose, onConfirm }: { skill: DesktopSki
   const [force, setForce] = useState(false);
   const requiresForce = skill.enablementCount > 0;
   return <Modal title={`${t("confirmRemove")}: ${skill.name}`} onClose={onClose}><p className="muted">{t("destructiveDescription")}</p><dl className="facts"><div><dt>{t("source")}</dt><dd title={skill.sourceLocation}>{skill.sourceLocation}</dd></div></dl>{skill.enablements.length > 0 && <div className="preview-box"><strong>{t("enablements")}</strong><ul>{skill.enablements.map((item) => <li key={item.id}>{item.targetType === "global" ? t("globalTarget") : item.targetKey} — {item.entryPath}</li>)}</ul></div>}{requiresForce && <label className="check"><input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} /><span>{t("forceRemove")}</span></label>}<div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("cancel")}</button><button className="button danger" disabled={busy || (requiresForce && !force)} onClick={() => onConfirm(force)}>{skill.installationKind === "linked" ? t("unlink") : t("remove")}</button></div></Modal>;
+}
+
+function SyncModal({ t, busy, onClose, onRun, onComplete }: {
+  t: (key: string) => string;
+  busy: boolean;
+  onClose: () => void;
+  onRun: <T>(operation: () => Promise<T>) => Promise<T | undefined>;
+  onComplete: () => Promise<void>;
+}) {
+  const [prune, setPrune] = useState(false);
+  const [force, setForce] = useState(false);
+  const [preview, setPreview] = useState<SyncSummary | null>(null);
+  const [previewOptions, setPreviewOptions] = useState<{ prune: boolean; force: boolean } | null>(null);
+  const [result, setResult] = useState<SyncSummary | null>(null);
+  const previewCurrent = previewOptions?.prune === prune && previewOptions.force === force;
+  const hasEnabledMissing = preview?.sources.some((source) =>
+    source.missing.some((item) => item.action === "skip-enabled")) ?? false;
+
+  async function previewSync() {
+    const value = await onRun(() => window.skillPort.previewSyncAll({ prune, force }));
+    if (value) {
+      setPreview(value);
+      setPreviewOptions({ prune, force });
+      setResult(null);
+    }
+  }
+
+  async function confirmSync() {
+    if (!previewCurrent) return;
+    const value = await onRun(() => window.skillPort.syncAllSources({ prune, force }));
+    if (value) {
+      setResult(value);
+      await onComplete();
+    }
+  }
+
+  return <Modal title={t("syncSources")} onClose={onClose}>
+    <p className="muted">{t("syncDescription")}</p>
+    <label className="check"><input type="checkbox" checked={prune} onChange={(event) => {
+      setPrune(event.target.checked);
+      if (!event.target.checked) setForce(false);
+      setResult(null);
+    }} /><span>{t("syncPrune")}</span></label>
+    {prune && (force || hasEnabledMissing) && <label className="check"><input type="checkbox" checked={force} onChange={(event) => {
+      setForce(event.target.checked);
+      setResult(null);
+    }} /><span>{t("syncForce")}</span></label>}
+    {preview && !previewCurrent && <p className="field-help invalid">{t("syncPreviewStale")}</p>}
+    {preview && <div className="preview-box"><strong>{t("syncPreview")}</strong><SyncSummaryView summary={preview} t={t} /></div>}
+    {result && <div className="preview-box"><strong>{t("syncComplete")}</strong><SyncSummaryView summary={result} t={t} applied /></div>}
+    <div className="modal-actions"><button className="button ghost" onClick={onClose}>{t("close")}</button><button className="button" disabled={busy || Boolean(result)} onClick={() => void previewSync()}>{t("previewSync")}</button><button className={`button ${prune ? "danger" : "primary"}`} disabled={busy || !previewCurrent || !preview?.sources.length || Boolean(result)} onClick={() => void confirmSync()}>{t("confirmSync")}</button></div>
+  </Modal>;
+}
+
+function SyncSummaryView({ summary, t, applied = false }: {
+  summary: SyncSummary;
+  t: (key: string) => string;
+  applied?: boolean;
+}) {
+  const added = summary.sources.flatMap((source) => source.added.map((item) => `${item.name} — ${item.path}`));
+  const updated = summary.sources.flatMap((source) => source.updated.map((item) => `${item.name} — ${item.path}`));
+  const unchanged = summary.sources.flatMap((source) => source.unchanged.map((item) => item.name));
+  const missing = summary.sources.flatMap((source) => source.missing.map((item) =>
+    `${item.name} — ${t(`syncAction.${item.action}`)}`));
+  const removed = summary.sources.flatMap((source) => source.removed.map((item) => item.name));
+  const failures = [
+    ...summary.sources.flatMap((source) => source.failed.map((item) =>
+      `${item.name ?? item.path ?? source.source.location}: ${item.reason}`)),
+    ...summary.failed.map((item) => `${item.source}: ${item.reason}`)
+  ];
+  if (summary.sources.length === 0 && summary.failed.length === 0) return <p className="muted">{t("noSyncSources")}</p>;
+  return <>
+    <PreviewGroup label={t("registeredSources")} items={summary.sources.map((item) => `${item.source.location} — ${item.source.revision}`)} />
+    <PreviewGroup label={applied ? t("added") : t("wouldInstall")} items={added} />
+    <PreviewGroup label={applied ? t("updated") : t("wouldUpdate")} items={updated} />
+    <PreviewGroup label={t("unchanged")} items={unchanged} />
+    <PreviewGroup label={t("missing")} items={missing} />
+    <PreviewGroup label={t("removed")} items={removed} />
+    <PreviewGroup label={t("failed")} items={failures} />
+  </>;
 }
 
 function UpdateModal({ scopeName, checks, t, busy, onClose, onPreview, onConfirm }: {

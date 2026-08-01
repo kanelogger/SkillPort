@@ -118,6 +118,16 @@ test("Chinese help is available through SKLP_LANG", () => {
   assert.equal(updateHelp.status, 0, updateHelp.stderr);
   assert.match(updateHelp.stdout, /--ref <ref>/);
   assert.match(updateHelp.stdout, /改为跟踪指定 Git 分支/);
+
+  const syncHelp = cli(["sync", "--help"], {
+    cwd: root,
+    hub: join(root, "hub"),
+    home: root,
+    env: { SKLP_LANG: "zh-CN" }
+  });
+  assert.equal(syncHelp.status, 0, syncHelp.stderr);
+  assert.match(syncHelp.stdout, /同步 Git 来源集合/);
+  assert.match(syncHelp.stdout, /安全移除上游已缺失的 Skill/);
 });
 
 test("export localizes human output and the static catalog", (t) => {

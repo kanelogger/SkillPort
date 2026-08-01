@@ -18,6 +18,8 @@ const bridge: DesktopBridge = {
   registerProject: (input) => invoke("registerProject", input),
   previewInstall: (input) => invoke("previewInstall", input),
   install: (input) => invoke("install", input),
+  previewSyncAll: (input = {}) => invoke("previewSyncAll", input),
+  syncAllSources: (input = {}) => invoke("syncAllSources", input),
   previewLink: (input) => invoke("previewLink", input),
   link: (input) => invoke("link", input),
   updateTags: (input) => invoke("updateTags", input),

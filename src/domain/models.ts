@@ -14,6 +14,29 @@ export type Skill = {
   updatedAt: string;
 };
 
+export type SourceCollection = {
+  id: string;
+  key: string;
+  location: string;
+  ref: string | null;
+  tracking: GitSourceTracking | null;
+  scanPath: string;
+  lastRevision: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SourceMembershipStatus = "active" | "missing";
+
+export type SourceMembership = {
+  sourceId: string;
+  skillId: string;
+  skillPath: string;
+  status: SourceMembershipStatus;
+  lastSeenRevision: string | null;
+  updatedAt: string;
+};
+
 export type Enablement = {
   id: number;
   skillId: string;
