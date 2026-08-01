@@ -175,6 +175,7 @@ sklp export ./team-skills.html --force
 1. macOS 下载 `arm64.dmg`（Apple 芯片）或 `x64.dmg`（Intel）；Windows 下载 `Skill Port Setup.exe`。
 2. 选择一个项目目录。
 3. 安装或链接 Skill，然后选择项目启用或全局启用。
+4. 对已登记的 Git 集合，使用 **同步来源** 先预览仓库中的新增、更新和缺失 Skill，再执行同步。缺失 Skill 默认保留；只有显式启用清理才会删除，仍在启用的缺失 Skill 还需单独确认强制操作。
 
 macOS 第一次打开时，可以右键应用并选择“打开”。不要安装已经撤回的 Desktop 0.1.3。完整步骤见 [Desktop 说明](docs/desktop.md)。
 

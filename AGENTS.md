@@ -82,6 +82,15 @@
 
 进入执行阶段后，一次只完成一个逻辑步骤。每一步结束报告改动文件、关键决策、测试或验证结果和剩余工作。扩大范围前征得用户同意。
 
+## Iteration Completion Gate
+
+每次迭代结束前必须完成以下两项；任一项未完成，不得宣称本次迭代完成：
+
+1. 更新与本次迭代相关的说明文档。根据实际变化同步用户指南、中英文 README、命令/退出码文档、Changelog、Desktop 文档和 `docs/verification/requirements-matrix.md` 中适用的部分；没有受影响的文档无需机械改动。
+2. 删除本次构建、测试和验证产生的垃圾数据。先使用 `git status --short`、`git clean -nd`、`git clean -ndX` 或精确目录检查确认来源，再只删除本次生成且可再生的 repo/cache/output/build/test-results；保留 tracked 文件、依赖环境、用户文件和无法证明由本次迭代产生的内容。
+
+最终报告必须明确列出已更新的文档、已清理的生成物；若没有可清理内容，也要报告检查结果。
+
 ## Documentation Triggers
 
 以下变化需要同步更新文档：
@@ -90,6 +99,7 @@
 - Hub/catalog metadata 语义。
 - `install`、`link`、`update`、`remove` 的安全保证。
 - Agent 发现目录或目标别名。
+- Desktop UI、RPC 契约、用户流程或安全确认行为。
 
 当证据状态或行为保证变化时，同步更新 `docs/verification/requirements-matrix.md`。
 

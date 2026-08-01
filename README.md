@@ -175,6 +175,7 @@ Install [Skill Port Desktop 0.1.4](https://github.com/kanelogger/SkillPort/relea
 1. On macOS, download `arm64.dmg` for Apple Silicon or `x64.dmg` for Intel. On Windows, download `Skill Port Setup.exe`.
 2. Choose a project directory.
 3. Install or link a Skill, then enable it for the project or globally.
+4. For registered Git collections, use **Sync sources** to preview repository additions, updates, and missing Skills before applying them. Missing Skills stay local unless pruning is explicitly enabled; enabled missing Skills require a separate force confirmation.
 
 On the first macOS launch, right-click the app and choose **Open**. Do not install the withdrawn Desktop 0.1.3. See the [Desktop guide](docs/desktop.md) for complete instructions.
 
