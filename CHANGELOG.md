@@ -28,6 +28,7 @@
 
 ### Features
 
+- Add atomic `sklp tag add <tag> <skills...>` batch tagging with read-only preview, JSON output, case-insensitive matching, and shared CLI/Desktop Hub visibility.
 - Bundle a compact `skill-port` management Skill and register it during npm-global installation so compatible Agents can discover `sklp` without changes to `AGENTS.md`.
 - Add the idempotent `sklp agent setup` recovery command and read-only doctor diagnostics for missing or conflicting Agent integration state.
 - Support the CLI on Node.js 22.16 or newer while preserving stderr-free JSON output on Node 22.

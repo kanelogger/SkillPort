@@ -219,7 +219,7 @@ agentCommand.command("setup")
 
 program.command("list")
   .description(human("List installed Skills", "列出已安装 Skill"))
-  .option("--tag <tag>", human("Filter Skills by Publisher tag", "按发布者标签筛选 Skill"))
+  .option("--tag <tag>", human("Filter Skills by private tag", "按私有标签筛选 Skill"))
   .option("--status", human("Include installation, enablement, and health status", "包含安装类型、启用数量和健康状态"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => withApp((app) => {
@@ -233,6 +233,24 @@ program.command("list")
     if (options.json) printJson({ skills: skills.map(publicSkill) });
     else for (const skill of skills) console.log(`${skill.name}\t${skill.description}${skill.tags.length ? `\t${skill.tags.join(", ")}` : ""}`);
   })));
+
+const tagCommand = program.command("tag")
+  .description(human("Manage private Skill tags", "管理 Skill 私有标签"));
+
+tagCommand.command("add")
+  .description(human("Add a tag to one or more installed Skills", "为一个或多个已安装 Skill 添加标签"))
+  .argument("<tag>", human("Tag to add", "要添加的标签"))
+  .argument("<skills...>", human("Installed Skill names", "已安装 Skill 名称"))
+  .option("--dry-run", human("Preview tag changes without changing state", "预览标签变更，不改写状态"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((tag, skills, options) => {
+    const result = withApp(
+      (app) => options.dryRun ? app.previewAddTag(tag, skills) : app.addTag(tag, skills),
+      options.dryRun ? { recover: false, readOnly: true } : undefined
+    );
+    if (options.json) printJson({ ...(options.dryRun ? { dryRun: true } : {}), ...batchTagPayload(result) });
+    else printBatchTagResult(result, Boolean(options.dryRun));
+  }));
 
 program.command("export")
   .description(human("Export a shareable static Skill catalog", "导出可分享的静态 Skill 目录"))
@@ -427,6 +445,19 @@ function publicSkill(skill: Skill) {
     description: skill.description,
     tags: skill.tags
   };
+}
+
+function batchTagPayload(result: { tag: string; skills: Skill[] }) {
+  return { tag: result.tag, skills: result.skills.map(publicSkill) };
+}
+
+function printBatchTagResult(result: { tag: string; skills: Skill[] }, dryRun: boolean): void {
+  for (const skill of result.skills) {
+    console.log(human(
+      `${dryRun ? "Would tag" : "Tagged"} ${skill.name} with ${result.tag}`,
+      `${dryRun ? "将为" : "已为"} ${skill.name} ${dryRun ? "添加" : "添加了"}标签 ${result.tag}`
+    ));
+  }
 }
 
 function installPayload(value: { skills: unknown[]; skipped?: unknown[]; failed?: unknown[]; dryRun?: boolean }) {

@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { DesktopSkillPort, toDesktopError } from "../dist/desktop.js";
-import { makeSkill } from "./helpers.js";
+import { cli, makeSkill } from "./helpers.js";
 
 function withEnvironment(root, fn) {
   const previous = {
@@ -88,6 +88,29 @@ test("desktop facade initializes a Hub and exposes project and Skill DTOs", () =
     desktop.remove("desktop-skill");
     assert.deepEqual(desktop.listSkills(), []);
   });
+});
+
+test("desktop facade reads tags added by the CLI from the same Hub", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-desktop-cli-tags-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const project = join(root, "project");
+  const source = join(root, "source");
+  const hub = join(root, "hub");
+  mkdirSync(project);
+  makeSkill(source, "cli-tagged-skill", "Tagged through CLI");
+  const options = { cwd: project, hub, home: root };
+
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", source], options).status, 0);
+  const tagged = cli(["tag", "add", "develop", "cli-tagged-skill"], options);
+  assert.equal(tagged.status, 0, tagged.stderr);
+
+  withEnvironment(root, () => {
+    const desktop = new DesktopSkillPort();
+    assert.deepEqual(desktop.getSkill("cli-tagged-skill").tags, ["develop"]);
+    assert.deepEqual(desktop.listSkills("DEVELOP").map((skill) => skill.name), ["cli-tagged-skill"]);
+  });
+
 });
 
 test("desktop facade previews links and preserves linked source on unlink", () => {

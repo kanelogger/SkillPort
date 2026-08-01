@@ -106,6 +106,16 @@ The batch form changes every Git-installed Skill to the requested ref and skips 
 
 ### Inspect and prune the Hub
 
+Add one private tag to an explicit set of installed Skills:
+
+```bash
+sklp tag add develop code-review-helper skill-creator
+sklp tag add develop code-review-helper skill-creator --dry-run --json
+sklp list --tag develop
+```
+
+The batch command validates every Skill and the merged 32-tag limit before writing. It adds the tag in one transaction, preserves existing tags, and treats tag and Skill-name casing as equivalent for matching. `--dry-run` opens the Hub read-only. Private tags remain Hub-only and are excluded from exported catalogs and Skill files.
+
 Show installation kind, enablement count, and health without exposing project paths:
 
 ```bash

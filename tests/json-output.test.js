@@ -24,6 +24,14 @@ test("machine-readable output is available for core automation commands", () => 
   assert.equal(installedValue.skills[0].name, "json-skill");
   assert.deepEqual(installedValue.skills[0].tags, []);
 
+  const tagPreview = cli(["tag", "add", "develop", "json-skill", "--dry-run", "--json"], { cwd: project, hub, home: root });
+  assert.equal(tagPreview.status, 0, tagPreview.stderr);
+  assert.deepEqual(JSON.parse(tagPreview.stdout), {
+    dryRun: true,
+    tag: "develop",
+    skills: [{ ...installedValue.skills[0], tags: ["develop"] }]
+  });
+
   const exported = cli(["export", join(root, "catalog.html"), "--json"], { cwd: project, hub, home: root });
   assert.equal(exported.status, 0, exported.stderr);
   assert.deepEqual(JSON.parse(exported.stdout), {

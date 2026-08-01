@@ -77,4 +77,6 @@ The Desktop can check one copied Git Skill or the full Hub, show a non-mutating 
 
 Enter tags separated by commas or new lines; clearing the field removes all tags. A Skill accepts up to 32 tags and each tag accepts up to 64 characters. Tag changes do not modify Skill files or public catalog output. Export creates the same localized, self-contained HTML catalog as `sklp export`: it contains only public Skill names and descriptions. The renderer can write only the exact output file selected through the system save dialog; replacing an existing file requires the dialog's overwrite confirmation.
 
+CLI and Desktop tags share the same Hub state. Tags added with `sklp tag add` appear when Desktop next reloads the Skill list or detail view; Desktop does not watch the Hub database for live external changes.
+
 The Desktop does not include background update checks, repair, self-uninstallation, Developer ID signing, notarization, or automatic application updates.

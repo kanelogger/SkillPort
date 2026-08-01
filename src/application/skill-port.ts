@@ -26,6 +26,7 @@ type RecoveryPayload =
   | { kind: "update"; skill: Skill; destination: string; backup: string }
   | { kind: "update"; skill: Skill; destination: string; linked: true }
   | { kind: "update-tags"; skill: Skill; tags: string[] }
+  | { kind: "add-tags"; changes: TagChange[] }
   | { kind: "remove"; skill: Skill; destination: string; backup: string; enablements: Enablement[] }
   | { kind: "enable"; skill: Skill; enablement: Omit<Enablement, "id"> }
   | { kind: "disable"; skill: Skill; enablement: Enablement };
@@ -36,6 +37,7 @@ type InstallFailed = Partial<InstallMetadata> & { path: string; reason: string }
 type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
 type InstallOptions = { skipExisting?: boolean; gitPath?: string };
 type UpdateSkipReason = "linked" | "local-copied" | "pinned" | "up-to-date";
+type TagChange = { skill: Skill; tags: string[] };
 
 export type UpdateCheck = GitUpdateInspection & {
   name: string;
@@ -87,6 +89,11 @@ export type PruneResult = {
 export type ExportCatalogResult = {
   output: string;
   skillCount: number;
+};
+
+export type BatchTagResult = {
+  tag: string;
+  skills: Skill[];
 };
 
 export type UninstallResult = {
@@ -407,6 +414,43 @@ export class SkillPort {
       this.store.transaction(() => this.store.replaceSkillTags(current.instanceId, normalized));
       return { ...current, tags: normalized };
     });
+  }
+
+  previewAddTag(tag: string, names: string[]): BatchTagResult {
+    const normalizedTag = normalizeTags([tag])[0]!;
+    const changes = this.planTagAddition(normalizedTag, names);
+    return { tag: normalizedTag, skills: changes.map(({ skill, tags }) => ({ ...skill, tags })) };
+  }
+
+  addTag(tag: string, names: string[]): BatchTagResult {
+    const normalizedTag = normalizeTags([tag])[0]!;
+    return this.mutate("add-tags", (checkpoint) => {
+      const changes = this.planTagAddition(normalizedTag, names);
+      checkpoint({ kind: "add-tags", changes });
+      this.store.transaction(() => {
+        for (const change of changes) this.store.replaceSkillTags(change.skill.instanceId, change.tags);
+      });
+      return {
+        tag: normalizedTag,
+        skills: changes.map(({ skill, tags }) => ({ ...skill, tags }))
+      };
+    });
+  }
+
+  private planTagAddition(tag: string, names: string[]): TagChange[] {
+    if (names.length === 0) throw new CliError("Specify at least one Skill name.");
+    const changes: TagChange[] = [];
+    const seen = new Set<string>();
+    for (const name of names) {
+      const skill = this.requireSkill(name);
+      const key = skill.instanceId.toLocaleLowerCase("en-US");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const tagKey = tag.toLocaleLowerCase("en-US");
+      const alreadyTagged = skill.tags.some((existing) => existing.toLocaleLowerCase("en-US") === tagKey);
+      changes.push({ skill, tags: alreadyTagged ? skill.tags : normalizeTags([...skill.tags, tag]) });
+    }
+    return changes;
   }
 
   update(name: string, revision?: string): Skill {
@@ -1058,6 +1102,8 @@ export class SkillPort {
         return this.recoverUpdate(payload);
       case "update-tags":
         return this.recoverTagUpdate(payload);
+      case "add-tags":
+        return this.recoverBatchTagUpdate(payload);
       case "remove":
         return this.recoverRemove(payload);
       case "enable":
@@ -1132,6 +1178,24 @@ export class SkillPort {
     if (sameTags(current.tags, payload.tags)) return true;
     if (sameTags(current.tags, payload.skill.tags)) return false;
     throw new CliError(`Interrupted tag update found conflicting tags for Skill: ${payload.skill.name}`);
+  }
+
+  private recoverBatchTagUpdate(payload: Extract<RecoveryPayload, { kind: "add-tags" }>): boolean {
+    const states = payload.changes.map((change) => {
+      const current = this.store.skill(change.skill.name);
+      if (!current || current.instanceId !== change.skill.instanceId) {
+        throw new CliError(`Interrupted batch tag update conflicts with the installed Skill: ${change.skill.name}`);
+      }
+      const unchanged = sameTags(change.skill.tags, change.tags);
+      if (unchanged && sameTags(current.tags, change.tags)) return "unchanged";
+      if (sameTags(current.tags, change.tags)) return "completed";
+      if (sameTags(current.tags, change.skill.tags)) return "pending";
+      throw new CliError(`Interrupted batch tag update found conflicting tags for Skill: ${change.skill.name}`);
+    });
+    const materialStates = states.filter((state) => state !== "unchanged");
+    if (materialStates.every((state) => state === "completed")) return true;
+    if (materialStates.every((state) => state === "pending")) return false;
+    throw new CliError("Interrupted batch tag update found a partially committed transaction.");
   }
 
   private recoverLinkedUpdate(payload: Extract<RecoveryPayload, { kind: "update"; linked: true }>): boolean {
@@ -1223,13 +1287,12 @@ export class SkillPort {
   }
 
   private assertRecoveryPaths(payload: RecoveryPayload): void {
-    const destination = "destination" in payload ? payload.destination : this.skillPath(payload.skill);
-    if (!isValidSkillName(payload.skill.name)
-      || !isInside(this.paths.skills, destination)
-      || samePath(destination, this.paths.skills)
-      || !samePath(destination, this.skillPath(payload.skill))) {
-      throw new CliError(`Interrupted ${payload.kind} operation contains an invalid Skill path.`);
+    if (payload.kind === "add-tags") {
+      for (const change of payload.changes) this.assertRecoverySkillPath(change.skill, payload.kind);
+      return;
     }
+    const destination = "destination" in payload ? payload.destination : this.skillPath(payload.skill);
+    this.assertRecoverySkillPath(payload.skill, payload.kind, destination);
     if ("backup" in payload
       && (!isInside(this.paths.staging, payload.backup) || samePath(payload.backup, this.paths.staging))) {
       throw new CliError(`Interrupted ${payload.kind} operation contains an invalid backup path.`);
@@ -1241,6 +1304,15 @@ export class SkillPort {
     if ("enablements" in payload
       && !payload.enablements.every((item) => this.recoveryEnablementPathIsValid(item, payload.skill))) {
       throw new CliError(`Interrupted ${payload.kind} operation contains an invalid entry path.`);
+    }
+  }
+
+  private assertRecoverySkillPath(skill: Skill, kind: string, destination = this.skillPath(skill)): void {
+    if (!isValidSkillName(skill.name)
+      || !isInside(this.paths.skills, destination)
+      || samePath(destination, this.paths.skills)
+      || !samePath(destination, this.skillPath(skill))) {
+      throw new CliError(`Interrupted ${kind} operation contains an invalid Skill path.`);
     }
   }
 
@@ -1496,7 +1568,12 @@ function isPinnedGitSkill(skill: Skill): boolean {
 }
 
 function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | null {
-  if (!isRecord(value) || value.kind !== kind || !isSkill(value.skill)) return null;
+  if (!isRecord(value) || value.kind !== kind) return null;
+  if (kind === "add-tags" && Array.isArray(value.changes) && value.changes.length > 0
+    && value.changes.every((change) => isRecord(change) && isSkill(change.skill) && isTagArray(change.tags))) {
+    return { kind, changes: value.changes as TagChange[] };
+  }
+  if (!isSkill(value.skill)) return null;
   if (kind === "install" && typeof value.destination === "string") {
     return { kind, skill: value.skill, destination: value.destination };
   }

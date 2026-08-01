@@ -26,6 +26,10 @@ test("Chinese human output is available through SKLP_LANG", () => {
   assert.equal(installed.status, 0, installed.stderr);
   assert.match(installed.stdout, /已安装 zh-skill/);
 
+  const tagPreview = cli(["tag", "add", "develop", "zh-skill", "--dry-run"], { cwd: project, hub, home: root, env });
+  assert.equal(tagPreview.status, 0, tagPreview.stderr);
+  assert.match(tagPreview.stdout, /将为 zh-skill 添加标签 develop/);
+
   const listed = cli(["list", "--status"], { cwd: project, hub, home: root, env });
   assert.equal(listed.status, 0, listed.stderr);
   assert.match(listed.stdout, /名称\t类型\t启用数\t健康状态/);

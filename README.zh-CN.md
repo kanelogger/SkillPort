@@ -106,6 +106,16 @@ sklp update --all --ref main
 
 ### 查看状态并清理 Hub
 
+为一组明确指定的已安装 Skill 添加同一个私有标签：
+
+```bash
+sklp tag add develop code-review-helper skill-creator
+sklp tag add develop code-review-helper skill-creator --dry-run --json
+sklp list --tag develop
+```
+
+批量命令会先验证所有 Skill 和合并后的 32 标签上限，再通过单个事务写入。它保留已有标签，匹配标签和 Skill 名称时忽略大小写。`--dry-run` 以只读方式打开 Hub。私有标签只保存在 Hub 中，不会写入导出目录或 Skill 文件。
+
 查看安装类型、启用数量和健康状态，同时不暴露项目路径：
 
 ```bash

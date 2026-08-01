@@ -66,6 +66,58 @@ test("an interrupted linked update republishes catalogs from committed state", (
   assert.equal(catalog.skills[0].description, current.description);
 });
 
+test("an interrupted committed batch tag update is recognized as completed", () => {
+  const fixture = setup("batch-tags");
+  cli(["install", fixture.source], fixture.options);
+  const secondSource = join(fixture.root, "second-source");
+  makeSkill(secondSource, "second-skill", "Second recovery Skill");
+  cli(["install", secondSource], fixture.options);
+  assert.equal(cli(["tag", "add", "develop", "sample-skill", "second-skill"], fixture.options).status, 0);
+
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.exec("UPDATE operations SET status='started', finished_at=NULL WHERE kind='add-tags'");
+  db.close();
+
+  const recovered = cli(["list", "--tag", "develop", "--json"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.deepEqual(JSON.parse(recovered.stdout).skills.map((skill) => skill.name), ["sample-skill", "second-skill"]);
+  const recoveredDb = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(recoveredDb.prepare("SELECT status FROM operations WHERE kind='add-tags'").get().status, "completed");
+  recoveredDb.close();
+});
+
+test("batch tag recovery treats already-tagged Skills as neutral before commit", () => {
+  const fixture = setup("pending-batch-tags");
+  cli(["install", fixture.source], fixture.options);
+  const secondSource = join(fixture.root, "pending-second-source");
+  makeSkill(secondSource, "pending-second-skill", "Pending recovery Skill");
+  cli(["install", secondSource], fixture.options);
+  cli(["tag", "add", "develop", "sample-skill"], fixture.options);
+  const first = JSON.parse(cli(["info", "sample-skill"], fixture.options).stdout).skill;
+  const second = JSON.parse(cli(["info", "pending-second-skill"], fixture.options).stdout).skill;
+  const payload = {
+    kind: "add-tags",
+    changes: [
+      { skill: first, tags: first.tags },
+      { skill: second, tags: ["develop"] }
+    ]
+  };
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("pending-batch-tags", "add-tags", "started", JSON.stringify(payload), new Date().toISOString());
+  db.close();
+
+  const recovered = cli(["list", "--json"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.deepEqual(JSON.parse(recovered.stdout).skills.map(({ name, tags }) => ({ name, tags })), [
+    { name: "pending-second-skill", tags: [] },
+    { name: "sample-skill", tags: ["develop"] }
+  ]);
+  const recoveredDb = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(recoveredDb.prepare("SELECT status FROM operations WHERE id='pending-batch-tags'").get().status, "failed");
+  recoveredDb.close();
+});
+
 test("an interrupted disable restores the recorded managed entry", () => {
   const fixture = setup("disable");
   cli(["install", fixture.source], fixture.options);

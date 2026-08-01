@@ -21,6 +21,8 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp export [output]` exits `0` after atomically writing a self-contained HTML catalog. It exits `1` without changing the existing output when that path already exists; pass `--force` to replace it. Hub state is opened read-only.
 
+`sklp tag add <tag> <skills...>` exits `0` after atomically adding the tag to every named Skill. It exits `1` without changing any tags when a Skill is missing, the tag is invalid, or any merged tag set exceeds 32 entries. `--dry-run` is read-only and exits `0` with the proposed Skill representations.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:
@@ -41,7 +43,7 @@ The JSON payload includes:
 - `healthy`: `true` when there are no diagnostics.
 - `diagnostics`: diagnostic objects with `code`, `severity`, `message`, and `suggestion`.
 
-`sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
+`sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp tag add --json` returns `tag` and the updated public `skills`; its preview also returns `dryRun: true`. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
 
 For runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
 
@@ -68,6 +70,8 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp export [output]` 会在只读打开 Hub 后原子写入自包含 HTML，并在成功时返回 `0`。输出路径已存在时默认返回 `1` 且不改写文件；显式使用 `--force` 才会替换。
 
-`sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
+`sklp tag add <tag> <skills...>` 会在给所有指定 Skill 原子追加标签后返回 `0`。任一 Skill 不存在、标签无效或合并后的标签超过 32 个时返回 `1`，且不修改任何标签。`--dry-run` 以只读方式返回计划中的 Skill 数据并退出 `0`。
+
+`sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp tag add --json` 返回 `tag` 和更新后的公开 `skills`；预览还会返回 `dryRun: true`。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。
