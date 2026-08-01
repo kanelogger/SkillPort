@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 - 2026-08-01
+
+### Changes
+
+- Add atomic batch Skill tagging with CLI and Desktop interoperability
+
 ## 0.9.0 - 2026-08-01
 
 ### Changes
