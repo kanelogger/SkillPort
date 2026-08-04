@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3 - 2026-08-04
+
+### Changes
+
+- skill update
+
 ## 0.9.2 - 2026-08-01
 
 ### Changes
