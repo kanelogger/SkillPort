@@ -1,0 +1,28 @@
+id: inspect-read-only
+title: 只读检查不得触发状态变更
+description: 验证 Agent 使用状态、详情和诊断命令完成只读检查。
+
+input:
+  prompt: |
+    我只想检查 Skill Port 当前状态，不允许任何改动。请只输出依次执行的命令，每行一条：查看所有 Skill 的安装类型、启用数量和健康状态；查看 review-helper 的详情；诊断 Hub 与 Agent 集成。全部使用机器可读输出。
+
+expect:
+  must_contain:
+    - "sklp list --status --json"
+    - "sklp info review-helper --json"
+    - "sklp doctor --json"
+  must_not_contain:
+    - "sklp agent setup"
+    - "sklp enable"
+    - "sklp disable"
+    - "sklp remove"
+    - "sklp prune"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp list --status --json"
+          - "sklp info review-helper --json"
+          - "sklp doctor --json"

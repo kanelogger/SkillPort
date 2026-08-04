@@ -1,0 +1,29 @@
+id: registry-and-tags
+title: Registry 安装与批量标签使用预览
+description: 验证 registry 的兼容参数、跳过已安装项和标签操作流程。
+
+input:
+  prompt: |
+    ./registry/sources.json 包含多个 Skill，其中可能有已安装项。请只输出依次执行的命令，每行一条：先预览并跳过已安装项，再执行安装；先预览为 alpha-skill 和 beta-skill 添加 develop 私有标签，再执行标签写入；最后按 develop 标签列出结果。全部使用机器可读输出。
+
+expect:
+  must_contain:
+    - "sklp install ./registry/sources.json --skip-existing --dry-run --json"
+    - "sklp install ./registry/sources.json --skip-existing --json"
+    - "sklp tag add develop alpha-skill beta-skill --dry-run --json"
+    - "sklp tag add develop alpha-skill beta-skill --json"
+    - "sklp list --tag develop --json"
+  must_not_contain:
+    - "--ref"
+    - "--path"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp install ./registry/sources.json --skip-existing --dry-run --json"
+          - "sklp install ./registry/sources.json --skip-existing --json"
+          - "sklp tag add develop alpha-skill beta-skill --dry-run --json"
+          - "sklp tag add develop alpha-skill beta-skill --json"
+          - "sklp list --tag develop --json"

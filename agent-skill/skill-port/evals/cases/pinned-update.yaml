@@ -1,0 +1,23 @@
+id: pinned-update
+title: 固定版本改为分支跟踪
+description: 验证 Agent 先检查 pinned Git Skill，再用独立的 ref 变更命令更新。
+
+input:
+  prompt: |
+    release-helper 是从 Git commit 固定安装的。我明确授权把它改为跟踪 main 并更新。请只输出两条命令：先只读检查更新状态，再切换 ref；每行一条，使用机器可读输出，不要组合互斥选项。
+
+expect:
+  must_contain:
+    - "sklp update release-helper --check --json"
+    - "sklp update release-helper --ref main --json"
+  must_not_contain:
+    - "--ref main --check"
+    - "--ref main --dry-run"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp update release-helper --check --json"
+          - "sklp update release-helper --ref main --json"

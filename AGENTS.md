@@ -18,8 +18,11 @@
 - 包安装冒烟：`npm run test:package`
 - 平台相关测试：`npm run test:platform`
 - Agent 发现冒烟：`npm run test:discovery`
+- Agent Skill 命令面同步：`npm run sync:agent-skill`
+- Agent Skill 契约检查：`npm run test:agent-skill`
 
 优先运行能验证本次改动的最小命令。涉及发布、CLI 行为或用户可见输出时，至少运行 `npm run lint`、`npm run typecheck` 和相关测试命令。
+修改 CLI 命令名、argument、flag、help 文案或安全语义时，必须同步更新 `agent-skill/skill-port/SKILL.md` 和相关 evals。命令面变更后运行 `npm run sync:agent-skill` 写入当前指纹，再审查操作指南；`npm test` 和 `prepack` 会拒绝过期指纹。
 
 ## Architecture Map
 

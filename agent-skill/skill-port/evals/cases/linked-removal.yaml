@@ -1,0 +1,27 @@
+id: linked-removal
+title: 取消链接时保留外部源目录
+description: 验证 Agent 对 linked Skill 使用 disable 和 unlink，而不是 remove。
+
+input:
+  prompt: |
+    draft-helper 是 linked Skill，当前已在这个项目启用。我要从 Skill Port 取消它，但必须保留原始源目录。请只输出依次执行的命令，每行一条：先查看详情，再停用当前项目入口，取消链接，最后诊断结果。使用机器可读输出。
+
+expect:
+  must_contain:
+    - "sklp info draft-helper --json"
+    - "sklp disable draft-helper --json"
+    - "sklp unlink draft-helper --json"
+    - "sklp doctor --json"
+  must_not_contain:
+    - "sklp remove"
+    - "--force"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp info draft-helper --json"
+          - "sklp disable draft-helper --json"
+          - "sklp unlink draft-helper --json"
+          - "sklp doctor --json"

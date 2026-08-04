@@ -1,0 +1,26 @@
+schema_version: v1alpha1
+
+environment:
+  type: none
+
+skills:
+  - source: local_path
+    path: .
+
+engine:
+  name: codex
+
+cases:
+  files:
+    - evals/cases/inspect-read-only.yaml
+    - evals/cases/registry-and-tags.yaml
+    - evals/cases/pinned-update.yaml
+    - evals/cases/sync-force-preview.yaml
+    - evals/cases/linked-removal.yaml
+    - evals/cases/agent-setup.yaml
+  defaults:
+    timeout_seconds: 120
+    max_turns: 2
+
+report:
+  formats: [json]

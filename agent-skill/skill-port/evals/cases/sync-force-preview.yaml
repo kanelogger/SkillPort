@@ -1,0 +1,20 @@
+id: sync-force-preview
+title: 强制清理前预览完整同步效果
+description: 验证 Agent 对全部 Git 集合使用相同删除选项先预览再执行。
+
+input:
+  prompt: |
+    同步所有已登记 Git source collection，并删除上游缺失的 Skill；即使缺失项已启用，我也明确授权先停用受管目标再删除。请只输出两条命令：第一条预览完整效果，第二条执行；每行一条，使用机器可读输出。
+
+expect:
+  must_contain:
+    - "sklp sync --all --prune --force --dry-run --json"
+    - "sklp sync --all --prune --force --json"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp sync --all --prune --force --dry-run --json"
+          - "sklp sync --all --prune --force --json"

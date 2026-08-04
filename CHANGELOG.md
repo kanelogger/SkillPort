@@ -53,6 +53,10 @@
 - Add `sklp export [output]` for a self-contained, offline-searchable, privacy-limited static Skill catalog.
 - Let Desktop users export the same localized static catalog through a system save dialog.
 
+### Documentation
+
+- 更新内置 `skill-port` 管理 Skill，覆盖 registry 安装、批量标签、Agent 集成、批量更新与 Git collection sync 的当前命令和安全边界；新增 `skill-up` 回归用例，并以构建后递归 help 指纹在测试和 `prepack` 阶段阻止 CLI 命令面与 bundled Skill 漂移。
+
 ### Fixes
 
 - Stop reporting a successful update when a Git Skill is pinned to its existing tag or commit.

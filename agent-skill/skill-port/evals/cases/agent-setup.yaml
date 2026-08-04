@@ -1,0 +1,22 @@
+id: agent-setup
+title: 无 Hub 时恢复 Agent 集成
+description: 验证 npm 全局安装后的发现问题使用幂等 setup 修复，不错误初始化 Hub。
+
+input:
+  prompt: |
+    我已经用 npm 全局安装 sklp，但 Agent 找不到内置的 skill-port 管理 Skill；目前不想初始化 Hub。请只输出依次执行的两条命令：先确认 CLI 版本，再恢复 Agent 集成。恢复命令使用机器可读输出。
+
+expect:
+  must_contain:
+    - "sklp --version"
+    - "sklp agent setup --json"
+  must_not_contain:
+    - "sklp init"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp --version"
+          - "sklp agent setup --json"
