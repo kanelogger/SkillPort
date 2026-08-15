@@ -102,6 +102,15 @@ sklp update my-skill --ref main
 sklp update --all --ref main
 ```
 
+如果要持续跟踪最新稳定 release 而不是固定 tag，可以跟踪一个 tag glob。匹配 tag 中含语义化版本号的最高版本胜出，`-beta` 这类预发布后缀会被跳过：
+
+```bash
+sklp install https://github.com/owner/repo.git --track-tags "skill-v*"
+sklp update my-skill --track-tags "skill-v*"
+```
+
+tag 模式的 Skill 与分支跟踪一样更新：`update --check` 会把解析出的 tag 显示为 `remoteRef`，普通更新会跟进最新的匹配 release。用 `--ref` 切回分支或固定版本会清除该模式。`--track-tags` 不能与 `--ref`、`--check` 或 `--dry-run` 组合，也不能用于 registry 来源、GitHub tree URL 或本地目录。
+
 批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。同一次批量检查或更新会按仓库/ref 复用远程查询和 clone。
 
 ### 同步 Git Skill 集合

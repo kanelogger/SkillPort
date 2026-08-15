@@ -11,7 +11,7 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp update --all --check` exits `1` when any Git source is `unknown`. `sklp update <skill> --dry-run`, `sklp update --all --dry-run`, and `sklp update --all` exit `1` when their `failed` array is non-empty; skipped entries do not make the command fail.
 
-`sklp update <skill>` exits `1` when the Skill is pinned to a tag or commit and directs the caller to `--ref <ref>`. `sklp update <skill> --ref <ref>` exits `1` if the new ref cannot be fetched or validated. `sklp update --all --ref <ref>` exits `1` when any Git Skill fails, while continuing with other Git Skills and skipping local copied or linked Skills.
+`sklp update <skill>` exits `1` when the Skill is pinned to a tag or commit and directs the caller to `--ref <ref>`. `sklp update <skill> --ref <ref>` exits `1` if the new ref cannot be fetched or validated. `sklp update --all --ref <ref>` exits `1` when any Git Skill fails, while continuing with other Git Skills and skipping local copied or linked Skills. `--track-tags <glob>` follows the same rules: `install` and `update` exit `1` when no remote tag matches the glob, and tag-pattern Skills report `unknown` (exit `1`) from `--check` when the pattern stops matching.
 
 `sklp sync <source>` and `sklp sync --all` exit `1` when a source cannot be fetched or any collection-level `failed` array is non-empty. `--all` continues with other registered sources after one source fails. Missing Skills with action `retain` or `skip-enabled` do not fail the command. `--prune` removes only upstream-missing Skills; enabled Skills use `skip-enabled` unless `--force` explicitly authorizes disabling managed targets first. `--force` without `--prune` exits `1` before opening the Hub.
 
@@ -64,7 +64,7 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp update --all --check` 只要有任一 Git source 为 `unknown` 就返回 `1`。`sklp update <skill> --dry-run`、`sklp update --all --dry-run` 和 `sklp update --all` 只要 `failed` 数组非空就返回 `1`；跳过条目不会导致失败。
 
-`sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。
+`sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。`--track-tags <glob>` 遵循同样规则：没有远程 tag 匹配该 glob 时 `install` 和 `update` 返回 `1`；tag 模式的 Skill 在 pattern 不再匹配时 `--check` 报告 `unknown` 并返回 `1`。
 
 `sklp sync <source>` 和 `sklp sync --all` 在来源无法拉取或任一集合的 `failed` 非空时返回 `1`。`--all` 遇到单个来源失败后会继续同步其他已登记来源。缺失项的 action 为 `retain` 或 `skip-enabled` 时不会导致失败。`--prune` 只移除上游缺失 Skill；已启用 Skill 默认使用 `skip-enabled`，只有显式传入 `--force` 才会先停用受管目标。单独使用 `--force` 会在打开 Hub 前返回 `1`。
 

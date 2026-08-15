@@ -15,6 +15,7 @@ cases:
     - evals/cases/inspect-read-only.yaml
     - evals/cases/registry-and-tags.yaml
     - evals/cases/pinned-update.yaml
+    - evals/cases/track-tags-update.yaml
     - evals/cases/sync-force-preview.yaml
     - evals/cases/linked-removal.yaml
     - evals/cases/agent-setup.yaml

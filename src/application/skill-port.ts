@@ -44,10 +44,10 @@ type InstallMetadata = { name: string; description: string };
 type InstallSkipped = InstallMetadata & { reason: "already-installed" };
 type InstallFailed = Partial<InstallMetadata> & { path: string; reason: string };
 type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
-type InstallOptions = { skipExisting?: boolean; gitPath?: string };
+type InstallOptions = { skipExisting?: boolean; gitPath?: string; tagPattern?: string };
 type UpdateSkipReason = "linked" | "local-copied" | "pinned" | "up-to-date";
 type TagChange = { skill: Skill; tags: string[] };
-type SyncOptions = { ref?: string; gitPath?: string; prune?: boolean; force?: boolean };
+type SyncOptions = { ref?: string; gitPath?: string; tagPattern?: string; prune?: boolean; force?: boolean };
 type SyncCandidate = { prepared: PreparedSource; metadata: InstallMetadata; current?: Skill };
 type SyncPlan = {
   collection: PreparedGitCollection;
@@ -74,7 +74,7 @@ export type FleetUpdateCheck = UpdateCheck | {
 };
 
 export type UpdateSummary = {
-  planned: Array<{ name: string; revision: string }>;
+  planned: Array<{ name: string; revision: string; ref?: string }>;
   skipped: Array<{ name: string; reason: UpdateSkipReason }>;
   failed: Array<{ name: string; reason: string }>;
 };
@@ -231,13 +231,15 @@ export class SkillPort {
   }
 
   install(source: string, ref?: string): Skill {
-    const prepared = prepareSource(source, this.paths.staging, ref);
+    const prepared = prepareSource(source, this.paths.staging, { ref });
     const registered = prepared.collection ? this.ensureSourceCollection(prepared.collection) : null;
     return this.installPreparedSource(prepared, [], registered);
   }
 
   installAll(source: string, ref?: string, options: InstallOptions = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
-    const preparedSources = prepareInstallSources(source, this.paths.staging, { ref, gitPath: options.gitPath });
+    const preparedSources = prepareInstallSources(source, this.paths.staging, {
+      ref, gitPath: options.gitPath, tagPattern: options.tagPattern
+    });
     try {
       const plan = this.installPlan(preparedSources, options);
       const publisher = plan.candidates.length >= 2 ? plan.candidates[0]?.prepared.publisher : null;
@@ -261,7 +263,9 @@ export class SkillPort {
     skipped: InstallSkipped[];
     failed: InstallFailed[];
   } {
-    const preparedSources = prepareInstallSources(source, this.paths.staging, { ref, gitPath: options.gitPath });
+    const preparedSources = prepareInstallSources(source, this.paths.staging, {
+      ref, gitPath: options.gitPath, tagPattern: options.tagPattern
+    });
     try {
       const plan = this.installPreviewPlan(preparedSources, options);
       return {
@@ -293,7 +297,8 @@ export class SkillPort {
   private syncOneSource(source: string, options: SyncOptions, apply: boolean): SyncSummary {
     const prepared = prepareGitSyncSources(source, this.paths.staging, {
       ref: options.ref,
-      gitPath: options.gitPath
+      gitPath: options.gitPath,
+      tagPattern: options.tagPattern
     });
     try {
       const plan = this.planSync(prepared.collection, prepared.sources, options);
@@ -315,8 +320,9 @@ export class SkillPort {
         if (!this.store.source(registered.id)) continue;
         try {
           const prepared = prepareGitSyncSources(registered.location, this.paths.staging, {
-            ref: registered.ref ?? undefined,
-            gitPath: registered.scanPath === "." ? undefined : registered.scanPath
+            ref: registered.tagPattern ? undefined : (registered.ref ?? undefined),
+            gitPath: registered.scanPath === "." ? undefined : registered.scanPath,
+            tagPattern: registered.tagPattern ?? undefined
           }, cache);
           try {
             const plan = this.planSync(prepared.collection, prepared.sources, options);
@@ -512,6 +518,7 @@ export class SkillPort {
           sourceRef: prepared.ref,
           sourceRevision: prepared.revision,
           sourceTracking: prepared.sourceTracking,
+          sourceTagPattern: prepared.tagPattern,
           tags,
           installedAt: timestamp,
           updatedAt: timestamp
@@ -643,6 +650,7 @@ export class SkillPort {
         sourceRef: null,
         sourceRevision: null,
         sourceTracking: null,
+        sourceTagPattern: null,
         tags: [],
         installedAt: timestamp,
         updatedAt: timestamp
@@ -746,9 +754,19 @@ export class SkillPort {
     return this.updateInternal(name, { sourceRef: ref });
   }
 
+  updateToTagPattern(name: string, pattern: string): Skill {
+    return this.updateInternal(name, { tagPattern: pattern });
+  }
+
   private updateInternal(
     name: string,
-    options: { revision?: string; sourceRef?: string; sourceCache?: GitSourceCache }
+    options: {
+      revision?: string;
+      sourceRef?: string;
+      tagPattern?: string;
+      resolvedRef?: string;
+      sourceCache?: GitSourceCache;
+    }
   ): Skill {
     return this.mutate("update", (checkpoint) => {
       const current = this.requireSkill(name);
@@ -758,9 +776,13 @@ export class SkillPort {
       if (options.sourceRef !== undefined && current.sourceType !== "git") {
         throw new CliError("--ref can only update Git-installed Skills.");
       }
+      if (options.tagPattern !== undefined && current.sourceType !== "git") {
+        throw new CliError("--track-tags can only update Git-installed Skills.");
+      }
       if (
         options.sourceRef === undefined
         && options.revision === undefined
+        && options.tagPattern === undefined
         && current.sourceType === "git"
         && isPinnedGitSkill(current)
       ) {
@@ -770,19 +792,47 @@ export class SkillPort {
         checkpoint({ kind: "update", skill: current, destination, linked: true });
         return this.updateLinkedSkill(current);
       }
+      if (
+        options.sourceRef === undefined
+        && options.revision === undefined
+        && options.tagPattern === undefined
+        && current.sourceTracking === "tag-pattern"
+      ) {
+        const inspection = inspectGitSource(
+          current.sourceLocation,
+          current.sourceRef,
+          current.sourceRevision,
+          current.sourceTracking,
+          current.sourceTagPattern
+        );
+        if (inspection.status === "unknown") {
+          throw new CliError(inspection.reason ?? "Git update check failed.");
+        }
+        if (inspection.status === "outdated" && inspection.remoteRevision) {
+          options.revision = inspection.remoteRevision;
+          options.resolvedRef = inspection.remoteRef;
+        }
+      }
       checkpoint({ kind: "update", skill: current, destination, backup });
       const requestedRef = options.sourceRef ?? options.revision ?? current.sourceRef ?? undefined;
-      const prepared = prepareSource(current.sourceLocation, this.paths.staging, requestedRef, options.sourceCache);
+      const prepared = prepareSource(
+        current.sourceLocation,
+        this.paths.staging,
+        options.tagPattern === undefined ? { ref: requestedRef } : { tagPattern: options.tagPattern },
+        options.sourceCache
+      );
       try {
         const metadata = readSkillMetadata(prepared.root);
         if (metadata.name !== current.name) throw new CliError("Updated Skill name changed; remove and reinstall it.");
         copySource(prepared.root, staged);
+        const retargeted = options.sourceRef !== undefined || options.tagPattern !== undefined;
         const updated: Skill = {
           ...current,
           description: metadata.description,
-          sourceRef: options.sourceRef === undefined ? current.sourceRef : prepared.ref,
+          sourceRef: retargeted ? prepared.ref : (options.resolvedRef ?? current.sourceRef),
           sourceRevision: prepared.revision ?? current.sourceRevision,
-          sourceTracking: options.sourceRef === undefined ? current.sourceTracking : prepared.sourceTracking,
+          sourceTracking: retargeted ? prepared.sourceTracking : current.sourceTracking,
+          sourceTagPattern: retargeted ? prepared.tagPattern : current.sourceTagPattern,
           updatedAt: new Date().toISOString()
         };
         writeMeta(join(staged, "meta.json"), updated);
@@ -835,6 +885,7 @@ export class SkillPort {
           sourceRef: prepared.ref,
           sourceRevision: prepared.revision ?? current.sourceRevision,
           sourceTracking: prepared.sourceTracking,
+          sourceTagPattern: prepared.tagPattern,
           updatedAt: new Date().toISOString()
         };
         writeMeta(join(staged, "meta.json"), updated);
@@ -872,6 +923,7 @@ export class SkillPort {
         location: collection.location,
         ref: collection.ref,
         tracking: collection.tracking,
+        tagPattern: collection.tagPattern,
         scanPath: collection.scanPath,
         lastRevision: collection.revision,
         updatedAt: timestamp
@@ -881,6 +933,7 @@ export class SkillPort {
         location: collection.location,
         ref: collection.ref,
         tracking: collection.tracking,
+        tagPattern: collection.tagPattern,
         scanPath: collection.scanPath,
         lastRevision: collection.revision,
         createdAt: timestamp,
@@ -947,7 +1000,7 @@ export class SkillPort {
     try {
       for (const item of plan.planned) {
         try {
-          const skill = this.updateInternal(item.name, { revision: item.revision, sourceCache: cache });
+          const skill = this.updateInternal(item.name, { revision: item.revision, resolvedRef: item.ref, sourceCache: cache });
           updated.push({ name: skill.name, revision: skill.sourceRevision ?? item.revision });
         } catch (error) {
           failed.push({ name: item.name, reason: sanitizeError(error) });
@@ -991,12 +1044,41 @@ export class SkillPort {
     return { updated: updated.sort(byName), skipped: skipped.sort(byName), failed: failed.sort(byName) };
   }
 
+  updateAllToTagPattern(pattern: string): BatchUpdateSummary {
+    const updated: BatchUpdateSummary["updated"] = [];
+    const skipped: BatchUpdateSummary["skipped"] = [];
+    const failed: BatchUpdateSummary["failed"] = [];
+    const cache = createGitSourceCache();
+    try {
+      for (const current of this.store.skills()) {
+        if (this.isLinkedSkill(current)) {
+          skipped.push({ name: current.name, reason: "linked" });
+          continue;
+        }
+        if (current.sourceType !== "git") {
+          skipped.push({ name: current.name, reason: "local-copied" });
+          continue;
+        }
+        try {
+          const skill = this.updateInternal(current.name, { tagPattern: pattern, sourceCache: cache });
+          updated.push({ name: skill.name, revision: skill.sourceRevision ?? pattern });
+        } catch (error) {
+          failed.push({ name: current.name, reason: sanitizeError(error) });
+        }
+      }
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
+    return { updated: updated.sort(byName), skipped: skipped.sort(byName), failed: failed.sort(byName) };
+  }
+
   private checkGitUpdate(skill: Skill, cache?: GitRemoteCache): UpdateCheck {
     const inspection = inspectGitSource(
       skill.sourceLocation,
       skill.sourceRef,
       skill.sourceRevision,
       skill.sourceTracking,
+      skill.sourceTagPattern,
       cache
     );
     return { name: skill.name, currentRevision: skill.sourceRevision, ...inspection };
@@ -1034,7 +1116,9 @@ export class SkillPort {
       if (check.status === "skipped") {
         skipped.push({ name: check.name, reason: check.reason });
       } else if (check.status === "outdated") {
-        if (check.remoteRevision) planned.push({ name: check.name, revision: check.remoteRevision });
+        if (check.remoteRevision) {
+          planned.push({ name: check.name, revision: check.remoteRevision, ...(check.remoteRef ? { ref: check.remoteRef } : {}) });
+        }
         else failed.push({ name: check.name, reason: "Git update check returned no remote revision." });
       } else if (check.status === "unknown") {
         failed.push({ name: check.name, reason: check.reason ?? "Git update check failed." });
@@ -1061,7 +1145,7 @@ export class SkillPort {
           continue;
         }
         try {
-          const prepared = prepareSource(current.sourceLocation, this.paths.staging, ref, cache);
+          const prepared = prepareSource(current.sourceLocation, this.paths.staging, { ref }, cache);
           try {
             const metadata = readSkillMetadata(prepared.root);
             if (metadata.name !== current.name) {
@@ -1964,6 +2048,9 @@ function bySyncFailure(left: SyncFailure, right: SyncFailure): number {
 }
 
 function sameSourceRepository(source: SourceCollection, collection: PreparedGitCollection): boolean {
+  if (source.tagPattern || collection.tagPattern) {
+    return source.location === collection.location && source.tagPattern === collection.tagPattern;
+  }
   return source.location === collection.location && source.ref === collection.ref;
 }
 
@@ -1973,7 +2060,9 @@ function skillMatchesCollection(
   collection: PreparedGitCollection
 ): boolean {
   return skill.sourceType === "git"
-    && skill.sourceRef === collection.ref
+    && (collection.tagPattern
+      ? skill.sourceTagPattern === collection.tagPattern
+      : skill.sourceRef === collection.ref)
     && (skill.sourceLocation === prepared.location || gitLocationBase(skill.sourceLocation) === collection.location);
 }
 
@@ -2111,6 +2200,7 @@ function parseRecoveryPayload(value: unknown, kind: string): RecoveryPayload | n
 function isSkill(value: unknown): value is Skill {
   if (!isRecord(value)) return false;
   if (!("sourceTracking" in value)) value.sourceTracking = null;
+  if (!("sourceTagPattern" in value)) value.sourceTagPattern = null;
   if (!("tags" in value)) value.tags = [];
   return typeof value.instanceId === "string"
     && typeof value.name === "string"
@@ -2119,7 +2209,9 @@ function isSkill(value: unknown): value is Skill {
     && typeof value.sourceLocation === "string"
     && (value.sourceRef === null || typeof value.sourceRef === "string")
     && (value.sourceRevision === null || typeof value.sourceRevision === "string")
-    && (value.sourceTracking === null || ["default-branch", "branch", "tag", "commit"].includes(String(value.sourceTracking)))
+    && (value.sourceTracking === null
+      || ["default-branch", "branch", "tag", "commit", "tag-pattern"].includes(String(value.sourceTracking)))
+    && (value.sourceTagPattern === null || typeof value.sourceTagPattern === "string")
     && Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === "string")
     && typeof value.installedAt === "string"
     && typeof value.updatedAt === "string";

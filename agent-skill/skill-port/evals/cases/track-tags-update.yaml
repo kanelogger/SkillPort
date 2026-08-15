@@ -1,0 +1,22 @@
+id: track-tags-update
+title: 改为跟踪最新稳定 release 标签
+description: 验证 Agent 用 --track-tags 把 pinned Git Skill 切换为跟踪最新 release tag，且不组合互斥选项。
+
+input:
+  prompt: |
+    design-auditor 是 pin 在 skill-v4.1.1 的 Git Skill。我明确授权把它改为持续跟踪 skill-v* 系列的最新稳定 release。请只输出一条切换命令，使用机器可读输出，不要组合互斥选项。
+
+expect:
+  must_contain:
+    - "sklp update design-auditor --track-tags \"skill-v*\" --json"
+  must_not_contain:
+    - "--track-tags \"skill-v*\" --check"
+    - "--track-tags \"skill-v*\" --dry-run"
+    - "--ref skill-v"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp update design-auditor --track-tags \"skill-v*\" --json"

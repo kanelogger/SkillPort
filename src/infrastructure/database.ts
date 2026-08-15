@@ -180,6 +180,15 @@ export class StateStore {
         this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(6, ?)").run(now());
       });
     }
+    if (version < 7 && this.hasTable("skills")) {
+      this.transaction(() => {
+        this.db.exec("ALTER TABLE skills ADD COLUMN source_tag_pattern TEXT");
+        if (this.hasTable("sources")) {
+          this.db.exec("ALTER TABLE sources ADD COLUMN source_tag_pattern TEXT");
+        }
+        this.db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES(7, ?)").run(now());
+      });
+    }
   }
 
   private hasTable(name: string): boolean {
@@ -230,10 +239,10 @@ export class StateStore {
 
   insertSkill(skill: Skill): void {
     this.db.prepare(`
-      INSERT INTO skills(instance_id,name,description,source_type,source_location,source_ref,source_revision,source_tracking,installed_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?)
+      INSERT INTO skills(instance_id,name,description,source_type,source_location,source_ref,source_revision,source_tracking,source_tag_pattern,installed_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)
     `).run(skill.instanceId, skill.name, skill.description, skill.sourceType, skill.sourceLocation,
-      skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.installedAt, skill.updatedAt);
+      skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.sourceTagPattern, skill.installedAt, skill.updatedAt);
     for (const tag of skill.tags) {
       this.db.prepare("INSERT INTO skill_tags(skill_id,tag) VALUES(?,?)").run(skill.instanceId, tag);
     }
@@ -241,9 +250,10 @@ export class StateStore {
 
   updateSkill(skill: Skill): void {
     this.db.prepare(`
-      UPDATE skills SET description=?,source_location=?,source_ref=?,source_revision=?,source_tracking=?,updated_at=?
+      UPDATE skills SET description=?,source_location=?,source_ref=?,source_revision=?,source_tracking=?,source_tag_pattern=?,updated_at=?
       WHERE instance_id=?
-    `).run(skill.description, skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking, skill.updatedAt, skill.instanceId);
+    `).run(skill.description, skill.sourceLocation, skill.sourceRef, skill.sourceRevision, skill.sourceTracking,
+      skill.sourceTagPattern, skill.updatedAt, skill.instanceId);
   }
 
   replaceSkillTags(skillId: string, tags: string[]): void {
@@ -276,18 +286,18 @@ export class StateStore {
 
   insertSource(source: SourceCollection): void {
     this.db.prepare(`
-      INSERT INTO sources(id,source_key,location,source_ref,source_tracking,scan_path,last_revision,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?)
-    `).run(source.id, source.key, source.location, source.ref, source.tracking, source.scanPath,
+      INSERT INTO sources(id,source_key,location,source_ref,source_tracking,source_tag_pattern,scan_path,last_revision,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?)
+    `).run(source.id, source.key, source.location, source.ref, source.tracking, source.tagPattern, source.scanPath,
       source.lastRevision, source.createdAt, source.updatedAt);
   }
 
   updateSource(source: SourceCollection): void {
     this.db.prepare(`
       UPDATE sources
-      SET location=?,source_ref=?,source_tracking=?,scan_path=?,last_revision=?,updated_at=?
+      SET location=?,source_ref=?,source_tracking=?,source_tag_pattern=?,scan_path=?,last_revision=?,updated_at=?
       WHERE id=?
-    `).run(source.location, source.ref, source.tracking, source.scanPath, source.lastRevision,
+    `).run(source.location, source.ref, source.tracking, source.tagPattern, source.scanPath, source.lastRevision,
       source.updatedAt, source.id);
   }
 
@@ -416,6 +426,7 @@ function toSkill(row: Row): Skill {
     sourceRef: row.source_ref == null ? null : String(row.source_ref),
     sourceRevision: row.source_revision == null ? null : String(row.source_revision),
     sourceTracking: row.source_tracking == null ? null : row.source_tracking as Skill["sourceTracking"],
+    sourceTagPattern: row.source_tag_pattern == null ? null : String(row.source_tag_pattern),
     tags: [],
     installedAt: String(row.installed_at),
     updatedAt: String(row.updated_at)
@@ -441,6 +452,7 @@ function toSourceCollection(row: Row): SourceCollection {
     location: String(row.location),
     ref: row.source_ref == null ? null : String(row.source_ref),
     tracking: row.source_tracking == null ? null : row.source_tracking as SourceCollection["tracking"],
+    tagPattern: row.source_tag_pattern == null ? null : String(row.source_tag_pattern),
     scanPath: String(row.scan_path),
     lastRevision: row.last_revision == null ? null : String(row.last_revision),
     createdAt: String(row.created_at),

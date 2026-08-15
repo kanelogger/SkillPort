@@ -102,6 +102,15 @@ sklp update my-skill --ref main
 sklp update --all --ref main
 ```
 
+To follow the latest stable release instead of a fixed tag, track a tag glob. The highest matching tag with a semantic version wins; pre-release suffixes such as `-beta` are skipped:
+
+```bash
+sklp install https://github.com/owner/repo.git --track-tags "skill-v*"
+sklp update my-skill --track-tags "skill-v*"
+```
+
+Tag-pattern Skills update like branch-tracked ones: `update --check` reports the resolved tag as `remoteRef`, and a normal update moves to the newest matching release. Switching back to `--ref` clears the pattern. `--track-tags` cannot be combined with `--ref`, `--check`, or `--dry-run`, and is rejected for registry sources, GitHub tree URLs, and local directories.
+
 The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
 
 ### Sync a Git Skill collection

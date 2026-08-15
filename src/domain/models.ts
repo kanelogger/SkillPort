@@ -1,4 +1,4 @@
-export type GitSourceTracking = "default-branch" | "branch" | "tag" | "commit";
+export type GitSourceTracking = "default-branch" | "branch" | "tag" | "commit" | "tag-pattern";
 
 export type Skill = {
   instanceId: string;
@@ -9,6 +9,7 @@ export type Skill = {
   sourceRef: string | null;
   sourceRevision: string | null;
   sourceTracking: GitSourceTracking | null;
+  sourceTagPattern: string | null;
   tags: string[];
   installedAt: string;
   updatedAt: string;
@@ -20,6 +21,7 @@ export type SourceCollection = {
   location: string;
   ref: string | null;
   tracking: GitSourceTracking | null;
+  tagPattern: string | null;
   scanPath: string;
   lastRevision: string | null;
   createdAt: string;

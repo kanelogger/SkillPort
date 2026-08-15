@@ -168,18 +168,18 @@ test("Git remote inspection and clone caches reuse one repository snapshot", asy
   } = await import("../dist/infrastructure/sources.js");
 
   const remoteCache = new Map();
-  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", remoteCache).status, "up-to-date");
+  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", null, remoteCache).status, "up-to-date");
   makeSkill(join(source, "skills", "one"), "cache-one", "One updated");
   git(["add", "."], source);
   git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], source);
-  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", remoteCache).status, "up-to-date");
+  assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch", null, remoteCache).status, "up-to-date");
   assert.equal(inspectGitSource(sourceUrl, null, revision, "default-branch").status, "outdated");
 
   const cloneCache = createGitSourceCache();
-  const first = prepareSource(`${sourceUrl}#sklp-path=skills%2Fone`, staging, revision, cloneCache);
+  const first = prepareSource(`${sourceUrl}#sklp-path=skills%2Fone`, staging, { ref: revision }, cloneCache);
   assert.equal(readFileSync(join(first.root, "SKILL.md"), "utf8").includes("cache-one"), true);
   renameSync(source, movedSource);
-  const second = prepareSource(`${sourceUrl}#sklp-path=skills%2Ftwo`, staging, revision, cloneCache);
+  const second = prepareSource(`${sourceUrl}#sklp-path=skills%2Ftwo`, staging, { ref: revision }, cloneCache);
   assert.equal(readFileSync(join(second.root, "SKILL.md"), "utf8").includes("cache-two"), true);
   cleanupGitSourceCache(cloneCache);
 });

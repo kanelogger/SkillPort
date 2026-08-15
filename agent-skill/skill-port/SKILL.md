@@ -5,7 +5,7 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 # Skill Port
 
-<!-- sklp-cli-surface-sha256: ac46cb338f0053ebbdfdc813f2404369a4f340ba54d80a380fcc23e7a9712b99 -->
+<!-- sklp-cli-surface-sha256: e99c50d0729cb9012229273aa4fca0a0061c799ba329b981eda9c17dad43b0b4 -->
 
 使用 `sklp` 管理 Agent Skill 生命周期。不要手工编辑 Hub、项目内的 `.agents/skills/`、全局 `~/.agents/skills/` 或 `~/.agents/skills/skill-port`。
 
@@ -25,6 +25,7 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 - `sklp install <source>` 支持本地 Skill 目录、Git URL，以及名为 `sources.json` 的本地 registry 文件。对 Git、多 Skill 或 registry 来源，先运行 `sklp install <source> --dry-run --json`。
 - Git 来源可用 `--ref <branch|tag|commit>` 选择版本，用 `--path <path>` 扫描仓库子目录。registry 来源不能与 `--ref` 或 `--path` 组合。
+- 用户要持续跟踪最新稳定 release 时使用 `--track-tags "<glob>"`（如 `--track-tags "skill-v*"`）：安装解析匹配 glob 且含语义化版本号的最高 tag，排除 `-beta` 类预发布后缀；之后普通 `update` 和 `update --all` 会自动跟进新 release。`--track-tags` 不能与 `--ref` 组合，也不能用于 registry、GitHub tree URL 或本地目录。
 - 批量来源中允许保留已安装项时，在预览和执行阶段都使用 `--skip-existing`；否则重复名称会让整批预检失败，不产生部分安装。
 - 只有用户要持续使用原目录时才运行 `sklp link <local-directory> --json`。`link` 不复制、不修改也不删除外部源目录。
 
@@ -37,9 +38,10 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 ## 更新与 Git 集合同步
 
 - 检查单个或全部 Git Skill：`sklp update <skill> --check --json` 或 `sklp update --all --check --json`。查看实际更新计划可改用 `--dry-run`；`--check` 与 `--dry-run` 不能组合。
-- 普通 `update` 只跟进分支或默认分支。tag/commit 固定的 Skill 会保持 pinned；用户明确要改跟踪版本时运行 `sklp update <skill> --ref <ref> --json` 或 `sklp update --all --ref <ref> --json`。`--ref` 不能与 `--check` 或 `--dry-run` 组合，批量更新会跳过本地 copied 和 linked Skill。
+- 普通 `update` 只跟进分支、默认分支或 `--track-tags` 安装时的 tag 模式。tag/commit 固定的 Skill 会保持 pinned；用户明确要改跟踪版本时运行 `sklp update <skill> --ref <ref> --json` 或 `sklp update --all --ref <ref> --json`。`--ref` 不能与 `--check` 或 `--dry-run` 组合，批量更新会跳过本地 copied 和 linked Skill。
+- 用户要把已有 Git Skill 改为跟踪最新 release tag 时运行 `sklp update <skill> --track-tags "<glob>" --json`（或 `update --all --track-tags`）；规则与 `--ref` 相同：不能与 `--ref`、`--check` 或 `--dry-run` 组合。改回分支或固定版本用 `--ref`，会清除 tag 模式。tag-pattern Skill 的 `--check` 输出会附带解析出的 `remoteRef`。
 - `update` 只刷新已安装 Skill；Git 仓库目录可能新增或移除 Skill 时使用 `sync`。先以同样的范围和删除选项运行预览，例如 `sklp sync --all --prune --force --dry-run --json`，确认结果后再移除 `--dry-run`。
-- `sklp sync <source> [--ref <ref>] [--path <path>]` 同步一个集合；`sklp sync --all` 同步已登记的全部集合，且不能与 `--ref` 或 `--path` 组合。`--force` 必须与 `--prune` 组合。
+- `sklp sync <source> [--ref <ref>] [--track-tags "<glob>"] [--path <path>]` 同步一个集合；`sklp sync --all` 同步已登记的全部集合，且不能与 `--ref`、`--track-tags` 或 `--path` 组合。`--force` 必须与 `--prune` 组合。
 - 普通 sync 会新增、更新并记录 upstream-missing Skill，但保留本地副本。只有 `--prune` 才删除可安全移除的 missing Skill；已启用项仍会跳过，除非用户明确授权 `--force` 先停用受管目标再删除。无效或重复的上游 metadata 只能记为失败，不能作为删除依据。
 
 ## 导出与删除

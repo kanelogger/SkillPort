@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Add `--track-tags <glob>` to `install`, `update`, and `sync`: track the highest stable semver release tag matching a glob (pre-release suffixes excluded) and follow new releases through ordinary updates, with per-Skill and per-collection pattern persistence (schema migration v7)
+
 ## 0.9.3 - 2026-08-04
 
 ### Changes

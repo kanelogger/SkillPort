@@ -45,24 +45,30 @@ program.command("install")
   .description(human("Install a Skill from a local directory or Git URL", "从本地目录、Git URL 或 registry 安装 Skill"))
   .argument("<source>")
   .option("--ref <ref>", human("Git branch, tag, or commit", "Git 分支、标签或提交"))
+  .option("--track-tags <pattern>", human(
+    "Track the latest stable release tag matching this glob (e.g. \"skill-v*\")",
+    "跟踪匹配该 glob 的最新稳定 release 标签（如 \"skill-v*\"）"
+  ))
   .option("--path <path>", human("Install a Skill from a path inside a Git repository", "安装 Git 仓库内指定路径的 Skill"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .option("--dry-run", human("Preview installable Skills without changing state", "预览可安装 Skill，不改写状态"))
   .option("--skip-existing", human("Skip Skills that are already installed", "跳过已安装的 Skill"))
   .action(run((source, options) => withApp((app) => {
+    if (options.ref && options.trackTags) {
+      throw new CliError(human("--ref cannot be combined with --track-tags.", "--ref 不能与 --track-tags 同时使用。"));
+    }
+    const installOptions = {
+      skipExisting: Boolean(options.skipExisting),
+      gitPath: options.path,
+      tagPattern: options.trackTags as string | undefined
+    };
     if (options.dryRun) {
-      const result = app.previewInstall(source, options.ref, {
-        skipExisting: Boolean(options.skipExisting),
-        gitPath: options.path
-      });
+      const result = app.previewInstall(source, options.ref, installOptions);
       if (options.json) printJson(installPayload({ ...result, dryRun: true }));
       else printInstallPreview(result);
       return;
     }
-    const result = app.installAll(source, options.ref, {
-      skipExisting: Boolean(options.skipExisting),
-      gitPath: options.path
-    });
+    const result = app.installAll(source, options.ref, installOptions);
     if (options.json) printJson(installPayload({ skills: result.skills.map(publicSkill), skipped: result.skipped }));
     else printInstallResult(result);
   }, options.dryRun ? { recover: false } : undefined)));
@@ -84,14 +90,27 @@ program.command("update")
   .option("--check", human("Check whether a Git Skill has a remote update", "检查 Git Skill 是否有远程更新"))
   .option("--dry-run", human("Preview update results without changing state", "预览更新结果，不改写状态"))
   .option("--ref <ref>", human("Change Git Skills to track this branch, tag, or commit", "改为跟踪指定 Git 分支、标签或提交"))
+  .option("--track-tags <pattern>", human(
+    "Change Git Skills to track the latest stable release tag matching this glob",
+    "改为跟踪匹配该 glob 的最新稳定 release 标签"
+  ))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((skill, options) => {
     validateUpdateTarget(skill, options);
     if (options.check && options.dryRun) {
       throw new CliError(human("Choose either --check or --dry-run.", "请选择 --check 或 --dry-run 其中之一。"));
     }
+    if (options.ref && options.trackTags) {
+      throw new CliError(human("--ref cannot be combined with --track-tags.", "--ref 不能与 --track-tags 同时使用。"));
+    }
     if (options.ref && (options.check || options.dryRun)) {
       throw new CliError(human("--ref cannot be combined with --check or --dry-run.", "--ref 不能与 --check 或 --dry-run 同时使用。"));
+    }
+    if (options.trackTags && (options.check || options.dryRun)) {
+      throw new CliError(human(
+        "--track-tags cannot be combined with --check or --dry-run.",
+        "--track-tags 不能与 --check 或 --dry-run 同时使用。"
+      ));
     }
     if (options.check) {
       const updates = withApp((app) => options.all ? app.checkAllUpdates() : [app.checkUpdate(skill)], { recover: false, readOnly: true });
@@ -108,14 +127,18 @@ program.command("update")
       return;
     }
     if (options.all) {
-      const result = withApp((app) => options.ref ? app.updateAllToRef(options.ref) : app.updateAll());
+      const result = withApp((app) => options.ref
+        ? app.updateAllToRef(options.ref)
+        : options.trackTags ? app.updateAllToTagPattern(options.trackTags) : app.updateAll());
       if (options.json) printJson(result);
       else printBatchUpdateSummary(result);
       if (result.failed.length > 0) process.exitCode = 1;
       return;
     }
     return withApp((app) => {
-    const updated = options.ref ? app.updateToRef(skill, options.ref) : app.update(skill);
+    const updated = options.ref
+      ? app.updateToRef(skill, options.ref)
+      : options.trackTags ? app.updateToTagPattern(skill, options.trackTags) : app.update(skill);
     if (options.json) printJson({ skill: publicSkill(updated) });
     else console.log(human(`Updated ${updated.name}`, `已更新 ${updated.name}`));
     });
@@ -126,6 +149,10 @@ program.command("sync")
   .argument("[source]")
   .option("--all", human("Sync every registered Git source collection", "同步所有已登记 Git 来源集合"))
   .option("--ref <ref>", human("Git branch, tag, or commit", "Git 分支、标签或提交"))
+  .option("--track-tags <pattern>", human(
+    "Sync the latest stable release tag matching this glob",
+    "同步匹配该 glob 的最新稳定 release 标签"
+  ))
   .option("--path <path>", human("Scan this path inside the Git repository", "扫描 Git 仓库内指定路径"))
   .option("--dry-run", human("Preview the full reconciliation without changing state", "预览完整同步差异，不改写状态"))
   .option("--prune", human("Remove upstream-missing Skills when safe", "安全移除上游已缺失的 Skill"))
@@ -136,15 +163,19 @@ program.command("sync")
     if (options.force && !options.prune) {
       throw new CliError(human("--force requires --prune.", "--force 必须与 --prune 一起使用。"));
     }
-    if (options.all && (options.ref || options.path)) {
+    if (options.ref && options.trackTags) {
+      throw new CliError(human("--ref cannot be combined with --track-tags.", "--ref 不能与 --track-tags 同时使用。"));
+    }
+    if (options.all && (options.ref || options.path || options.trackTags)) {
       throw new CliError(human(
-        "--ref and --path cannot be combined with --all; registered sources keep their own scope.",
-        "--ref 和 --path 不能与 --all 一起使用；已登记来源会保留各自范围。"
+        "--ref, --track-tags, and --path cannot be combined with --all; registered sources keep their own scope.",
+        "--ref、--track-tags 和 --path 不能与 --all 一起使用；已登记来源会保留各自范围。"
       ));
     }
     const syncOptions = {
       ref: options.ref,
       gitPath: options.path,
+      tagPattern: options.trackTags as string | undefined,
       prune: Boolean(options.prune),
       force: Boolean(options.force)
     };
@@ -621,6 +652,9 @@ function printUpdateCheck(update: FleetUpdateCheck): void {
     human(`Current revision: ${update.currentRevision ?? "unknown"}`, `当前 revision: ${update.currentRevision ?? "未知"}`)
   ];
   if (update.remoteRevision) lines.push(human(`Remote revision: ${update.remoteRevision}`, `远程 revision: ${update.remoteRevision}`));
+  if ("remoteRef" in update && update.remoteRef) {
+    lines.push(human(`Remote tag: ${update.remoteRef}`, `远程标签: ${update.remoteRef}`));
+  }
   if (update.reason) lines.push(human(`Reason: ${update.reason}`, `原因: ${update.reason}`));
   console.log(lines.join("\n"));
 }

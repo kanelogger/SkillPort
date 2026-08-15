@@ -369,9 +369,11 @@ test("a version 2 database preserves legacy Skills while adding source tracking"
   const store = new StateStore(paths);
   const columns = store.db.prepare("PRAGMA table_info(skills)").all().map((column) => column.name);
   assert.equal(columns.includes("source_tracking"), true);
+  assert.equal(columns.includes("source_tag_pattern"), true);
   assert.equal(store.skill("legacy-skill")?.sourceTracking, null);
+  assert.equal(store.skill("legacy-skill")?.sourceTagPattern, null);
   assert.deepEqual(store.skill("legacy-skill")?.tags, []);
-  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3, 4, 5, 6]);
+  assert.deepEqual(store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all().map((row) => row.version), [2, 3, 4, 5, 6, 7]);
   assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='index' AND name='skill_tags_tag_skill_id'").get() !== undefined, true);
   assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sources'").get() !== undefined, true);
   assert.equal(store.db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_memberships'").get() !== undefined, true);

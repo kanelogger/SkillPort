@@ -14,6 +14,7 @@ export type PreparedSource = {
   ref: string | null;
   revision: string | null;
   sourceTracking: GitSourceTracking | null;
+  tagPattern: string | null;
   publisher: string | null;
   collection: PreparedGitCollection | null;
   skillPath: string | null;
@@ -25,6 +26,7 @@ export type PreparedGitCollection = {
   location: string;
   ref: string | null;
   tracking: GitSourceTracking | null;
+  tagPattern: string | null;
   scanPath: string;
   revision: string;
 };
@@ -39,6 +41,7 @@ export type GitUpdateInspection = {
   status: "up-to-date" | "outdated" | "pinned" | "unknown";
   sourceTracking: GitSourceTracking | "unknown";
   remoteRevision: string | null;
+  remoteRef?: string;
   reason?: string;
 };
 
@@ -47,7 +50,7 @@ export type GitRemoteCache = Map<string, GitRemoteCacheEntry>;
 type CachedGitClone = { root: string; revision: string };
 export type GitSourceCache = { clones: Map<string, CachedGitClone> };
 
-type PrepareOptions = { ref?: string; gitPath?: string };
+type PrepareOptions = { ref?: string; gitPath?: string; tagPattern?: string };
 type GitSourceSpec = {
   cloneUrl: string;
   location: string;
@@ -61,6 +64,7 @@ export function prepareInstallSources(input: string, staging: string, options: P
   const local = resolve(input);
   if (existsSync(local) && lstatSync(local).isFile() && basename(local) === "sources.json") {
     if (options.ref) throw new CliError("--ref cannot be used with registry sources.");
+    if (options.tagPattern) throw new CliError("--track-tags cannot be used with registry sources.");
     if (options.gitPath) throw new CliError("--path cannot be used with registry sources.");
     return prepareRegistrySources(local);
   }
@@ -70,10 +74,10 @@ export function prepareInstallSources(input: string, staging: string, options: P
 export function prepareSource(
   input: string,
   staging: string,
-  ref?: string,
+  options: { ref?: string; tagPattern?: string } = {},
   cache?: GitSourceCache
 ): PreparedSource {
-  const sources = prepareSources(input, staging, { ref }, cache);
+  const sources = prepareSources(input, staging, options, cache);
   if (sources.length !== 1) {
     for (const source of sources) source.cleanup();
     throw new CliError("Skill source must contain exactly one Skill.");
@@ -88,6 +92,7 @@ export function prepareGitSyncSources(
   cache?: GitSourceCache
 ): PreparedGitSourceSet {
   validateGitRef(options.ref);
+  validateTagPattern(options.tagPattern);
   if (existsSync(resolve(input))) throw new CliError("Sync sources must be Git URLs.");
   return prepareGitSourceSet(input, staging, options, cache, true);
 }
@@ -97,10 +102,55 @@ export function inspectGitSource(
   ref: string | null,
   currentRevision: string | null,
   sourceTracking: GitSourceTracking | null,
+  tagPattern?: string | null,
   cache?: GitRemoteCache
 ): GitUpdateInspection {
   if (sourceTracking === "commit" || isCommitRef(ref)) {
     return { status: "pinned", sourceTracking: "commit", remoteRevision: null };
+  }
+  if (sourceTracking === "tag-pattern") {
+    if (!tagPattern) {
+      return {
+        status: "unknown",
+        sourceTracking: "tag-pattern",
+        remoteRevision: null,
+        reason: "Git source tag pattern is missing. Reinstall the Skill."
+      };
+    }
+    try {
+      const latest = resolveLatestTagRevision(gitSourceSpec(source, {}).cloneUrl, tagPattern, cache);
+      if (!latest) {
+        return {
+          status: "unknown",
+          sourceTracking: "tag-pattern",
+          remoteRevision: null,
+          reason: `No remote tag matches pattern: ${tagPattern}`
+        };
+      }
+      if (!currentRevision) {
+        return {
+          status: "unknown",
+          sourceTracking: "tag-pattern",
+          remoteRevision: latest.revision,
+          remoteRef: latest.tag,
+          reason: "Git source has no stored revision. Reinstall the Skill."
+        };
+      }
+      const current = latest.revision === currentRevision && latest.tag === ref;
+      return {
+        status: current ? "up-to-date" : "outdated",
+        sourceTracking: "tag-pattern",
+        remoteRevision: latest.revision,
+        remoteRef: latest.tag
+      };
+    } catch (error) {
+      return {
+        status: "unknown",
+        sourceTracking: "tag-pattern",
+        remoteRevision: null,
+        reason: sanitizeError(error)
+      };
+    }
   }
   if (sourceTracking === "tag") return { status: "pinned", sourceTracking: "tag", remoteRevision: null };
   if (sourceTracking === "branch") return inspectBranchGitRef(source, ref, currentRevision, cache);
@@ -265,9 +315,11 @@ function prepareSources(
   cache?: GitSourceCache
 ): PreparedSource[] {
   validateGitRef(options.ref);
+  validateTagPattern(options.tagPattern);
   const local = resolve(input);
   if (existsSync(local)) {
     if (options.gitPath) throw new CliError("--path can only be used with Git sources.");
+    if (options.tagPattern) throw new CliError("--track-tags can only be used with Git sources.");
     return [prepareLocalSource(input)];
   }
   return prepareGitSources(input, staging, options, cache);
@@ -290,6 +342,11 @@ function prepareGitSourceSet(
   allowEmpty: boolean
 ): PreparedGitSourceSet {
   const spec = gitSourceSpec(input, options);
+  if (options.tagPattern) {
+    const latest = resolveLatestTagRevision(spec.cloneUrl, options.tagPattern);
+    if (!latest) throw new CliError(`No remote tag matches --track-tags pattern: ${options.tagPattern}`);
+    spec.ref = latest.tag;
+  }
   const publisher = githubOwner(input);
   const cacheKey = `${spec.cloneUrl}\0${spec.ref ?? ""}`;
   const cached = cache?.clones.get(cacheKey);
@@ -328,14 +385,15 @@ function prepareGitSourceSet(
     const roots = allowEmpty && (!existsSync(selectedRoot) || !lstatSync(selectedRoot).isDirectory())
       ? []
       : skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`, allowEmpty);
-    const tracking = sourceTrackingForGitRef(spec.ref, cloneRoot);
+    const tracking = options.tagPattern ? "tag-pattern" : sourceTrackingForGitRef(spec.ref, cloneRoot);
     const collectionLocation = normalizeGitCollectionLocation(spec.cloneUrl);
     const scanPath = spec.path ?? ".";
     const collection: PreparedGitCollection = {
-      key: gitCollectionKey(collectionLocation, spec.ref, scanPath),
+      key: gitCollectionKey(collectionLocation, options.tagPattern ? `tag-pattern:${options.tagPattern}` : spec.ref, scanPath),
       location: collectionLocation,
       ref: spec.ref,
       tracking,
+      tagPattern: options.tagPattern ?? null,
       scanPath,
       revision: revisionValue!
     };
@@ -353,6 +411,7 @@ function prepareGitSourceSet(
         ref: spec.ref,
         revision: revisionValue,
         sourceTracking: tracking,
+        tagPattern: options.tagPattern ?? null,
         publisher,
         collection,
         skillPath,
@@ -371,6 +430,7 @@ function prepareGitSourceSet(
         ref: spec.ref,
         revision: revisionValue,
         sourceTracking: tracking,
+        tagPattern: options.tagPattern ?? null,
         publisher,
         collection,
         skillPath: relative(cloneRoot, root).replaceAll("\\", "/") || ".",
@@ -544,6 +604,7 @@ export function prepareLocalSource(input: string): PreparedSource {
     ref: null,
     revision: null,
     sourceTracking: null,
+    tagPattern: null,
     publisher: null,
     collection: null,
     skillPath: null,
@@ -578,6 +639,7 @@ function gitSourceSpec(input: string, options: PrepareOptions): GitSourceSpec {
   const tree = githubTreeSpec(input);
   if (tree) {
     if (options.ref) throw new CliError("--ref cannot be used with GitHub tree URLs.");
+    if (options.tagPattern) throw new CliError("--track-tags cannot be used with GitHub tree URLs.");
     if (options.gitPath) throw new CliError("--path cannot be used with GitHub tree URLs.");
     return tree;
   }
@@ -629,6 +691,63 @@ function githubOwner(input: string): string | null {
 
 function validateGitRef(ref: string | undefined): void {
   if (ref && (ref.startsWith("-") || /[\0\r\n]/.test(ref))) throw new CliError("Invalid Git ref.");
+}
+
+function validateTagPattern(pattern: string | undefined): void {
+  if (pattern === undefined) return;
+  if (!pattern.trim() || pattern.startsWith("-") || /[\0\r\n]/.test(pattern) || pattern.length > 200) {
+    throw new CliError("Invalid tag pattern.");
+  }
+}
+
+function tagPatternMatches(pattern: string, tag: string): boolean {
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("\\*", ".*");
+  return new RegExp(`^${escaped}$`).test(tag);
+}
+
+function parseTagVersion(tag: string): [number, number, number] | null {
+  const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[0-9A-Za-z][0-9A-Za-z.-]*)?/.exec(tag);
+  if (!match || match[4]) return null;
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
+}
+
+function compareTagVersions(left: [number, number, number], right: [number, number, number]): number {
+  for (let index = 0; index < 3; index += 1) {
+    const delta = left[index]! - right[index]!;
+    if (delta !== 0) return delta;
+  }
+  return 0;
+}
+
+function remoteTagRevisions(source: string, cache?: GitRemoteCache): Map<string, string> {
+  const output = runRemoteGit(["ls-remote", "--tags", "--", source], cache);
+  const revisions = new Map<string, string>();
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^([0-9a-f]{40,64})\trefs\/tags\/(.+)$/i.exec(line);
+    if (!match) continue;
+    const [, sha, raw] = match;
+    if (raw!.endsWith("^{}")) revisions.set(raw!.slice(0, -3), sha!);
+    else if (!revisions.has(raw!)) revisions.set(raw!, sha!);
+  }
+  return revisions;
+}
+
+export function resolveLatestTagRevision(
+  source: string,
+  pattern: string,
+  cache?: GitRemoteCache
+): { tag: string; revision: string } | null {
+  let best: { tag: string; revision: string; version: [number, number, number] } | null = null;
+  for (const [tag, revision] of remoteTagRevisions(source, cache)) {
+    if (!tagPatternMatches(pattern, tag)) continue;
+    const version = parseTagVersion(tag);
+    if (!version) continue;
+    if (!best || compareTagVersions(version, best.version) > 0
+      || (compareTagVersions(version, best.version) === 0 && tag > best.tag)) {
+      best = { tag, revision, version };
+    }
+  }
+  return best ? { tag: best.tag, revision: best.revision } : null;
 }
 
 function normalizeGitPath(path: string): string {
