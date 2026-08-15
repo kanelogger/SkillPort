@@ -19,6 +19,7 @@ cases:
     - evals/cases/sync-force-preview.yaml
     - evals/cases/linked-removal.yaml
     - evals/cases/agent-setup.yaml
+    - evals/cases/sync-forget-source.yaml
   defaults:
     timeout_seconds: 120
     max_turns: 2

@@ -156,3 +156,23 @@ test("prune preserves an unused copy when ownership metadata is missing", (t) =>
   assert.equal(existsSync(join(hub, "skills", "unverified-copy", "SKILL.md")), true);
   assert.deepEqual(JSON.parse(cli(["list", "--json"], options).stdout).skills.map((skill) => skill.name), ["unverified-copy"]);
 });
+
+test("sync --forget never echoes credentials from source URLs", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-forget-security-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  mkdirSync(project);
+  assert.equal(cli(["init"], { cwd: project, hub, home: root }).status, 0);
+  const url = "https://user:secret@example.com/repo.git";
+
+  const jsonResult = cli(["sync", "--forget", url, "--json"], { cwd: project, hub, home: root });
+  assert.equal(jsonResult.status, 1);
+  assert.equal(jsonResult.stdout.includes("secret"), false);
+  assert.equal(jsonResult.stderr.includes("secret"), false);
+
+  const humanResult = cli(["sync", "--forget", url], { cwd: project, hub, home: root });
+  assert.equal(humanResult.status, 1);
+  assert.equal(humanResult.stdout.includes("secret"), false);
+  assert.equal(humanResult.stderr.includes("secret"), false);
+});

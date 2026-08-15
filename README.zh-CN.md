@@ -135,6 +135,20 @@ sklp sync --all --prune --force
 
 同步结果会分别列出 `added`、`updated`、`unchanged`、`missing`、`removed` 和 `failed`。普通同步只记录上游缺失状态，保留本地副本。`--prune` 是删除边界：已启用的缺失 Skill 默认跳过，只有同时传入 `--force` 才会先停用再移除。上游 metadata 无效或名称重复时会报告失败，绝不会把它当成删除依据。没有稳定 manifest 标识时，Skill 改名会表现为一个新增项和一个缺失项。
 
+删除某个集合的最后一个成员时，会自动注销该空来源，之后的 `sklp sync --all` 既不会访问它，也不会重新安装该 Skill。自动清理只作用于因成员删除而变空的来源；首次显式同步发现零个 Skill、或安装候选全部失败时，仍按登记语义保留空来源，清理入口是 `sync --forget`。
+
+多成员集合中的单个 Skill 被移除后，仍可能被下一次集合级同步重新发现。要停止整个集合的对账、同时保留已安装 Skill，可以不访问远端直接注销登记：
+
+```bash
+# 预览将注销哪条集合登记
+sklp sync --forget https://github.com/owner/skills.git --path skills --dry-run --json
+
+# 注销集合及其 memberships；已安装 Skill 保持不变
+sklp sync --forget https://github.com/owner/skills.git --path skills
+```
+
+`--forget` 只删除一条精确匹配的来源登记及其 memberships。已安装 Skill、Hub 内容、enablements 和 catalogs 均保持不变，结果中列出的 retained Skills 绝不会被删除。它在 Git 远端不可访问时也能工作，并沿用普通 sync 的 `--ref`/`--track-tags`/`--path` scope 规则。`--prune`、`--force` 不能与 `--forget` 组合；找不到精确登记时退出码为 1。JSON 结果为 `{ "forgotten": { "source": {...}, "retained": [...] } }`，预览时顶层额外增加 `dryRun: true`。
+
 ### 查看状态并清理 Hub
 
 为一组明确指定的已安装 Skill 添加同一个私有标签：

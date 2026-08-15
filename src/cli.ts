@@ -9,6 +9,7 @@ import {
   SkillPort,
   type BatchUpdateSummary,
   type FleetUpdateCheck,
+  type ForgetSourceResult,
   type PrunePreview,
   type PruneResult,
   type PruneSkipReason,
@@ -157,14 +158,43 @@ program.command("sync")
   .option("--dry-run", human("Preview the full reconciliation without changing state", "预览完整同步差异，不改写状态"))
   .option("--prune", human("Remove upstream-missing Skills when safe", "安全移除上游已缺失的 Skill"))
   .option("--force", human("Disable managed targets before pruning missing Skills", "清理缺失 Skill 前先停用受管目标"))
+  .option("--forget", human(
+    "Deregister a Git source collection while keeping installed Skills",
+    "注销 Git 来源集合并保留已安装 Skill"
+  ))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((source, options) => {
+    if (options.ref && options.trackTags) {
+      throw new CliError(human("--ref cannot be combined with --track-tags.", "--ref 不能与 --track-tags 同时使用。"));
+    }
+    if (options.forget) {
+      if (!source) {
+        throw new CliError(human("--forget requires a Git source.", "--forget 必须指定 Git 来源。"));
+      }
+      if (options.all) {
+        throw new CliError(human("--forget cannot be combined with --all.", "--forget 不能与 --all 一起使用。"));
+      }
+      if (options.prune || options.force) {
+        throw new CliError(human(
+          "--prune and --force cannot be combined with --forget.",
+          "--prune 和 --force 不能与 --forget 一起使用。"
+        ));
+      }
+      const forgetOptions = {
+        ref: options.ref,
+        gitPath: options.path,
+        tagPattern: options.trackTags as string | undefined
+      };
+      const result = options.dryRun
+        ? withApp((app) => app.previewForgetSource(source, forgetOptions), { recover: false, readOnly: true })
+        : withApp((app) => app.forgetSource(source, forgetOptions));
+      if (options.json) printJson(options.dryRun ? { dryRun: true, forgotten: result } : { forgotten: result });
+      else printForgetResult(result, Boolean(options.dryRun));
+      return;
+    }
     validateSyncTarget(source, options);
     if (options.force && !options.prune) {
       throw new CliError(human("--force requires --prune.", "--force 必须与 --prune 一起使用。"));
-    }
-    if (options.ref && options.trackTags) {
-      throw new CliError(human("--ref cannot be combined with --track-tags.", "--ref 不能与 --track-tags 同时使用。"));
     }
     if (options.all && (options.ref || options.path || options.trackTags)) {
       throw new CliError(human(
@@ -669,6 +699,18 @@ function printBatchUpdateSummary(summary: BatchUpdateSummary): void {
   console.log(human("Batch update summary", "批量更新汇总"));
   for (const item of summary.updated) console.log(human(`Updated ${item.name} to ${item.revision}`, `已更新 ${item.name} 至 ${item.revision}`));
   printSkippedAndFailed(summary);
+}
+
+function printForgetResult(result: ForgetSourceResult, dryRun: boolean): void {
+  console.log(human(
+    `${dryRun ? "Would deregister" : "Deregistered"} source collection ${result.source.location} (${result.source.path})`,
+    `${dryRun ? "将注销" : "已注销"}来源集合 ${result.source.location}（${result.source.path}）`
+  ));
+  const retained = result.retained.map((item) => item.name).join(", ");
+  console.log(human(
+    `Retained installed Skills: ${retained || "none"}`,
+    `保留已安装 Skill：${retained || "无"}`
+  ));
 }
 
 function printSyncSummary(summary: SyncSummary, dryRun: boolean): void {

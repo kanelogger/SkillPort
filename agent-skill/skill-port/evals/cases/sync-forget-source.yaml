@@ -1,0 +1,20 @@
+id: sync-forget-source
+title: 停止同步某来源但保留已安装 Skill
+description: 验证 Agent 在要求停止来源对账且保留已安装 Skill 时，先预览再执行 sync --forget，输出严格为两行且顺序正确，并且不删除 Skill、不建议手改 SQLite。
+
+input:
+  prompt: |
+    我不想再让 sklp 对账 https://github.com/acme/skills.git 的 skills 目录了，但已经安装的 Skill 要全部保留。请只输出两条命令：第一条预览要注销什么，第二条执行；每行一条，使用机器可读输出。不要输出其他内容，不要删除任何 Skill，也不要建议直接改数据库。
+
+expect:
+  must_contain:
+    - "sklp sync --forget https://github.com/acme/skills.git --path skills --dry-run --json"
+    - "sklp sync --forget https://github.com/acme/skills.git --path skills --json"
+  must_not_contain:
+    - "sklp remove"
+    - "sqlite"
+
+judge:
+  type: script
+  script_path: evals/fixtures/scripts/check-forget-order.sh
+  timeout_seconds: 30

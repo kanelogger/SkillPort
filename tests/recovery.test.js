@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync
 } from "node:fs";
@@ -7,6 +8,7 @@ import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 import { StateStore } from "../dist/infrastructure/database.js";
 import { resolveHub } from "../dist/infrastructure/config.js";
 import { cli, makeSkill } from "./helpers.js";
@@ -264,6 +266,162 @@ test("an interrupted removal restores source collection membership", () => {
   recoveredDb.close();
   assert.equal(existsSync(backup), false);
 });
+
+test("an interrupted removal restores a source collection deleted in the crash window", () => {
+  const fixture = gitSetup("orphan-source-remove");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  const info = JSON.parse(cli(["info", "recovery-git-skill"], fixture.options).stdout);
+  const destination = join(fixture.hub, "skills", "recovery-git-skill");
+  const backup = join(fixture.hub, ".staging", "recovery-git-source-backup");
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  const source = readSourceCollection(db);
+  const sourceMembership = readSourceMembership(db);
+  assert.equal(source !== null && sourceMembership !== null, true);
+  const payload = {
+    kind: "remove",
+    skill: info.skill,
+    destination,
+    backup,
+    enablements: [],
+    sourceMembership,
+    source
+  };
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("crashed-git-source-remove", "remove", "started", JSON.stringify(payload), new Date().toISOString());
+  db.exec("DELETE FROM source_memberships");
+  db.exec("DELETE FROM sources");
+  db.exec("DELETE FROM skills");
+  db.close();
+  renameSync(destination, backup);
+
+  const recovered = cli(["info", "recovery-git-skill"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(JSON.parse(recovered.stdout).skill.instanceId, info.skill.instanceId);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  const restored = state.prepare("SELECT id, source_key, scan_path FROM sources").get();
+  assert.deepEqual({ ...restored }, { id: source.id, source_key: source.key, scan_path: source.scanPath });
+  state.close();
+  assert.equal(existsSync(backup), false);
+});
+
+test("an interrupted removal rejects a source snapshot that does not match its membership", () => {
+  const fixture = gitSetup("mismatched-source-snapshot");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  const info = JSON.parse(cli(["info", "recovery-git-skill"], fixture.options).stdout);
+  const destination = join(fixture.hub, "skills", "recovery-git-skill");
+  const backup = join(fixture.hub, ".staging", "recovery-mismatched-backup");
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  const source = readSourceCollection(db);
+  const sourceMembership = readSourceMembership(db);
+  const payload = {
+    kind: "remove",
+    skill: info.skill,
+    destination,
+    backup,
+    enablements: [],
+    sourceMembership,
+    source: { ...source, id: "different-source-id" }
+  };
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("crashed-mismatched-remove", "remove", "started", JSON.stringify(payload), new Date().toISOString());
+  db.close();
+
+  const recovered = cli(["list"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT status FROM operations WHERE id='crashed-mismatched-remove'").get().status, "failed");
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM skills").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+  assert.equal(existsSync(destination), true);
+});
+
+test("an interrupted Git install cleans the source it registered when rolled back", () => {
+  const fixture = gitSetup("orphan-source-install");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.exec("UPDATE operations SET status='started', finished_at=NULL WHERE kind='install'");
+  db.close();
+  rmSync(join(fixture.hub, "skills", "recovery-git-skill"), { recursive: true, force: true });
+
+  const recovered = cli(["list"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM skills").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 0);
+  state.close();
+});
+
+test("an interrupted Git install keeps an empty source registered when its Skill transaction never committed", () => {
+  const fixture = gitSetup("empty-source-install");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.exec("UPDATE operations SET status='started', finished_at=NULL WHERE kind='install'");
+  db.exec("DELETE FROM source_memberships");
+  db.exec("DELETE FROM skills");
+  db.close();
+  rmSync(join(fixture.hub, "skills", "recovery-git-skill"), { recursive: true, force: true });
+
+  const recovered = cli(["list"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM skills").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 0);
+  state.close();
+});
+
+
+function gitSetup(name) {
+  const root = mkdtempSync(join(tmpdir(), `sklp-recovery-git-${name}-`));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  mkdirSync(repo);
+  makeSkill(join(repo, "skills", "solo"), "recovery-git-skill", "Git recovery skill");
+  assert.equal(spawnSync("git", ["init"], { cwd: repo, encoding: "utf8" }).status, 0);
+  assert.equal(spawnSync("git", ["branch", "-M", "main"], { cwd: repo, encoding: "utf8" }).status, 0);
+  assert.equal(spawnSync("git", ["add", "."], { cwd: repo, encoding: "utf8" }).status, 0);
+  assert.equal(spawnSync("git", ["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], { cwd: repo, encoding: "utf8" }).status, 0);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  return { root, hub, project, repo, options, url: pathToFileURL(repo).href };
+}
+
+function readSourceCollection(db) {
+  const row = db.prepare("SELECT * FROM sources").get();
+  if (!row) return null;
+  return {
+    id: row.id,
+    key: row.source_key,
+    location: row.location,
+    ref: row.source_ref,
+    tracking: row.source_tracking,
+    tagPattern: row.source_tag_pattern,
+    scanPath: row.scan_path,
+    lastRevision: row.last_revision,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function readSourceMembership(db) {
+  const row = db.prepare("SELECT * FROM source_memberships").get();
+  if (!row) return null;
+  return {
+    sourceId: row.source_id,
+    skillId: row.skill_id,
+    skillPath: row.skill_path,
+    status: row.status,
+    lastSeenRevision: row.last_seen_revision,
+    updatedAt: row.updated_at
+  };
+}
 
 test("recovery rejects a journal path outside the managed Hub", () => {
   const fixture = setup("unsafe");

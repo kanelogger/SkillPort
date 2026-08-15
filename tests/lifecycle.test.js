@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { cli, makeSkill } from "./helpers.js";
 
@@ -144,3 +147,46 @@ test("remove publication failure restores the Skill and registration", () => {
   assert.equal(existsSync(join(hub, "skills", "rollback-skill", "SKILL.md")), true);
   assert.match(cli(["list"], { cwd: project, hub, home: root }).stdout, /rollback-skill\s+Keep me/);
 });
+
+test("Git remove publication failure restores the source collection and membership", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-git-remove-rollback-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  mkdirSync(repo);
+  makeSkill(join(repo, "skills", "git-rollback"), "git-rollback", "Git rollback skill");
+  git(["init"], repo);
+  git(["branch", "-M", "main"], repo);
+  commit(repo, "initial");
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", pathToFileURL(repo).href, "--path", "skills"], options).status, 0);
+  assert.equal(cli(["enable", "git-rollback"], options).status, 0);
+  rmSync(join(hub, "catalog.md"));
+  mkdirSync(join(hub, "catalog.md"));
+
+  const result = cli(["remove", "git-rollback", "--force"], options);
+  assert.equal(result.status, 1, result.stdout);
+  assert.equal(existsSync(join(hub, "skills", "git-rollback", "SKILL.md")), true);
+  assert.match(cli(["list"], options).stdout, /git-rollback\s+Git rollback skill/);
+  const state = new DatabaseSync(join(hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+  const info = JSON.parse(cli(["info", "git-rollback"], options).stdout);
+  assert.equal(info.skill.instanceId.length > 0, true);
+  assert.equal(info.enablements.length, 1);
+  assert.equal(info.enablements[0].health, "healthy");
+});
+
+function git(args, cwd) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return result;
+}
+
+function commit(repo, message) {
+  git(["add", "."], repo);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", message], repo);
+}

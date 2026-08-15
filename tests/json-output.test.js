@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { cli, makeSkill } from "./helpers.js";
 
@@ -96,5 +98,44 @@ test("JSON commands return a stable JSON error envelope", () => {
   assert.equal(result.stderr, "");
   assert.deepEqual(JSON.parse(result.stdout), {
     error: { code: "COMMAND_FAILED", message: "Skill not installed: missing-skill" }
+  });
+});
+
+test("sync --forget JSON shape is stable across languages", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-forget-json-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  mkdirSync(project);
+  mkdirSync(repo);
+  makeSkill(join(repo, "skills", "solo"), "forget-json-skill", "Forget JSON");
+  const git = (args) => {
+    const result = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git(["init"]);
+  git(["branch", "-M", "main"]);
+  git(["add", "."]);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"]);
+  const url = pathToFileURL(repo).href;
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", url, "--path", "skills"], options).status, 0);
+
+  const english = cli(["sync", "--forget", url, "--path", "skills", "--dry-run", "--json"], options);
+  const chinese = cli(["sync", "--forget", url, "--path", "skills", "--dry-run", "--json"], {
+    ...options,
+    env: { SKLP_LANG: "zh-CN" }
+  });
+  assert.equal(english.status, 0, english.stderr);
+  assert.equal(chinese.status, 0, chinese.stderr);
+  assert.equal(english.stdout, chinese.stdout);
+  assert.deepEqual(JSON.parse(english.stdout), {
+    dryRun: true,
+    forgotten: {
+      source: { location: url, ref: null, tagPattern: null, path: "skills" },
+      retained: [{ name: "forget-json-skill" }]
+    }
   });
 });

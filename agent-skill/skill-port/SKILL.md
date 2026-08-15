@@ -5,7 +5,7 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 # Skill Port
 
-<!-- sklp-cli-surface-sha256: e99c50d0729cb9012229273aa4fca0a0061c799ba329b981eda9c17dad43b0b4 -->
+<!-- sklp-cli-surface-sha256: ff5174e28047293365d722ec59d918aa09997041310ec937d141cf464d3f57da -->
 
 使用 `sklp` 管理 Agent Skill 生命周期。不要手工编辑 Hub、项目内的 `.agents/skills/`、全局 `~/.agents/skills/` 或 `~/.agents/skills/skill-port`。
 
@@ -43,6 +43,8 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 - `update` 只刷新已安装 Skill；Git 仓库目录可能新增或移除 Skill 时使用 `sync`。先以同样的范围和删除选项运行预览，例如 `sklp sync --all --prune --force --dry-run --json`，确认结果后再移除 `--dry-run`。
 - `sklp sync <source> [--ref <ref>] [--track-tags "<glob>"] [--path <path>]` 同步一个集合；`sklp sync --all` 同步已登记的全部集合，且不能与 `--ref`、`--track-tags` 或 `--path` 组合。`--force` 必须与 `--prune` 组合。
 - 普通 sync 会新增、更新并记录 upstream-missing Skill，但保留本地副本。只有 `--prune` 才删除可安全移除的 missing Skill；已启用项仍会跳过，除非用户明确授权 `--force` 先停用受管目标再删除。无效或重复的上游 metadata 只能记为失败，不能作为删除依据。
+- 删除或 prune 掉来源集合的最后一个成员时，集合登记会自动注销，之后的 `sklp sync --all` 不会访问它或重新安装该 Skill。多成员集合仍按集合级同步管理，被单独 remove 的成员可能被再次发现。
+- 用户要求停止整个来源集合的对账、同时保留已安装 Skill 时，使用 `sklp sync --forget <source> [--ref <ref> | --track-tags "<glob>"] [--path <path>]`：先输出 `--dry-run --json` 预览要注销的精确 scope 和保留的 Skill，再执行不带 `--dry-run` 的同一命令。forget 不删除已安装 Skill、Hub 内容、enablements 或 catalog，也不访问 Git 远端；不能与 `--all`、`--prune`、`--force` 组合。不得建议用户手改 SQLite 来清理来源登记。
 
 ## 导出与删除
 

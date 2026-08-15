@@ -26,7 +26,7 @@ test("sync help documents reconciliation and removal controls", () => {
   const result = cli(["sync", "--help"], { cwd: root, hub: join(root, "hub"), home: root });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /sklp sync \[options\] \[source\]/);
-  for (const option of ["--all", "--path", "--dry-run", "--prune", "--force", "--json"]) {
+  for (const option of ["--all", "--path", "--dry-run", "--prune", "--force", "--forget", "--json"]) {
     assert.match(result.stdout, new RegExp(option));
   }
 });

@@ -135,6 +135,20 @@ Git installs now register their repository URL, ref, and scan path as a source c
 
 Sync output separates `added`, `updated`, `unchanged`, `missing`, `removed`, and `failed` entries. A normal sync records upstream-missing membership but keeps the local copy. `--prune` is the deletion boundary: enabled missing Skills are skipped unless `--force` is also present. Invalid or duplicate upstream metadata is reported as a failure and is never treated as evidence that an installed Skill was deleted. Without a stable manifest identifier, a changed Skill name is represented as one addition and one missing Skill.
 
+Removing the last member of a collection automatically deregisters its empty source, so a later `sklp sync --all` neither fetches it nor reinstalls the Skill. Automatic cleanup only applies to sources emptied by membership removal; an explicit first sync that discovered zero Skills, or whose install candidates all failed, keeps its empty registration as an intentional scan scope.
+
+In a multi-member collection, a removed Skill can be discovered again by the next collection-level sync. To stop reconciling the whole collection while keeping installed Skills, deregister it without touching the remote:
+
+```bash
+# Preview exactly which collection registration is dropped
+sklp sync --forget https://github.com/owner/skills.git --path skills --dry-run --json
+
+# Deregister the collection and its memberships; installed Skills stay
+sklp sync --forget https://github.com/owner/skills.git --path skills
+```
+
+`--forget` removes one precisely matched source registration and its memberships only. Installed Skills, Hub content, enablements, and catalogs are unchanged, and the listed retained Skills are never deleted. It works without a reachable Git remote and needs the same `--ref`/`--track-tags`/`--path` scope rules as a normal sync. `--prune` and `--force` cannot be combined with `--forget`; an unmatched scope exits with code 1. The JSON result is `{ "forgotten": { "source": {...}, "retained": [...] } }`, with `dryRun: true` added at the top level for previews.
+
 ### Inspect and prune the Hub
 
 Add one private tag to an explicit set of installed Skills:

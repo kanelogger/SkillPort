@@ -97,6 +97,25 @@ export function prepareGitSyncSources(
   return prepareGitSourceSet(input, staging, options, cache, true);
 }
 
+export function gitCollectionIdentity(
+  input: string,
+  options: Pick<PrepareOptions, "ref" | "gitPath" | "tagPattern">
+): { location: string; ref: string | null; tagPattern: string | null; scanPath: string; key: string } {
+  validateGitRef(options.ref);
+  validateTagPattern(options.tagPattern);
+  const spec = gitSourceSpec(input, options);
+  const location = normalizeGitCollectionLocation(spec.cloneUrl);
+  const scanPath = spec.path ?? ".";
+  const tagPattern = options.tagPattern ?? null;
+  return {
+    location,
+    ref: spec.ref,
+    tagPattern,
+    scanPath,
+    key: gitCollectionKey(location, tagPattern ? `tag-pattern:${tagPattern}` : spec.ref, scanPath)
+  };
+}
+
 export function inspectGitSource(
   source: string,
   ref: string | null,
@@ -386,15 +405,14 @@ function prepareGitSourceSet(
       ? []
       : skillRoots(selectedRoot, `Git source path contains no Skill: ${spec.path ?? "."}`, allowEmpty);
     const tracking = options.tagPattern ? "tag-pattern" : sourceTrackingForGitRef(spec.ref, cloneRoot);
-    const collectionLocation = normalizeGitCollectionLocation(spec.cloneUrl);
-    const scanPath = spec.path ?? ".";
+    const identity = gitCollectionIdentity(input, options);
     const collection: PreparedGitCollection = {
-      key: gitCollectionKey(collectionLocation, options.tagPattern ? `tag-pattern:${options.tagPattern}` : spec.ref, scanPath),
-      location: collectionLocation,
+      key: identity.key,
+      location: identity.location,
       ref: spec.ref,
       tracking,
       tagPattern: options.tagPattern ?? null,
-      scanPath,
+      scanPath: identity.scanPath,
       revision: revisionValue!
     };
     if (roots.length === 0) {
@@ -407,7 +425,7 @@ function prepareGitSourceSet(
       const sources = [{
         root: roots[0]!,
         type: "git" as const,
-        location: skillPath === scanPath ? spec.location : sourceWithPathFragment(spec.cloneUrl, skillPath),
+        location: skillPath === identity.scanPath ? spec.location : sourceWithPathFragment(spec.cloneUrl, skillPath),
         ref: spec.ref,
         revision: revisionValue,
         sourceTracking: tracking,

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { cli, makeSkill } from "./helpers.js";
 
@@ -171,4 +173,39 @@ test("Chinese doctor output includes actionable suggestions", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /建议:/);
   assert.match(result.stderr, /sklp disable/);
+});
+
+test("Chinese sync --forget output says installed Skills are retained", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-zh-forget-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const repo = join(root, "repo");
+  const env = { SKLP_LANG: "zh-CN" };
+  mkdirSync(project);
+  mkdirSync(repo);
+  makeSkill(join(repo, "skills", "solo"), "zh-forget-skill", "中文遗忘");
+  const git = (args) => {
+    const result = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git(["init"]);
+  git(["branch", "-M", "main"]);
+  git(["add", "."]);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"]);
+  const url = pathToFileURL(repo).href;
+  const options = { cwd: project, hub, home: root, env };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", url, "--path", "skills"], options).status, 0);
+
+  const preview = cli(["sync", "--forget", url, "--path", "skills", "--dry-run"], options);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /将注销来源集合/);
+  assert.match(preview.stdout, /保留已安装 Skill：zh-forget-skill/);
+
+  const applied = cli(["sync", "--forget", url, "--path", "skills"], options);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.match(applied.stdout, /已注销来源集合/);
+  assert.match(applied.stdout, /保留已安装 Skill：zh-forget-skill/);
+  assert.equal(cli(["info", "zh-forget-skill"], options).status, 0);
 });

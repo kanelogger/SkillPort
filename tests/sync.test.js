@@ -246,6 +246,247 @@ test("sync validates source selection and destructive option combinations", (t) 
   assert.match(cli(["sync", "--all", "--path", "skills"], fixture.options).stderr, /cannot be combined with --all/);
 });
 
+test("removing the last member deregisters the source and sync --all no longer fetches it", (t) => {
+  const fixture = setup("orphan-source");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "solo"), "solo-skill", "Solo upstream Skill");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  let state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+
+  assert.equal(cli(["remove", "solo-skill"], fixture.options).status, 0);
+  state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 0);
+  state.close();
+
+  rmSync(fixture.repo, { recursive: true, force: true });
+  const synced = cli(["sync", "--all", "--json"], fixture.options);
+  assert.equal(synced.status, 0, synced.stderr);
+  assert.deepEqual(JSON.parse(synced.stdout), { sources: [], failed: [] });
+  assert.equal(cli(["info", "solo-skill"], fixture.options).status, 1);
+});
+
+test("removing one member of a multi-member collection keeps the source registration", (t) => {
+  const fixture = setup("multi-member-remove");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "alpha"), "alpha-skill", "Alpha upstream Skill");
+  makeSkill(join(fixture.repo, "skills", "beta"), "beta-skill", "Beta upstream Skill");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+
+  assert.equal(cli(["remove", "alpha-skill"], fixture.options).status, 0);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+});
+
+test("sync prune removing the last member cleans up the source registration", (t) => {
+  const fixture = setup("prune-orphan-source");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "solo"), "prune-solo", "Prune me");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  rmSync(join(fixture.repo, "skills"), { recursive: true });
+  commit(fixture.repo, "delete skills");
+
+  const pruned = cli(["sync", "--all", "--prune", "--json"], fixture.options);
+  assert.equal(pruned.status, 0, pruned.stderr);
+  assert.deepEqual(JSON.parse(pruned.stdout).sources[0].removed, [{ name: "prune-solo" }]);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 0);
+  state.close();
+});
+
+test("sync --forget preview is read-only and apply keeps installed Skills", (t) => {
+  const fixture = setup("forget-preview-apply");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "solo"), "forget-skill", "Keep me installed");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  assert.equal(cli(["enable", "forget-skill"], fixture.options).status, 0);
+
+  const preview = cli(["sync", "--forget", fixture.url, "--path", "skills", "--dry-run", "--json"], fixture.options);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout), {
+    dryRun: true,
+    forgotten: {
+      source: { location: fixture.url, ref: null, tagPattern: null, path: "skills" },
+      retained: [{ name: "forget-skill" }]
+    }
+  });
+  let state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+
+  const applied = cli(["sync", "--forget", fixture.url, "--path", "skills", "--json"], fixture.options);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.deepEqual(JSON.parse(applied.stdout), {
+    forgotten: {
+      source: { location: fixture.url, ref: null, tagPattern: null, path: "skills" },
+      retained: [{ name: "forget-skill" }]
+    }
+  });
+  state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 0);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 0);
+  state.close();
+  const info = JSON.parse(cli(["info", "forget-skill"], fixture.options).stdout);
+  assert.equal(info.skill.name, "forget-skill");
+  assert.equal(info.enablements.length, 1);
+  assert.equal(info.enablements[0].health, "healthy");
+  assert.equal(existsSync(join(fixture.hub, "skills", "forget-skill", "SKILL.md")), true);
+  const catalog = JSON.parse(readFileSync(join(fixture.hub, "catalog.json"), "utf8"));
+  assert.equal(catalog.skills[0].name, "forget-skill");
+});
+
+test("sync --forget works without a reachable remote and removes only the exact scope", (t) => {
+  const fixture = setup("forget-scopes");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "one", "alpha"), "alpha-skill", "Scope one");
+  makeSkill(join(fixture.repo, "two", "beta"), "beta-skill", "Scope two");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "one"], fixture.options).status, 0);
+  assert.equal(cli(["install", fixture.url, "--path", "two"], fixture.options).status, 0);
+  rmSync(fixture.repo, { recursive: true, force: true });
+
+  const preview = cli(["sync", "--forget", fixture.url, "--path", "one", "--dry-run", "--json"], fixture.options);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout), {
+    dryRun: true,
+    forgotten: {
+      source: { location: fixture.url, ref: null, tagPattern: null, path: "one" },
+      retained: [{ name: "alpha-skill" }]
+    }
+  });
+  const applied = cli(["sync", "--forget", fixture.url, "--path", "one", "--json"], fixture.options);
+  assert.equal(applied.status, 0, applied.stderr);
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  const sources = state.prepare("SELECT scan_path FROM sources ORDER BY scan_path").all();
+  assert.deepEqual(sources.map((row) => row.scan_path), ["two"]);
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM source_memberships").get().c, 1);
+  state.close();
+  assert.equal(cli(["info", "alpha-skill"], fixture.options).status, 0);
+  assert.equal(cli(["info", "beta-skill"], fixture.options).status, 0);
+});
+
+test("sync --forget rejects unregistered scopes and destructive combinations", (t) => {
+  const fixture = setup("forget-validation");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "solo"), "solo-skill", "Solo");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+
+  const missing = cli(["sync", "--forget", fixture.url, "--path", "other"], fixture.options);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /No registered source collection matches/);
+  assert.match(cli(["sync", "--forget"], fixture.options).stderr, /--forget requires a Git source/);
+  assert.match(cli(["sync", "--forget", fixture.url, "--all"], fixture.options).stderr, /--forget cannot be combined with --all/);
+  assert.match(
+    cli(["sync", "--forget", fixture.url, "--prune"], fixture.options).stderr,
+    /--prune and --force cannot be combined with --forget/
+  );
+  assert.match(
+    cli(["sync", "--forget", fixture.url, "--force"], fixture.options).stderr,
+    /--prune and --force cannot be combined with --forget/
+  );
+  assert.match(
+    cli(["sync", "--forget", fixture.url, "--ref", "x", "--track-tags", "y"], fixture.options).stderr,
+    /--ref cannot be combined with --track-tags/
+  );
+  const state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 1);
+  state.close();
+});
+
+test("sync --forget removes only the exact ref scope on the same URL and path", (t) => {
+  const fixture = setup("forget-ref-scope");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "alpha"), "alpha-skill", "Ref v1 member");
+  commit(fixture.repo, "v1 content");
+  git(["tag", "v1"], fixture.repo);
+  rmSync(join(fixture.repo, "skills", "alpha"), { recursive: true });
+  makeSkill(join(fixture.repo, "skills", "beta"), "beta-skill", "Main member");
+  commit(fixture.repo, "main content");
+
+  assert.equal(cli(["install", fixture.url, "--path", "skills", "--ref", "v1"], fixture.options).status, 0);
+  assert.equal(cli(["install", fixture.url, "--path", "skills", "--ref", "main"], fixture.options).status, 0);
+  let state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 2);
+  state.close();
+
+  const wrong = cli(["sync", "--forget", fixture.url, "--path", "skills", "--ref", "missing"], fixture.options);
+  assert.equal(wrong.status, 1);
+  assert.match(wrong.stderr, /No registered source collection matches/);
+
+  const forgotten = cli(["sync", "--forget", fixture.url, "--path", "skills", "--ref", "v1", "--json"], fixture.options);
+  assert.equal(forgotten.status, 0, forgotten.stderr);
+  assert.deepEqual(JSON.parse(forgotten.stdout), {
+    forgotten: {
+      source: { location: fixture.url, ref: "v1", tagPattern: null, path: "skills" },
+      retained: [{ name: "alpha-skill" }]
+    }
+  });
+  state = new DatabaseSync(join(fixture.hub, "state.db"));
+  const sources = state.prepare("SELECT source_ref, scan_path FROM sources ORDER BY source_ref").all();
+  assert.deepEqual(sources.map((row) => ({ ...row })), [{ source_ref: "main", scan_path: "skills" }]);
+  state.close();
+  assert.equal(cli(["info", "alpha-skill"], fixture.options).status, 0);
+  assert.equal(cli(["info", "beta-skill"], fixture.options).status, 0);
+});
+
+test("sync --forget isolates tag-pattern scopes from plain scopes and records the operation", (t) => {
+  const fixture = setup("forget-tag-scope");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "skills", "old"), "tag-scope-skill", "Tag pattern member");
+  commit(fixture.repo, "tagged content");
+  git(["tag", "skill-v1.0.0"], fixture.repo);
+  rmSync(join(fixture.repo, "skills", "old"), { recursive: true });
+  makeSkill(join(fixture.repo, "skills", "plain"), "plain-scope-skill", "Plain scope member");
+  commit(fixture.repo, "plain content");
+
+  assert.equal(cli(["install", fixture.url, "--path", "skills", "--track-tags", "skill-v*"], fixture.options).status, 0);
+  assert.equal(cli(["install", fixture.url, "--path", "skills"], fixture.options).status, 0);
+  let state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM sources").get().c, 2);
+  state.close();
+
+  const preview = cli(
+    ["sync", "--forget", fixture.url, "--path", "skills", "--track-tags", "skill-v*", "--dry-run", "--json"],
+    fixture.options
+  );
+  assert.equal(preview.status, 0, preview.stderr);
+  state = new DatabaseSync(join(fixture.hub, "state.db"));
+  assert.equal(state.prepare("SELECT COUNT(*) AS c FROM operations WHERE kind='sync-forget'").get().c, 0);
+  state.close();
+
+  const forgotten = cli(
+    ["sync", "--forget", fixture.url, "--path", "skills", "--track-tags", "skill-v*", "--json"],
+    fixture.options
+  );
+  assert.equal(forgotten.status, 0, forgotten.stderr);
+  const result = JSON.parse(forgotten.stdout);
+  assert.equal(result.forgotten.source.tagPattern, "skill-v*");
+  assert.deepEqual(result.forgotten.retained, [{ name: "tag-scope-skill" }]);
+
+  state = new DatabaseSync(join(fixture.hub, "state.db"));
+  const sources = state.prepare("SELECT source_ref, source_tag_pattern FROM sources").all();
+  assert.deepEqual(sources.map((row) => ({ ...row })), [{ source_ref: null, source_tag_pattern: null }]);
+  const ops = state.prepare("SELECT kind, status FROM operations WHERE kind='sync-forget'").all();
+  assert.deepEqual(ops.map((row) => ({ ...row })), [{ kind: "sync-forget", status: "completed" }]);
+  state.close();
+  assert.equal(cli(["info", "tag-scope-skill"], fixture.options).status, 0);
+  assert.equal(cli(["info", "plain-scope-skill"], fixture.options).status, 0);
+});
+
+
+
 function setup(name) {
   const root = mkdtempSync(join(tmpdir(), `sklp-sync-${name}-`));
   const hub = join(root, "hub");

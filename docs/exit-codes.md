@@ -15,6 +15,10 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp sync <source>` and `sklp sync --all` exit `1` when a source cannot be fetched or any collection-level `failed` array is non-empty. `--all` continues with other registered sources after one source fails. Missing Skills with action `retain` or `skip-enabled` do not fail the command. `--prune` removes only upstream-missing Skills; enabled Skills use `skip-enabled` unless `--force` explicitly authorizes disabling managed targets first. `--force` without `--prune` exits `1` before opening the Hub.
 
+Removing or pruning the last member of a source collection automatically deregisters its empty registration, so later `sklp sync --all` runs neither fetch it nor reinstall the Skill. `sklp sync --forget <source>` exits `1` without a registered scope match, and `--forget` cannot be combined with `--all`, `--prune`, or `--force`. Forget never touches installed Skills, Hub content, enablements, catalogs, or the Git remote.
+
+`sklp sync --forget --json` returns `forgotten` with the normalized `source` (`location`, `ref`, `tagPattern`, `path`) and the name-sorted `retained` members; preview adds top-level `dryRun: true`. The shape does not change with `SKLP_LANG`.
+
 `sklp uninstall` exits `0` after a cancellation or complete cleanup. It exits `1` after attempting every cleanup step it can perform when a managed entry, Hub resource, or npm package cannot be removed.
 
 `sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
@@ -67,6 +71,10 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 `sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。`--track-tags <glob>` 遵循同样规则：没有远程 tag 匹配该 glob 时 `install` 和 `update` 返回 `1`；tag 模式的 Skill 在 pattern 不再匹配时 `--check` 报告 `unknown` 并返回 `1`。
 
 `sklp sync <source>` 和 `sklp sync --all` 在来源无法拉取或任一集合的 `failed` 非空时返回 `1`。`--all` 遇到单个来源失败后会继续同步其他已登记来源。缺失项的 action 为 `retain` 或 `skip-enabled` 时不会导致失败。`--prune` 只移除上游缺失 Skill；已启用 Skill 默认使用 `skip-enabled`，只有显式传入 `--force` 才会先停用受管目标。单独使用 `--force` 会在打开 Hub 前返回 `1`。
+
+删除或 prune 掉集合的最后一个成员时，会自动注销该空来源登记，之后的 `sklp sync --all` 既不会访问它也不会重新安装该 Skill。`sklp sync --forget <source>` 找不到精确登记时返回 `1`，且 `--forget` 不能与 `--all`、`--prune` 或 `--force` 组合。forget 不会触碰已安装 Skill、Hub 内容、enablements、catalogs 或 Git 远端。
+
+`sklp sync --forget --json` 返回 `forgotten`，包含规范化 `source`（`location`、`ref`、`tagPattern`、`path`）和按名称排序的 `retained` 成员；预览额外在顶层返回 `dryRun: true`。该结构不随 `SKLP_LANG` 改变。
 
 `sklp uninstall` 在取消或完整清理后返回 `0`。受管入口、Hub 资源或 npm 包有任一无法移除时，它仍会尝试能够执行的其余清理步骤，并返回 `1`。
 
