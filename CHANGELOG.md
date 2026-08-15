@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4 - 2026-08-15
+
+### Changes
+
+- 修复删除卸载功能
+
 ## Unreleased
 
 ### Changes
