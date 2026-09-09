@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.5 - 2026-09-09
+
+### Changes
+
+- Retry timed-out Git commands once with a 60-second default limit
+- Add sync --skip-existing for Skills owned by other sources
+- Stop nested Skill discovery below an existing SKILL.md
+
 ## 0.9.4 - 2026-08-15
 
 ### Changes
