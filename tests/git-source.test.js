@@ -530,8 +530,44 @@ test("Git installs honor the configured command timeout", { skip: process.platfo
   });
 
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /Git source timed out after 50ms/);
+  assert.match(result.stderr, /Git source timed out after 2 attempts of 50ms/);
   assert.ok(Date.now() - started < 350);
+});
+
+test("Git installs recover from one transient command timeout", { skip: process.platform === "win32" }, (t) => {
+  const fixture = gitFixture("timeout-retry");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  const marker = join(fixture.root, "first-attempt");
+  const revision = "a".repeat(40);
+  const fakePath = fakeGit(fixture.root, `
+const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
+const { join } = require("node:path");
+const args = process.argv.slice(2);
+if (args[0] === "clone") {
+  if (!existsSync(${JSON.stringify(marker)})) {
+    writeFileSync(${JSON.stringify(marker)}, "timed-out");
+    setTimeout(() => process.exit(1), 5000);
+  } else {
+    const destination = args.at(-1);
+    mkdirSync(destination, { recursive: true });
+    writeFileSync(join(destination, "SKILL.md"), "---\\nname: retry-skill\\ndescription: Retried Git Skill\\n---\\n");
+    process.exit(0);
+  }
+} else if (args.includes("rev-parse")) {
+  process.stdout.write(${JSON.stringify(`${revision}\n`)});
+  process.exit(0);
+} else {
+  process.exit(0);
+}`);
+
+  const result = cli(["install", "https://example.invalid/skill.git", "--json"], {
+    ...fixture.options,
+    env: { PATH: fakePath, SKLP_GIT_TIMEOUT_MS: "1000" }
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const skill = JSON.parse(cli(["info", "retry-skill", "--json"], fixture.options).stdout).skill;
+  assert.equal(skill.sourceRevision, revision);
 });
 
 function gitFixture(name) {

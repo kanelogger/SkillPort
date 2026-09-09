@@ -20,6 +20,7 @@ cases:
     - evals/cases/linked-removal.yaml
     - evals/cases/agent-setup.yaml
     - evals/cases/sync-forget-source.yaml
+    - evals/cases/update-sync-all.yaml
   defaults:
     timeout_seconds: 120
     max_turns: 2

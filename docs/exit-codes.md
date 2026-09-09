@@ -13,9 +13,11 @@ Skill Port CLI keeps exit codes intentionally small and stable for shell scripts
 
 `sklp update <skill>` exits `1` when the Skill is pinned to a tag or commit and directs the caller to `--ref <ref>`. `sklp update <skill> --ref <ref>` exits `1` if the new ref cannot be fetched or validated. `sklp update --all --ref <ref>` exits `1` when any Git Skill fails, while continuing with other Git Skills and skipping local copied or linked Skills. `--track-tags <glob>` follows the same rules: `install` and `update` exit `1` when no remote tag matches the glob, and tag-pattern Skills report `unknown` (exit `1`) from `--check` when the pattern stops matching.
 
-`sklp sync <source>` and `sklp sync --all` exit `1` when a source cannot be fetched or any collection-level `failed` array is non-empty. `--all` continues with other registered sources after one source fails. Missing Skills with action `retain` or `skip-enabled` do not fail the command. `--prune` removes only upstream-missing Skills; enabled Skills use `skip-enabled` unless `--force` explicitly authorizes disabling managed targets first. `--force` without `--prune` exits `1` before opening the Hub.
+Each Git command allows 60,000ms per attempt and automatically retries one timeout. `SKLP_GIT_TIMEOUT_MS` overrides the per-attempt limit. If both attempts time out, the command or batch item fails normally and keeps the sanitized timeout reason.
 
-Removing or pruning the last member of a source collection automatically deregisters its empty registration, so later `sklp sync --all` runs neither fetch it nor reinstall the Skill. `sklp sync --forget <source>` exits `1` without a registered scope match, and `--forget` cannot be combined with `--all`, `--prune`, or `--force`. Forget never touches installed Skills, Hub content, enablements, catalogs, or the Git remote.
+`sklp sync <source>` and `sklp sync --all` exit `1` when a source cannot be fetched or any collection-level `failed` array is non-empty. `--all` continues with other registered sources after one source fails. `--skip-existing` reports same-name Skills owned elsewhere in `skipped` without overwriting or reassigning them, and skipped entries do not fail the command. Invalid metadata, upstream-internal duplicate names, corrupt ownership, and fetch errors remain failures. Missing Skills with action `retain` or `skip-enabled` do not fail the command. `--prune` removes only upstream-missing Skills; enabled Skills use `skip-enabled` unless `--force` explicitly authorizes disabling managed targets first. `--force` without `--prune` exits `1` before opening the Hub.
+
+Removing or pruning the last member of a source collection automatically deregisters its empty registration, so later `sklp sync --all` runs neither fetch it nor reinstall the Skill. `sklp sync --forget <source>` exits `1` without a registered scope match, and `--forget` cannot be combined with `--all`, `--prune`, `--force`, or `--skip-existing`. Forget never touches installed Skills, Hub content, enablements, catalogs, or the Git remote.
 
 `sklp sync --forget --json` returns `forgotten` with the normalized `source` (`location`, `ref`, `tagPattern`, `path`) and the name-sorted `retained` members; preview adds top-level `dryRun: true`. The shape does not change with `SKLP_LANG`.
 
@@ -51,7 +53,7 @@ The JSON payload includes:
 
 `sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp tag add --json` returns `tag` and the updated public `skills`; its preview also returns `dryRun: true`. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
 
-`sklp sync --json` returns `sources` plus top-level source-fetch `failed` entries. Each source contains its normalized `location`, `ref`, scan `path`, resolved `revision`, and the stable arrays `added`, `updated`, `unchanged`, `missing`, `removed`, and `failed`. Each missing entry includes the language-stable `action` code `retain`, `remove`, or `skip-enabled`. Preview adds `dryRun: true` without changing Hub state.
+`sklp sync --json` returns `sources` plus top-level source-fetch `failed` entries. Each source contains its normalized `location`, `ref`, scan `path`, resolved `revision`, and the stable arrays `added`, `updated`, `unchanged`, `skipped`, `missing`, `removed`, and `failed`. Each skipped entry has the language-stable reason `already-installed`; each missing entry includes the action code `retain`, `remove`, or `skip-enabled`. Preview adds `dryRun: true` without changing Hub state.
 
 For runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
 
@@ -70,9 +72,11 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp update <skill>` 遇到 tag 或 commit 固定版本时返回 `1`，并提示使用 `--ref <ref>`。`sklp update <skill> --ref <ref>` 无法获取或验证新 ref 时返回 `1`。`sklp update --all --ref <ref>` 会继续处理其他 Git Skill，并跳过本地复制或 linked Skill；只要有一个 Git Skill 失败就返回 `1`。`--track-tags <glob>` 遵循同样规则：没有远程 tag 匹配该 glob 时 `install` 和 `update` 返回 `1`；tag 模式的 Skill 在 pattern 不再匹配时 `--check` 报告 `unknown` 并返回 `1`。
 
-`sklp sync <source>` 和 `sklp sync --all` 在来源无法拉取或任一集合的 `failed` 非空时返回 `1`。`--all` 遇到单个来源失败后会继续同步其他已登记来源。缺失项的 action 为 `retain` 或 `skip-enabled` 时不会导致失败。`--prune` 只移除上游缺失 Skill；已启用 Skill 默认使用 `skip-enabled`，只有显式传入 `--force` 才会先停用受管目标。单独使用 `--force` 会在打开 Hub 前返回 `1`。
+每条 Git 命令单次限时 60000ms，并在超时后自动重试一次。`SKLP_GIT_TIMEOUT_MS` 可覆盖单次限时；两次均超时时，命令或批量项按普通失败处理，并保留脱敏后的超时原因。
 
-删除或 prune 掉集合的最后一个成员时，会自动注销该空来源登记，之后的 `sklp sync --all` 既不会访问它也不会重新安装该 Skill。`sklp sync --forget <source>` 找不到精确登记时返回 `1`，且 `--forget` 不能与 `--all`、`--prune` 或 `--force` 组合。forget 不会触碰已安装 Skill、Hub 内容、enablements、catalogs 或 Git 远端。
+`sklp sync <source>` 和 `sklp sync --all` 在来源无法拉取或任一集合的 `failed` 非空时返回 `1`。`--all` 遇到单个来源失败后会继续同步其他已登记来源。`--skip-existing` 会把已由其他来源管理的同名 Skill 放入 `skipped`，不覆盖、不改绑，skipped 项不会导致命令失败；无效 metadata、上游集合内部重名、损坏的来源所有权和拉取错误仍属于失败。缺失项的 action 为 `retain` 或 `skip-enabled` 时不会导致失败。`--prune` 只移除上游缺失 Skill；已启用 Skill 默认使用 `skip-enabled`，只有显式传入 `--force` 才会先停用受管目标。单独使用 `--force` 会在打开 Hub 前返回 `1`。
+
+删除或 prune 掉集合的最后一个成员时，会自动注销该空来源登记，之后的 `sklp sync --all` 既不会访问它也不会重新安装该 Skill。`sklp sync --forget <source>` 找不到精确登记时返回 `1`，且 `--forget` 不能与 `--all`、`--prune`、`--force` 或 `--skip-existing` 组合。forget 不会触碰已安装 Skill、Hub 内容、enablements、catalogs 或 Git 远端。
 
 `sklp sync --forget --json` 返回 `forgotten`，包含规范化 `source`（`location`、`ref`、`tagPattern`、`path`）和按名称排序的 `retained` 成员；预览额外在顶层返回 `dryRun: true`。该结构不随 `SKLP_LANG` 改变。
 
@@ -88,6 +92,6 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp tag add --json` 返回 `tag` 和更新后的公开 `skills`；预览还会返回 `dryRun: true`。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
 
-`sklp sync --json` 返回 `sources` 和顶层来源拉取 `failed`。每个来源包含规范化后的 `location`、`ref`、扫描 `path`、解析出的 `revision`，以及稳定的 `added`、`updated`、`unchanged`、`missing`、`removed`、`failed` 数组。每个缺失项都包含不随语言改变的 `action`：`retain`、`remove` 或 `skip-enabled`。预览额外返回 `dryRun: true`，且不修改 Hub 状态。
+`sklp sync --json` 返回 `sources` 和顶层来源拉取 `failed`。每个来源包含规范化后的 `location`、`ref`、扫描 `path`、解析出的 `revision`，以及稳定的 `added`、`updated`、`unchanged`、`skipped`、`missing`、`removed`、`failed` 数组。每个 skipped 项包含不随语言改变的原因 `already-installed`；每个缺失项包含 action：`retain`、`remove` 或 `skip-enabled`。预览额外返回 `dryRun: true`，且不修改 Hub 状态。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

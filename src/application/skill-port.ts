@@ -48,12 +48,20 @@ type InstallCandidate = { prepared: PreparedSource; metadata: InstallMetadata };
 type InstallOptions = { skipExisting?: boolean; gitPath?: string; tagPattern?: string };
 type UpdateSkipReason = "linked" | "local-copied" | "pinned" | "up-to-date";
 type TagChange = { skill: Skill; tags: string[] };
-type SyncOptions = { ref?: string; gitPath?: string; tagPattern?: string; prune?: boolean; force?: boolean };
+type SyncOptions = {
+  ref?: string;
+  gitPath?: string;
+  tagPattern?: string;
+  prune?: boolean;
+  force?: boolean;
+  skipExisting?: boolean;
+};
 type SyncCandidate = { prepared: PreparedSource; metadata: InstallMetadata; current?: Skill };
 type SyncPlan = {
   collection: PreparedGitCollection;
   source: SourceCollection | null;
   added: SyncCandidate[];
+  skipped: SyncCandidate[];
   updated: Array<SyncCandidate & { current: Skill }>;
   unchanged: Array<SyncCandidate & { current: Skill }>;
   missing: Array<{ skill: Skill; membership: SourceMembership; enabled: boolean; action: SyncMissingAction }>;
@@ -85,6 +93,13 @@ export type BatchUpdateSummary = Omit<UpdateSummary, "planned"> & {
 };
 
 export type SyncMissingAction = "retain" | "remove" | "skip-enabled";
+export type SyncSkipReason = "already-installed";
+
+export type SyncSkipped = {
+  name: string;
+  path: string;
+  reason: SyncSkipReason;
+};
 
 export type SyncChange = {
   name: string;
@@ -115,6 +130,7 @@ export type SyncSourceSummary = {
   added: SyncChange[];
   updated: SyncChange[];
   unchanged: SyncChange[];
+  skipped: SyncSkipped[];
   missing: SyncMissing[];
   removed: Array<{ name: string }>;
   failed: SyncFailure[];
@@ -297,11 +313,11 @@ export class SkillPort {
     return this.syncOneSource(source, options, true);
   }
 
-  previewSyncAll(options: Pick<SyncOptions, "prune" | "force"> = {}): SyncSummary {
+  previewSyncAll(options: Pick<SyncOptions, "prune" | "force" | "skipExisting"> = {}): SyncSummary {
     return this.syncRegisteredSources(options, false);
   }
 
-  syncAllSources(options: Pick<SyncOptions, "prune" | "force"> = {}): SyncSummary {
+  syncAllSources(options: Pick<SyncOptions, "prune" | "force" | "skipExisting"> = {}): SyncSummary {
     return this.syncRegisteredSources(options, true);
   }
 
@@ -362,7 +378,7 @@ export class SkillPort {
   }
 
   private syncRegisteredSources(
-    options: Pick<SyncOptions, "prune" | "force">,
+    options: Pick<SyncOptions, "prune" | "force" | "skipExisting">,
     apply: boolean
   ): SyncSummary {
     const summaries: SyncSourceSummary[] = [];
@@ -396,7 +412,7 @@ export class SkillPort {
   private planSync(
     collection: PreparedGitCollection,
     preparedSources: PreparedSource[],
-    options: Pick<SyncOptions, "prune" | "force">
+    options: Pick<SyncOptions, "prune" | "force" | "skipExisting">
   ): SyncPlan {
     const source = this.store.sourceByKey(collection.key);
     const memberships = source ? this.store.sourceMemberships(source.id) : [];
@@ -429,6 +445,7 @@ export class SkillPort {
       return false;
     });
     const added: SyncCandidate[] = [];
+    const skipped: SyncCandidate[] = [];
     const updated: SyncPlan["updated"] = [];
     const unchanged: SyncPlan["unchanged"] = [];
     const matchedMemberships = new Set<string>();
@@ -448,12 +465,33 @@ export class SkillPort {
             const owner = this.store.source(membership.sourceId);
             if (source && membership.sourceId === source.id) {
               matchedMemberships.add(installed.instanceId);
-            } else if (!owner || !sameSourceRepository(owner, collection)) {
-              failed.push({ name: candidate.metadata.name, path, reason: `Skill already belongs to another source: ${candidate.metadata.name}` });
+            } else if (!owner) {
+              failed.push({
+                name: candidate.metadata.name,
+                path,
+                reason: `Skill source registration is corrupted: ${candidate.metadata.name}`
+              });
+              continue;
+            } else if (!sameSourceRepository(owner, collection)) {
+              if (options.skipExisting) skipped.push(candidate);
+              else {
+                failed.push({
+                  name: candidate.metadata.name,
+                  path,
+                  reason: `Skill already belongs to another source: ${candidate.metadata.name}`
+                });
+              }
               continue;
             }
           } else if (!skillMatchesCollection(installed, candidate.prepared, collection)) {
-            failed.push({ name: candidate.metadata.name, path, reason: `Skill already installed from another source: ${candidate.metadata.name}` });
+            if (options.skipExisting) skipped.push(candidate);
+            else {
+              failed.push({
+                name: candidate.metadata.name,
+                path,
+                reason: `Skill already installed from another source: ${candidate.metadata.name}`
+              });
+            }
             continue;
           }
           current = installed;
@@ -483,7 +521,7 @@ export class SkillPort {
         : enabled && !options.force ? "skip-enabled" : "remove";
       return [{ skill, membership, enabled, action }];
     });
-    return { collection, source, added, updated, unchanged, missing, failed };
+    return { collection, source, added, skipped, updated, unchanged, missing, failed };
   }
 
   private applySyncPlan(plan: SyncPlan): SyncSourceSummary {
@@ -2098,6 +2136,11 @@ function syncPlanSummary(plan: SyncPlan): SyncSourceSummary {
     added: plan.added.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
     updated: plan.updated.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
     unchanged: plan.unchanged.map((candidate) => syncChange(candidate.metadata, candidate.prepared, plan.collection.revision)).sort(byName),
+    skipped: plan.skipped.map((candidate) => ({
+      name: candidate.metadata.name,
+      path: candidate.prepared.skillPath!,
+      reason: "already-installed" as const
+    })).sort(byName),
     missing: plan.missing.map((item) => ({
       name: item.skill.name,
       path: item.membership.skillPath,

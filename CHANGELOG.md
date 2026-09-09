@@ -14,6 +14,12 @@
 - Automatically deregister a source collection when `remove` or sync prune deletes its last member, so `sync --all` no longer fetches orphaned registrations or reinstalls removed Skills; remove checkpoints now snapshot the source collection and recovery restores source → Skill → membership
 - Add `sklp sync --forget <source>` to deregister an exact source scope offline while keeping installed Skills, Hub content, enablements, and catalogs; supports `--ref`/`--track-tags`/`--path`, `--dry-run`, `--json`, and a stable `forgotten` result
 
+### Fixes
+
+- Retry Git commands once after a timeout and raise the default per-attempt limit from 30 to 60 seconds, while preserving `SKLP_GIT_TIMEOUT_MS` overrides and isolated batch failures.
+- Add `sync --skip-existing` so multi-source Hubs can retain same-name Skills under their current owner without turning an otherwise successful fleet reconciliation into a failure.
+- Stop recursive collection discovery below the first directory containing `SKILL.md`, preventing embedded fixtures from being installed as standalone Skills.
+
 ## 0.9.3 - 2026-08-04
 
 ### Changes

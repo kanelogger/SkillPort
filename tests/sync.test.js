@@ -37,6 +37,7 @@ test("sync previews and applies added, updated, and missing Skills before explic
 
   makeSkill(join(fixture.repo, "skills", "alpha"), "sync-alpha", "Alpha after");
   makeSkill(join(fixture.repo, "skills", "gamma"), "sync-gamma", "Gamma added");
+  makeSkill(join(fixture.repo, "skills", "alpha", "assets", "fixtures", "nested"), "nested-fixture", "Embedded fixture");
   rmSync(join(fixture.repo, "skills", "beta"), { recursive: true });
   const revision = commit(fixture.repo, "reconcile");
 
@@ -72,6 +73,7 @@ test("sync previews and applies added, updated, and missing Skills before explic
   assert.deepEqual(result.missing.map((item) => item.name), ["sync-beta"]);
   assert.match(readFileSync(join(fixture.hub, "skills", "sync-alpha", "SKILL.md"), "utf8"), /Alpha after/);
   assert.equal(existsSync(join(fixture.hub, "skills", "sync-gamma", "SKILL.md")), true);
+  assert.equal(existsSync(join(fixture.hub, "skills", "nested-fixture")), false);
   assert.equal(existsSync(join(fixture.hub, "skills", "sync-beta", "SKILL.md")), true);
   const appliedDb = new DatabaseSync(join(fixture.hub, "state.db"));
   assert.equal(appliedDb.prepare(`
@@ -204,6 +206,52 @@ test("explicit broader sync replaces a narrower source membership", (t) => {
   assert.deepEqual(db.prepare("SELECT scan_path FROM sources").all().map((row) => row.scan_path), ["skills"]);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM source_memberships").get().count, 2);
   db.close();
+});
+
+test("sync --skip-existing preserves Skills managed outside the collection", (t) => {
+  const fixture = setup("skip-existing");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  const external = join(fixture.root, "external");
+  makeSkill(external, "shared-skill", "Externally managed");
+  assert.equal(cli(["install", external], fixture.options).status, 0);
+  makeSkill(join(fixture.repo, "skills", "shared"), "shared-skill", "Collection copy");
+  makeSkill(join(fixture.repo, "skills", "unique"), "unique-skill", "Collection member");
+  commit(fixture.repo, "collection");
+
+  const installed = cli([
+    "install", fixture.url, "--path", "skills", "--skip-existing", "--json"
+  ], fixture.options);
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.deepEqual(JSON.parse(installed.stdout).skills.map((skill) => skill.name), ["unique-skill"]);
+
+  const strict = cli(["sync", "--all", "--dry-run", "--json"], fixture.options);
+  assert.equal(strict.status, 1);
+  assert.deepEqual(JSON.parse(strict.stdout).sources[0].failed.map((item) => item.name), ["shared-skill"]);
+
+  const preview = cli(["sync", "--all", "--skip-existing", "--dry-run", "--json"], fixture.options);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout).sources[0].skipped, [{
+    name: "shared-skill",
+    path: "skills/shared",
+    reason: "already-installed"
+  }]);
+  assert.deepEqual(JSON.parse(preview.stdout).sources[0].failed, []);
+
+  const applied = cli(["sync", "--all", "--skip-existing", "--json"], fixture.options);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.deepEqual(JSON.parse(applied.stdout).sources[0].skipped, [{
+    name: "shared-skill",
+    path: "skills/shared",
+    reason: "already-installed"
+  }]);
+  assert.match(readFileSync(join(fixture.hub, "skills", "shared-skill", "SKILL.md"), "utf8"), /Externally managed/);
+
+  const chinese = cli(["sync", "--all", "--skip-existing", "--dry-run"], {
+    ...fixture.options,
+    env: { SKLP_LANG: "zh-CN" }
+  });
+  assert.equal(chinese.status, 0, chinese.stderr);
+  assert.match(chinese.stdout, /已跳过 shared-skill：已由其他来源安装或管理/);
 });
 
 test("sync all continues after one registered source cannot be fetched", (t) => {
@@ -390,11 +438,15 @@ test("sync --forget rejects unregistered scopes and destructive combinations", (
   assert.match(cli(["sync", "--forget", fixture.url, "--all"], fixture.options).stderr, /--forget cannot be combined with --all/);
   assert.match(
     cli(["sync", "--forget", fixture.url, "--prune"], fixture.options).stderr,
-    /--prune and --force cannot be combined with --forget/
+    /--prune, --force, and --skip-existing cannot be combined with --forget/
   );
   assert.match(
     cli(["sync", "--forget", fixture.url, "--force"], fixture.options).stderr,
-    /--prune and --force cannot be combined with --forget/
+    /--prune, --force, and --skip-existing cannot be combined with --forget/
+  );
+  assert.match(
+    cli(["sync", "--forget", fixture.url, "--skip-existing"], fixture.options).stderr,
+    /--prune, --force, and --skip-existing cannot be combined with --forget/
   );
   assert.match(
     cli(["sync", "--forget", fixture.url, "--ref", "x", "--track-tags", "y"], fixture.options).stderr,

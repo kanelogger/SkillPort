@@ -1,7 +1,7 @@
 import {
-  cpSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
+  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
 } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import type { GitSourceTracking } from "../domain/models.js";
@@ -49,6 +49,7 @@ type GitRemoteCacheEntry = { stdout: string; failure: string | null };
 export type GitRemoteCache = Map<string, GitRemoteCacheEntry>;
 type CachedGitClone = { root: string; revision: string };
 export type GitSourceCache = { clones: Map<string, CachedGitClone> };
+type GitCommandResult = SpawnSyncReturns<string>;
 
 type PrepareOptions = { ref?: string; gitPath?: string; tagPattern?: string };
 type GitSourceSpec = {
@@ -58,7 +59,8 @@ type GitSourceSpec = {
   path: string | null;
 };
 
-const defaultGitTimeoutMs = 30_000;
+const defaultGitTimeoutMs = 60_000;
+const gitTimeoutAttempts = 2;
 
 export function prepareInstallSources(input: string, staging: string, options: PrepareOptions = {}): PreparedSource[] {
   const local = resolve(input);
@@ -376,7 +378,10 @@ function prepareGitSourceSet(
     const args = ["clone"];
     if (!spec.ref) args.push("--depth", "1");
     args.push("--", spec.cloneUrl, cloneRoot);
-    const result = runGit(args);
+    const result = runGit(args, () => {
+      rmSync(cloneRoot, { recursive: true, force: true });
+      mkdirSync(cloneRoot, { recursive: true });
+    });
     if (result.error || result.status !== 0) {
       rmSync(cloneRoot, { recursive: true, force: true });
       throw gitCommandError("Git source", result);
@@ -479,18 +484,28 @@ export function cleanupGitSourceCache(cache: GitSourceCache): void {
   cache.clones.clear();
 }
 
-function runGit(args: string[]) {
-  return spawnSync("git", args, {
-    encoding: "utf8",
+function runGit(args: string[], beforeRetry?: () => void): GitCommandResult {
+  const options = {
+    encoding: "utf8" as const,
     shell: false,
     timeout: gitTimeoutMs(),
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
-  });
+  };
+  let result = spawnSync("git", args, options);
+  for (let attempt = 1; attempt < gitTimeoutAttempts; attempt += 1) {
+    const error = result.error as NodeJS.ErrnoException | undefined;
+    if (error?.code !== "ETIMEDOUT") break;
+    beforeRetry?.();
+    result = spawnSync("git", args, options);
+  }
+  return result;
 }
 
-function gitCommandError(action: string, result: ReturnType<typeof spawnSync>): CliError {
+function gitCommandError(action: string, result: GitCommandResult): CliError {
   const error = result.error as NodeJS.ErrnoException | undefined;
-  if (error?.code === "ETIMEDOUT") return new CliError(`${action} timed out after ${gitTimeoutMs()}ms.`);
+  if (error?.code === "ETIMEDOUT") {
+    return new CliError(`${action} timed out after ${gitTimeoutAttempts} attempts of ${gitTimeoutMs()}ms.`);
+  }
   return new CliError(`${action} failed: ${sanitizeError(result.stderr || result.error)}`);
 }
 
@@ -596,12 +611,19 @@ function skillRoots(root: string, emptyMessage: string, allowEmpty = false): str
   }
   if (existsSync(join(root, "SKILL.md"))) return [root];
   const roots: string[] = [];
-  walk(root, (path) => {
-    if (basename(path) === "SKILL.md") roots.push(dirname(path));
-  });
+  collectSkillRoots(root, roots);
   roots.sort((a, b) => a.localeCompare(b));
   if (roots.length === 0 && !allowEmpty) throw new CliError(emptyMessage);
   return roots;
+}
+
+function collectSkillRoots(root: string, roots: string[]): void {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const path = join(root, entry.name);
+    if (existsSync(join(path, "SKILL.md"))) roots.push(path);
+    else collectSkillRoots(path, roots);
+  }
 }
 
 function resolveRegistryLocalPath(registryPath: string, localPath: string): string {

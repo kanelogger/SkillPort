@@ -156,6 +156,10 @@ program.command("sync")
   ))
   .option("--path <path>", human("Scan this path inside the Git repository", "扫描 Git 仓库内指定路径"))
   .option("--dry-run", human("Preview the full reconciliation without changing state", "预览完整同步差异，不改写状态"))
+  .option("--skip-existing", human(
+    "Skip Skills already installed or managed by another source",
+    "跳过已由其他来源安装或管理的 Skill"
+  ))
   .option("--prune", human("Remove upstream-missing Skills when safe", "安全移除上游已缺失的 Skill"))
   .option("--force", human("Disable managed targets before pruning missing Skills", "清理缺失 Skill 前先停用受管目标"))
   .option("--forget", human(
@@ -174,10 +178,10 @@ program.command("sync")
       if (options.all) {
         throw new CliError(human("--forget cannot be combined with --all.", "--forget 不能与 --all 一起使用。"));
       }
-      if (options.prune || options.force) {
+      if (options.prune || options.force || options.skipExisting) {
         throw new CliError(human(
-          "--prune and --force cannot be combined with --forget.",
-          "--prune 和 --force 不能与 --forget 一起使用。"
+          "--prune, --force, and --skip-existing cannot be combined with --forget.",
+          "--prune、--force 和 --skip-existing 不能与 --forget 一起使用。"
         ));
       }
       const forgetOptions = {
@@ -206,6 +210,7 @@ program.command("sync")
       ref: options.ref,
       gitPath: options.path,
       tagPattern: options.trackTags as string | undefined,
+      skipExisting: Boolean(options.skipExisting),
       prune: Boolean(options.prune),
       force: Boolean(options.force)
     };
@@ -727,6 +732,12 @@ function printSyncSummary(summary: SyncSummary, dryRun: boolean): void {
     for (const change of item.added) console.log(human(`${dryRun ? "Would add" : "Added"} ${change.name}`, `${dryRun ? "将新增" : "已新增"} ${change.name}`));
     for (const change of item.updated) console.log(human(`${dryRun ? "Would update" : "Updated"} ${change.name}`, `${dryRun ? "将更新" : "已更新"} ${change.name}`));
     for (const change of item.unchanged) console.log(human(`Unchanged ${change.name}`, `未变化 ${change.name}`));
+    for (const skipped of item.skipped) {
+      console.log(human(
+        `Skipped ${skipped.name}: already installed or managed by another source`,
+        `已跳过 ${skipped.name}：已由其他来源安装或管理`
+      ));
+    }
     for (const missing of item.missing) {
       console.log(human(
         `Missing ${missing.name}: ${syncMissingAction(missing.action, false)}`,

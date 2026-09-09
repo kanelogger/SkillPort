@@ -113,6 +113,8 @@ Tag-pattern Skills update like branch-tracked ones: `update --check` reports the
 
 The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
 
+Git commands allow 60 seconds per attempt and retry once after a timeout. Set `SKLP_GIT_TIMEOUT_MS` to a larger positive millisecond value for an unusually large or slow repository; an exhausted retry remains a normal failed item in batch JSON output.
+
 ### Sync a Git Skill collection
 
 `update` refreshes already-installed Skills. Use `sync` when a repository directory can add or remove Skills:
@@ -124,6 +126,10 @@ sklp sync https://github.com/owner/skills.git --path skills --dry-run --json
 # Add new Skills, update existing Skills, and retain missing local copies
 sklp sync https://github.com/owner/skills.git --path skills
 
+# Reconcile every collection without taking over same-name Skills owned elsewhere
+sklp sync --all --skip-existing --dry-run --json
+sklp sync --all --skip-existing --json
+
 # Remove missing Skills that are not enabled
 sklp sync --all --prune
 
@@ -133,7 +139,7 @@ sklp sync --all --prune --force
 
 Git installs now register their repository URL, ref, and scan path as a source collection, so later `sklp sync --all` can reconcile every registered collection. For a Git Skill installed before this feature, run one explicit `sklp sync <repo> --path <path>` to adopt matching installed Skills safely.
 
-Sync output separates `added`, `updated`, `unchanged`, `missing`, `removed`, and `failed` entries. A normal sync records upstream-missing membership but keeps the local copy. `--prune` is the deletion boundary: enabled missing Skills are skipped unless `--force` is also present. Invalid or duplicate upstream metadata is reported as a failure and is never treated as evidence that an installed Skill was deleted. Without a stable manifest identifier, a changed Skill name is represented as one addition and one missing Skill.
+Sync output separates `added`, `updated`, `unchanged`, `skipped`, `missing`, `removed`, and `failed` entries. `--skip-existing` leaves same-name Skills installed or managed by another source untouched and reports them as `skipped`; it does not hide invalid metadata, duplicate names inside the upstream collection, corrupt ownership, or fetch failures. A normal sync records upstream-missing membership but keeps the local copy. `--prune` is the deletion boundary: enabled missing Skills are skipped unless `--force` is also present. Invalid or duplicate upstream metadata is reported as a failure and is never treated as evidence that an installed Skill was deleted. Discovery stops descending once a directory containing `SKILL.md` is found, so embedded fixtures are not promoted to independent Skills. Without a stable manifest identifier, a changed Skill name is represented as one addition and one missing Skill.
 
 Removing the last member of a collection automatically deregisters its empty source, so a later `sklp sync --all` neither fetches it nor reinstalls the Skill. Automatic cleanup only applies to sources emptied by membership removal; an explicit first sync that discovered zero Skills, or whose install candidates all failed, keeps its empty registration as an intentional scan scope.
 

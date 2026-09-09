@@ -1,14 +1,14 @@
 # 遗留问题与 Bug 清单
 
-最后一次核对：2026-08-15（`--track-tags` 功能落地后，`src/` 当前 HEAD）。
+最后一次核对：2026-09-10（Git 超时重试与 sync 同名跳过语义落地后，`src/` 当前 HEAD）。
 
 ## 高优先级
 
-### 1. 大仓库更新必然超时且全量重复下载
-- 现象：`pbakaus/impeccable` 这类 354MB monorepo，完整 clone 约 34s，超过默认 30s git 超时（`src/infrastructure/sources.ts:58` `defaultGitTimeoutMs`），`update`/`sync` 实际拉取内容时直接失败。
-- 根因：① 超时默认值偏小，仅能靠 `SKLP_GIT_TIMEOUT_MS` 环境变量临时绕过（`sources.ts:419`）；② `GitSourceCache` 是单次命令内的临时 clone（`createGitSourceCache`/`cleanupGitSourceCache`），命令结束即删除，每次 update 都重新全量下载；③ 指定 ref 时不走 `--depth 1`（`prepareGitSourceSet`，`sources.ts` clone 参数只对无 ref 来源浅克隆）。
-- 影响：大仓库 Skill 的 update/sync 在无 env 覆盖时不可用；有覆盖时每次更新消耗数百 MB 流量。
-- 建议方向：持久化 git 缓存（bare mirror + fetch）；对 branch/tag ref 使用 `git clone --depth 1 --branch <ref>`；或按仓库大小自适应超时。
+### 1. 大仓库更新仍会全量重复下载
+- 已缓解：Git 命令的默认单次超时已从 30 秒提高到 60 秒，并在超时后自动重试一次；`SKLP_GIT_TIMEOUT_MS` 仍可覆盖单次限时。此前约 34 秒必然失败的仓库不再触发默认超时，偶发单次网络超时也可自动恢复。
+- 残留根因：`GitSourceCache` 仍是单次命令内的临时 clone，命令结束即删除；指定 ref 时仍不走 `--depth 1`。每次 update/sync 仍可能重复下载完整仓库。
+- 影响：超大仓库或持续慢速网络仍可能在两次 60 秒尝试后失败，并消耗较多流量；失败会安全隔离在对应批量项。
+- 建议方向：持久化 git 缓存（bare mirror + fetch），并对 branch/tag ref 使用 `git clone --depth 1 --branch <ref>`。
 
 ### 2. tag-pattern 跟踪存在降级风险（无回退保护）
 - 现象：上游删除当前 tag 后（如 `skill-v4.1.1` 被删，最高匹配变为 `skill-v4.1.0`），`inspectGitSource` 的 tag-pattern 分支（`sources.ts`）判定 revision/tag 不一致 → `outdated` → `update` 会把 Skill 降级到旧 release。
@@ -42,7 +42,7 @@
 
 ### 7. tag-pattern Skill 已最新时普通 `update` 仍会全量重克隆
 - 现状：`sklp update <skill>` 对已最新的 tag-pattern Skill 做幂等刷新（`updateInternal`，`skill-port.ts`），up-to-date 时仍 clone 全仓库。`--check`/`--dry-run` 只走 ls-remote，无此问题。
-- 影响：与问题 1 叠加时一次空操作消耗 354MB。
+- 影响：与大仓库重复下载问题叠加时，一次空操作仍可能消耗 354MB。
 - 建议方向：up-to-date 时跳过 prepare，直接返回当前状态。
 
 ### 8. `--ref` 与 `--track-tags` 对本地目录的处理不一致

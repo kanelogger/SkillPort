@@ -1,0 +1,28 @@
+id: update-sync-all
+
+title: 全量更新同步保留其他来源 Skill
+
+description: 验证 Agent 会顺序预览、执行全量更新与同步，并安全跳过已由其他来源管理的同名 Skill。
+
+input:
+  prompt: |
+    更新并同步所有 Skill。Hub 中可能有同名 Skill 已由其他来源管理；保留它们的现有来源，不覆盖、不删除。
+    只输出依次执行的命令，每行一条：先预览并执行全部更新，再预览并执行全部来源同步，最后检查更新状态、Skill 状态和 Hub 健康。所有命令使用 JSON 输出。
+
+expect:
+  must_contain:
+    - sklp update --all --dry-run --json
+    - sklp update --all --json
+    - sklp sync --all --skip-existing --dry-run --json
+    - sklp sync --all --skip-existing --json
+    - sklp update --all --check --json
+    - sklp list --status --json
+    - sklp doctor --json
+  must_not_contain:
+    - --prune
+    - --force
+
+judge:
+  type: rule_based
+  rule:
+    operator: all
