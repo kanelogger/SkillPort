@@ -188,6 +188,16 @@ export type UninstallResult = {
   failures: string[];
 };
 
+export class SkillPortOpenError extends Error {
+  readonly causeError: unknown;
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "SkillPortOpenError";
+    this.causeError = cause;
+  }
+}
+
 class RecoveryPendingError extends Error {
   constructor(kind: string, cause: unknown) {
     super(`${kind} failed and rollback is pending: ${sanitizeError(cause)}`);
@@ -220,9 +230,19 @@ export class SkillPort {
     if (!existsSync(paths.config) || !existsSync(paths.database)) {
       throw new CliError("Skill Port is not initialized. Run `sklp init` first.");
     }
-    const app = new SkillPort(paths, { readOnly: options.readOnly });
+    let app: SkillPort;
+    try {
+      app = new SkillPort(paths, { readOnly: options.readOnly });
+    } catch (error) {
+      throw new SkillPortOpenError(error);
+    }
     if (options.recover !== false && !options.readOnly) {
-      withHubLock(paths, () => app.recoverInterruptedOperations());
+      try {
+        withHubLock(paths, () => app.recoverInterruptedOperations());
+      } catch (error) {
+        app.close();
+        throw error;
+      }
     }
     return app;
   }

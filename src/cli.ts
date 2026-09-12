@@ -16,6 +16,7 @@ import {
   type SkillInstallationKind,
   type SkillStatus,
   type SkillStatusHealth,
+  SkillPortOpenError,
   type SyncSummary,
   type UpdateSummary
 } from "./application/skill-port.js";
@@ -328,7 +329,7 @@ program.command("list")
   .option("--tag <tag>", human("Filter Skills by private tag", "按私有标签筛选 Skill"))
   .option("--status", human("Include installation, enablement, and health status", "包含安装类型、启用数量和健康状态"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
-  .action(run((options) => withApp((app) => {
+  .action(run((options) => withReadableApp((app) => {
     if (options.status) {
       const statuses = app.listStatus(options.tag);
       if (options.json) printJson({ skills: statuses.map(skillStatusPayload) });
@@ -379,7 +380,7 @@ program.command("info")
   .description(human("Show one installed Skill", "显示单个 Skill 信息"))
   .argument("<skill>")
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
-  .action(run((skill) => withApp((app) => {
+  .action(run((skill) => withReadableApp((app) => {
     const value = app.info(skill);
     printJson(value);
   })));
@@ -458,6 +459,28 @@ program.parseAsync().catch(handleError);
 
 function withApp<T>(fn: (app: SkillPort) => T, options?: { recover?: boolean; readOnly?: boolean }): T {
   const app = SkillPort.open(options);
+  try {
+    return fn(app);
+  } finally {
+    app.close();
+  }
+}
+
+function withReadableApp<T>(fn: (app: SkillPort) => T): T {
+  let app: SkillPort;
+  try {
+    // Keep the normal path first so startup recovery still runs for writable Hubs.
+    app = SkillPort.open();
+  } catch (error) {
+    const cause = error instanceof SkillPortOpenError ? error.causeError : null;
+    if (!cause || !/unable to open database file|permission denied|readonly database|operation not permitted|access is denied|SQLITE_CANTOPEN/i.test(
+      cause instanceof Error ? cause.message : String(cause)
+    )) {
+      throw error;
+    }
+    // Protected Hubs can still be queried from the immutable snapshot path.
+    return withApp(fn, { recover: false, readOnly: true });
+  }
   try {
     return fn(app);
   } finally {

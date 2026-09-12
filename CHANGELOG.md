@@ -27,6 +27,7 @@
 - Retry Git commands once after a timeout and raise the default per-attempt limit from 30 to 60 seconds, while preserving `SKLP_GIT_TIMEOUT_MS` overrides and isolated batch failures.
 - Add `sync --skip-existing` so multi-source Hubs can retain same-name Skills under their current owner without turning an otherwise successful fleet reconciliation into a failure.
 - Stop recursive collection discovery below the first directory containing `SKILL.md`, preventing embedded fixtures from being installed as standalone Skills.
+- Make `sklp list` and `sklp info` fall back to the read-only SQLite snapshot path when a protected Hub cannot be opened read-write, while preserving startup recovery on writable Hubs.
 
 ## 0.9.3 - 2026-08-04
 

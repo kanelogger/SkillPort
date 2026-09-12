@@ -38,18 +38,26 @@ export class StateStore {
   constructor(paths: HubPaths, options: { readOnly?: boolean } = {}) {
     this.readOnly = options.readOnly === true;
     this.readOnlySnapshot = this.readOnly ? snapshotDatabase(paths.database) : null;
-    this.db = new DatabaseSync(this.readOnlySnapshot ? join(this.readOnlySnapshot, "state.db") : paths.database, {
-      timeout: 5_000,
-      readOnly: this.readOnly
-    });
-    if (this.readOnly) {
-      this.db.prepare("SELECT name FROM sqlite_schema LIMIT 1").get();
-    } else {
-      this.db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
-      this.migrate();
+    let db: DatabaseSyncType | undefined;
+    try {
+      db = new DatabaseSync(this.readOnlySnapshot ? join(this.readOnlySnapshot, "state.db") : paths.database, {
+        timeout: 5_000,
+        readOnly: this.readOnly
+      });
+      this.db = db;
+      if (this.readOnly) {
+        this.db.prepare("SELECT name FROM sqlite_schema LIMIT 1").get();
+      } else {
+        this.db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
+        this.migrate();
+      }
+      this.hasSkillTagsTable = this.hasTable("skill_tags");
+      this.hasSourceCollectionTables = this.hasTable("sources") && this.hasTable("source_memberships");
+    } catch (error) {
+      db?.close();
+      if (this.readOnlySnapshot) rmSync(this.readOnlySnapshot, { recursive: true, force: true });
+      throw error;
     }
-    this.hasSkillTagsTable = this.hasTable("skill_tags");
-    this.hasSourceCollectionTables = this.hasTable("sources") && this.hasTable("source_memberships");
   }
 
   close(): void {
@@ -404,12 +412,17 @@ export class StateStore {
 
 function snapshotDatabase(database: string): string {
   const snapshot = mkdtempSync(join(tmpdir(), "sklp-readonly-"));
-  copyFileSync(database, join(snapshot, "state.db"));
-  for (const suffix of ["-wal", "-shm"]) {
-    const source = `${database}${suffix}`;
-    if (existsSync(source)) copyFileSync(source, join(snapshot, `state.db${suffix}`));
+  try {
+    copyFileSync(database, join(snapshot, "state.db"));
+    for (const suffix of ["-wal", "-shm"]) {
+      const source = `${database}${suffix}`;
+      if (existsSync(source)) copyFileSync(source, join(snapshot, `state.db${suffix}`));
+    }
+    return snapshot;
+  } catch (error) {
+    rmSync(snapshot, { recursive: true, force: true });
+    throw error;
   }
-  return snapshot;
 }
 
 function now(): string {

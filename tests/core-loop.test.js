@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, existsSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -122,6 +123,95 @@ test("doctor opens SQLite read-only", () => {
   assert.equal(result.status, 0, result.stderr);
   const after = createHash("sha256").update(readFileSync(database)).digest("hex");
   assert.equal(after, before);
+});
+
+test("list and info fall back to a read-only Hub snapshot", (t) => {
+  if (process.platform === "win32" || process.getuid?.() === 0) {
+    t.skip("filesystem permission enforcement is unavailable on this platform/user");
+    return;
+  }
+  const root = mkdtempSync(join(tmpdir(), "sklp-list-readonly-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "source");
+  mkdirSync(project);
+  makeSkill(source);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", source], options).status, 0);
+  const before = createHash("sha256").update(readFileSync(join(hub, "state.db"))).digest("hex");
+
+  chmodSync(hub, 0o555);
+  chmodSync(join(hub, "state.db"), 0o444);
+  try {
+    const probe = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { SkillPort, SkillPortOpenError } from ${JSON.stringify(join(process.cwd(), "dist/application/skill-port.js"))};
+      try {
+        const app = SkillPort.open();
+        app.close();
+        process.exit(2);
+      } catch (error) {
+        const message = error instanceof SkillPortOpenError
+          ? String(error.causeError instanceof Error ? error.causeError.message : error.causeError)
+          : String(error);
+        if (!/unable to open database file|permission denied|readonly database|operation not permitted|access is denied|SQLITE_CANTOPEN/i.test(message)) process.exit(3);
+      }
+    `], {
+      env: { ...process.env, SKLP_HOME: hub },
+      encoding: "utf8"
+    });
+    assert.equal(probe.status, 0, probe.stderr);
+    const listed = cli(["list", "--json"], options);
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.deepEqual(JSON.parse(listed.stdout).skills.map((skill) => skill.name), ["sample-skill"]);
+    assert.match(cli(["list"], options).stdout, /sample-skill\s+A sample skill/);
+    const statusListed = cli(["list", "--status", "--json"], options);
+    assert.equal(statusListed.status, 0, statusListed.stderr);
+    assert.deepEqual(JSON.parse(statusListed.stdout).skills.map((skill) => skill.name), ["sample-skill"]);
+
+    const info = cli(["info", "sample-skill"], options);
+    assert.equal(info.status, 0, info.stderr);
+    assert.equal(JSON.parse(info.stdout).skill.name, "sample-skill");
+    const after = createHash("sha256").update(readFileSync(join(hub, "state.db"))).digest("hex");
+    assert.equal(after, before);
+    for (const suffix of ["-wal", "-shm", "-journal"]) assert.equal(existsSync(join(hub, `state.db${suffix}`)), false);
+  } finally {
+    chmodSync(join(hub, "state.db"), 0o644);
+    chmodSync(hub, 0o755);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("list and info propagate startup recovery permission failures", () => {
+  if (process.platform === "win32" || process.getuid?.() === 0) return;
+  const root = mkdtempSync(join(tmpdir(), "sklp-recovery-permission-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  const source = join(root, "source");
+  mkdirSync(project);
+  makeSkill(source);
+  const options = { cwd: project, hub, home: root };
+  assert.equal(cli(["init"], options).status, 0);
+  assert.equal(cli(["install", source], options).status, 0);
+  const info = JSON.parse(cli(["info", "sample-skill"], options).stdout);
+  const destination = join(hub, "skills", "sample-skill");
+  const backup = join(hub, ".staging", "recovery-backup");
+  renameSync(destination, backup);
+  const db = new DatabaseSync(join(hub, "state.db"));
+  db.prepare("INSERT INTO operations(id,kind,status,payload_json,created_at) VALUES(?,?,?,?,?)")
+    .run("permission-recovery", "update", "started", JSON.stringify({
+      kind: "update", skill: info.skill, destination, backup
+    }), new Date().toISOString());
+  db.close();
+  chmodSync(join(hub, "skills"), 0o555);
+  try {
+    const result = cli(["info", "sample-skill"], options);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /permission denied|EACCES/i);
+  } finally {
+    chmodSync(join(hub, "skills"), 0o755);
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("doctor distinguishes invalid Skill metadata and invalid catalog JSON", () => {
