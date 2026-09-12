@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.6 - 2026-09-12
+
+### Changes
+
+- Fix read-only query fallback in sandboxed environments
+
 ## 0.9.5 - 2026-09-09
 
 ### Changes
