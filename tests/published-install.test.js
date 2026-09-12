@@ -3,6 +3,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { publishedInstallEnvironment } from "../scripts/smoke/published-install-environment.mjs";
+import { shouldRetryPublishedInstall } from "../scripts/smoke/published-install-policy.mjs";
 
 test("published install retries use fresh online npm metadata", () => {
   const root = join("tmp", "published-smoke");
@@ -22,4 +23,10 @@ test("published install retries use fresh online npm metadata", () => {
   assert.equal(first.SKLP_TEST_HOME, root);
   assert.equal(base.npm_config_cache, "shared-cache");
   assert.equal(base.npm_config_prefer_online, "false");
+});
+
+test("published install retries npm propagation failures but stops on authentication failures", () => {
+  assert.equal(shouldRetryPublishedInstall({ status: 1, stderr: "npm error code ETARGET" }), true);
+  assert.equal(shouldRetryPublishedInstall({ status: 1, stderr: "npm error code E401" }), false);
+  assert.equal(shouldRetryPublishedInstall({ status: 0, stderr: "npm error code ETARGET" }), false);
 });

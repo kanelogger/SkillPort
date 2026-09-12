@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { publishedInstallEnvironment } from "./published-install-environment.mjs";
+import { shouldRetryPublishedInstall } from "./published-install-policy.mjs";
 
 const rawVersion = process.argv[2] ?? process.env.SKLP_PUBLISHED_VERSION;
 assert.ok(rawVersion, "Usage: npm run smoke:published -- <version>");
@@ -16,6 +17,7 @@ const npmCli = process.env.npm_execpath;
 assert.ok(npmCli, "npm_execpath is required to run npm portably from this smoke test.");
 
 const root = mkdtempSync(join(tmpdir(), "sklp-published-"));
+process.once("exit", () => rmSync(root, { recursive: true, force: true }));
 const env = {
   ...process.env,
   HOME: root,
@@ -33,8 +35,9 @@ const runNpm = (args, attempt, options = {}) => spawnSync(process.execPath, [npm
 });
 
 const prefix = join(root, "prefix");
-const retries = Number.parseInt(process.env.SKLP_PUBLISHED_INSTALL_RETRIES ?? "6", 10);
+const retries = Number.parseInt(process.env.SKLP_PUBLISHED_INSTALL_RETRIES ?? "18", 10);
 const retryDelayMs = Number.parseInt(process.env.SKLP_PUBLISHED_INSTALL_RETRY_DELAY_MS ?? "10000", 10);
+
 let install;
 
 for (let attempt = 1; attempt <= retries; attempt += 1) {
@@ -48,8 +51,10 @@ for (let attempt = 1; attempt <= retries; attempt += 1) {
   if (install.status === 0) {
     break;
   }
-  if (attempt < retries) {
+  if (attempt < retries && shouldRetryPublishedInstall(install)) {
     await delay(retryDelayMs);
+  } else {
+    break;
   }
 }
 
@@ -125,4 +130,3 @@ assert.equal(existsSync(executable), false);
 assert.equal(existsSync(agentIntegration), false);
 
 console.log(`Published CLI installation, core loop, and self-uninstallation verified for skill-port-cli@${version}.`);
-rmSync(root, { recursive: true, force: true });
