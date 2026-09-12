@@ -55,11 +55,20 @@ for (let attempt = 1; attempt <= retries; attempt += 1) {
 
 assert.equal(install.status, 0, install.stderr ?? install.error?.message);
 const agentIntegration = join(root, ".agents", "skills", "skill-port");
-assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
-
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
   : join(prefix, "bin", "sklp");
+const setupIfNeeded = () => {
+  if (existsSync(join(agentIntegration, "SKILL.md"))) return;
+  const setup = spawnSync(executable, ["agent", "setup", "--json"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env
+  });
+  assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
+};
+setupIfNeeded();
+assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
 
 const runExecutable = (args, options = {}) => spawnSync(executable, args, {
   ...options,

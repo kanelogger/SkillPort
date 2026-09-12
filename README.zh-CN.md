@@ -33,7 +33,7 @@ sklp agent setup
 
 安装时还会把内置管理 Skill 注册到 `~/.agents/skills/skill-port`。它负责告诉兼容的 Agent 如何操作 `sklp`，与之后由你加入的 Skill 相互独立。
 
-`sklp --version` 输出版本号，并且 `sklp agent setup` 提示 Agent 集成已注册，说明安装成功。`setup` 可以重复执行；如果 npm 没有完成自动注册，它会补建该入口。
+`sklp --version` 输出版本号，并且 `sklp agent setup` 提示 Agent 集成已注册，说明安装成功。`setup` 可以重复执行；如果 npm 没有完成自动注册，它会补建该入口。npm 12 可能在全局安装时阻止生命周期脚本；此时直接运行 `sklp agent setup`，无需放开其他依赖的安装脚本。
 
 ### 2. 初始化 Skill Port 并注册项目
 

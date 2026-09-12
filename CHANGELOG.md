@@ -34,6 +34,7 @@
 - Add `sync --skip-existing` so multi-source Hubs can retain same-name Skills under their current owner without turning an otherwise successful fleet reconciliation into a failure.
 - Stop recursive collection discovery below the first directory containing `SKILL.md`, preventing embedded fixtures from being installed as standalone Skills.
 - Make `sklp list` and `sklp info` fall back to the read-only SQLite snapshot path when a protected Hub cannot be opened read-write, while preserving startup recovery on writable Hubs.
+- Document and verify the explicit `sklp agent setup` fallback when npm blocks global lifecycle scripts.
 
 ## 0.9.3 - 2026-08-04
 

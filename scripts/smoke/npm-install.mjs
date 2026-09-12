@@ -39,16 +39,32 @@ const prefix = join(root, "prefix");
 const install = runNpm(["install", "--global", "--prefix", prefix, join(root, filename)]);
 assert.equal(install.status, 0, install.stderr ?? install.error?.message);
 const agentIntegration = join(root, ".agents", "skills", "skill-port");
+const executable = process.platform === "win32"
+  ? join(prefix, "sklp.cmd")
+  : join(prefix, "bin", "sklp");
+if (!existsSync(join(agentIntegration, "SKILL.md"))) {
+  const setup = spawnSync(executable, ["agent", "setup", "--json"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env
+  });
+  assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
+}
 assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
 const directUninstall = runNpm(["uninstall", "--global", "--prefix", prefix, "skill-port-cli"]);
 assert.equal(directUninstall.status, 0, directUninstall.stderr ?? directUninstall.error?.message);
 assert.equal(existsSync(agentIntegration), false);
 const reinstall = runNpm(["install", "--global", "--prefix", prefix, join(root, filename)]);
 assert.equal(reinstall.status, 0, reinstall.stderr ?? reinstall.error?.message);
+if (!existsSync(join(agentIntegration, "SKILL.md"))) {
+  const setup = spawnSync(executable, ["agent", "setup", "--json"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env
+  });
+  assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
+}
 assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
-const executable = process.platform === "win32"
-  ? join(prefix, "sklp.cmd")
-  : join(prefix, "bin", "sklp");
 const runExecutable = (args, options = {}) => spawnSync(executable, args, {
   ...options,
   encoding: "utf8",

@@ -96,6 +96,30 @@ function npmCommand(args, options = {}) {
   return command(process.execPath, [npmCli, ...args], options);
 }
 
+export function releasePublishStrategy({
+  platform = process.platform,
+  stdinIsTTY = process.stdin.isTTY,
+  stdoutIsTTY = process.stdout.isTTY,
+} = {}) {
+  return platform === "darwin" && !(stdinIsTTY && stdoutIsTTY) ? "pty" : "direct";
+}
+
+function publishPackage() {
+  const args = ["publish", "--access", "public"];
+  if (releasePublishStrategy() !== "pty") return npmCommand(args);
+
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli) {
+    throw new Error("Run this release through `npm run release`, so npm_execpath is available.");
+  }
+
+  // npm opens the WebAuthn browser flow only when both stdio streams are TTYs.
+  // macOS `script` supplies a PTY when the release was started by an IDE or agent.
+  return command("/usr/bin/script", ["-q", "/dev/null", process.execPath, npmCli, ...args], {
+    env: npmEnvironment(),
+  });
+}
+
 function npmEnvironment() {
   if (!releaseCache) {
     releaseCache = mkdtempSync(resolve(tmpdir(), "sklp-release-npm-"));
@@ -104,11 +128,11 @@ function npmEnvironment() {
   return { ...process.env, npm_config_cache: releaseCache };
 }
 
-function command(executable, args, { capture = false, allowFailure = false } = {}) {
+function command(executable, args, { capture = false, allowFailure = false, env } = {}) {
   const result = spawnSync(executable, args, {
     cwd: root,
     encoding: "utf8",
-    env: executable === process.execPath ? npmEnvironment() : process.env,
+    env: env ?? (executable === process.execPath ? npmEnvironment() : process.env),
     shell: false,
     stdio: capture ? "pipe" : "inherit",
   });
@@ -297,7 +321,7 @@ async function main() {
     command("git", ["tag", "--annotate", tag, "--message", `Release ${tag}`]);
   }
 
-  if (!alreadyPublished) npmCommand(["publish", "--access", "public"]);
+  if (!alreadyPublished) publishPackage();
   command("git", ["push", "origin", "HEAD:main"]);
   command("git", ["push", "origin", tag]);
   npmCommand(["run", "smoke:published", "--", tag]);
