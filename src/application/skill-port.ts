@@ -278,15 +278,21 @@ export class SkillPort {
   }
 
   install(source: string, ref?: string): Skill {
-    const prepared = prepareSource(source, this.paths.staging, { ref });
-    const registered = prepared.collection ? this.ensureSourceCollection(prepared.collection) : null;
-    return this.installPreparedSource(prepared, [], registered);
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
+    try {
+      const prepared = prepareSource(source, this.paths.staging, { ref }, cache);
+      const registered = prepared.collection ? this.ensureSourceCollection(prepared.collection) : null;
+      return this.installPreparedSource(prepared, [], registered);
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
   }
 
   installAll(source: string, ref?: string, options: InstallOptions = {}): { skills: Skill[]; skipped: InstallSkipped[] } {
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     const preparedSources = prepareInstallSources(source, this.paths.staging, {
       ref, gitPath: options.gitPath, tagPattern: options.tagPattern
-    });
+    }, cache);
     try {
       const plan = this.installPlan(preparedSources, options);
       const publisher = plan.candidates.length >= 2 ? plan.candidates[0]?.prepared.publisher : null;
@@ -302,6 +308,7 @@ export class SkillPort {
       };
     } finally {
       for (const prepared of preparedSources) prepared.cleanup();
+      cleanupGitSourceCache(cache);
     }
   }
 
@@ -310,9 +317,10 @@ export class SkillPort {
     skipped: InstallSkipped[];
     failed: InstallFailed[];
   } {
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     const preparedSources = prepareInstallSources(source, this.paths.staging, {
       ref, gitPath: options.gitPath, tagPattern: options.tagPattern
-    });
+    }, cache);
     try {
       const plan = this.installPreviewPlan(preparedSources, options);
       return {
@@ -322,6 +330,7 @@ export class SkillPort {
       };
     } finally {
       for (const prepared of preparedSources) prepared.cleanup();
+      cleanupGitSourceCache(cache);
     }
   }
 
@@ -384,16 +393,18 @@ export class SkillPort {
   }
 
   private syncOneSource(source: string, options: SyncOptions, apply: boolean): SyncSummary {
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     const prepared = prepareGitSyncSources(source, this.paths.staging, {
       ref: options.ref,
       gitPath: options.gitPath,
       tagPattern: options.tagPattern
-    });
+    }, cache);
     try {
       const plan = this.planSync(prepared.collection, prepared.sources, options);
       return { sources: [apply ? this.applySyncPlan(plan) : syncPlanSummary(plan)], failed: [] };
     } finally {
       prepared.cleanup();
+      cleanupGitSourceCache(cache);
     }
   }
 
@@ -403,7 +414,7 @@ export class SkillPort {
   ): SyncSummary {
     const summaries: SyncSourceSummary[] = [];
     const failed: SyncSummary["failed"] = [];
-    const cache = createGitSourceCache();
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     try {
       for (const registered of this.store.sources()) {
         if (!this.store.source(registered.id)) continue;
@@ -858,15 +869,30 @@ export class SkillPort {
   }
 
   update(name: string, revision?: string): Skill {
-    return this.updateInternal(name, { revision });
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
+    try {
+      return this.updateInternal(name, { revision, sourceCache: cache });
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
   }
 
   updateToRef(name: string, ref: string): Skill {
-    return this.updateInternal(name, { sourceRef: ref });
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
+    try {
+      return this.updateInternal(name, { sourceRef: ref, sourceCache: cache });
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
   }
 
   updateToTagPattern(name: string, pattern: string): Skill {
-    return this.updateInternal(name, { tagPattern: pattern });
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
+    try {
+      return this.updateInternal(name, { tagPattern: pattern, sourceCache: cache });
+    } finally {
+      cleanupGitSourceCache(cache);
+    }
   }
 
   private updateInternal(
@@ -1115,7 +1141,7 @@ export class SkillPort {
     const plan = this.previewAllUpdates();
     const updated: BatchUpdateSummary["updated"] = [];
     const failed = [...plan.failed];
-    const cache = createGitSourceCache();
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     try {
       for (const item of plan.planned) {
         try {
@@ -1139,7 +1165,7 @@ export class SkillPort {
     const updated: BatchUpdateSummary["updated"] = [];
     const skipped: BatchUpdateSummary["skipped"] = [];
     const failed: BatchUpdateSummary["failed"] = [];
-    const cache = createGitSourceCache();
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     try {
       for (const current of this.store.skills()) {
         if (this.isLinkedSkill(current)) {
@@ -1167,7 +1193,7 @@ export class SkillPort {
     const updated: BatchUpdateSummary["updated"] = [];
     const skipped: BatchUpdateSummary["skipped"] = [];
     const failed: BatchUpdateSummary["failed"] = [];
-    const cache = createGitSourceCache();
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     try {
       for (const current of this.store.skills()) {
         if (this.isLinkedSkill(current)) {
@@ -1252,7 +1278,7 @@ export class SkillPort {
     const planned: UpdateSummary["planned"] = [];
     const skipped: UpdateSummary["skipped"] = [];
     const failed: UpdateSummary["failed"] = [];
-    const cache = createGitSourceCache();
+    const cache = createGitSourceCache(join(this.paths.staging, "git-cache"));
     try {
       for (const current of skills) {
         if (this.isLinkedSkill(current)) {

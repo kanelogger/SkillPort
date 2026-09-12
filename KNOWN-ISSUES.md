@@ -1,14 +1,13 @@
 # 遗留问题与 Bug 清单
 
-最后一次核对：2026-09-10（Git 超时重试与 sync 同名跳过语义落地后，`src/` 当前 HEAD）。
+最后一次核对：2026-09-12（持久化 Git mirror 与增量 fetch 落地后，`src/` 当前 HEAD）。
 
 ## 高优先级
 
-### 1. 大仓库更新仍会全量重复下载
-- 已缓解：Git 命令的默认单次超时已从 30 秒提高到 60 秒，并在超时后自动重试一次；`SKLP_GIT_TIMEOUT_MS` 仍可覆盖单次限时。此前约 34 秒必然失败的仓库不再触发默认超时，偶发单次网络超时也可自动恢复。
-- 残留根因：`GitSourceCache` 仍是单次命令内的临时 clone，命令结束即删除；指定 ref 时仍不走 `--depth 1`。每次 update/sync 仍可能重复下载完整仓库。
-- 影响：超大仓库或持续慢速网络仍可能在两次 60 秒尝试后失败，并消耗较多流量；失败会安全隔离在对应批量项。
-- 建议方向：持久化 git 缓存（bare mirror + fetch），并对 branch/tag ref 使用 `git clone --depth 1 --branch <ref>`。
+### 1. 大仓库更新仍会全量重复下载（已修复）
+- `update`/`sync` 使用 Hub 内持久化的 bare mirror；首次建立镜像，后续命令执行增量 `remote update --prune`，再从本地镜像创建临时工作树。
+- Git 命令的默认单次超时为 60 秒，并在超时后自动重试一次；`SKLP_GIT_TIMEOUT_MS` 可覆盖单次限时。
+- 首次建立镜像仍需获取仓库现有对象；镜像损坏或持续网络失败时，命令会报错且不修改 Hub 状态。
 
 ### 2. tag-pattern 跟踪存在降级风险（无回退保护）
 - 现象：上游删除当前 tag 后（如 `skill-v4.1.1` 被删，最高匹配变为 `skill-v4.1.0`），`inspectGitSource` 的 tag-pattern 分支（`sources.ts`）判定 revision/tag 不一致 → `outdated` → `update` 会把 Skill 降级到旧 release。
@@ -40,9 +39,9 @@
 - 影响：非 semver 命名习惯的仓库无法用 `--track-tags`。
 - 建议方向：需要时增加 `--include-prerelease` 或显式版本正则；当前在 README/SKILL.md 已声明语义。
 
-### 7. tag-pattern Skill 已最新时普通 `update` 仍会全量重克隆
-- 现状：`sklp update <skill>` 对已最新的 tag-pattern Skill 做幂等刷新（`updateInternal`，`skill-port.ts`），up-to-date 时仍 clone 全仓库。`--check`/`--dry-run` 只走 ls-remote，无此问题。
-- 影响：与大仓库重复下载问题叠加时，一次空操作仍可能消耗 354MB。
+### 7. tag-pattern Skill 已最新时普通 `update` 仍会执行刷新
+- 现状：`sklp update <skill>` 对已最新的 tag-pattern Skill 做幂等刷新（`updateInternal`，`skill-port.ts`），up-to-date 时仍执行 prepare 和 mirror 更新。`--check`/`--dry-run` 只走 ls-remote，无此问题。
+- 影响：一次空操作仍会访问远程并执行本地工作树准备，但不会再次下载完整仓库。
 - 建议方向：up-to-date 时跳过 prepare，直接返回当前状态。
 
 ### 8. `--ref` 与 `--track-tags` 对本地目录的处理不一致

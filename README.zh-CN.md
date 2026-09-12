@@ -111,7 +111,7 @@ sklp update my-skill --track-tags "skill-v*"
 
 tag 模式的 Skill 与分支跟踪一样更新：`update --check` 会把解析出的 tag 显示为 `remoteRef`，普通更新会跟进最新的匹配 release。用 `--ref` 切回分支或固定版本会清除该模式。`--track-tags` 不能与 `--ref`、`--check` 或 `--dry-run` 组合，也不能用于 registry 来源、GitHub tree URL 或本地目录。
 
-批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。同一次批量检查或更新会按仓库/ref 复用远程查询和 clone。
+批量形式会把所有 Git 安装的 Skill 改为指定 ref，并跳过本地复制和 linked Skill。更新和同步会按仓库使用持久化 bare mirror，检查会复用远程查询；后续变更只抓取增量内容，不会再次完整 clone。
 
 每条 Git 命令单次限时 60 秒，超时后自动重试一次。遇到特别大或网络较慢的仓库，可把 `SKLP_GIT_TIMEOUT_MS` 设置为更大的正整数毫秒值；两次尝试均超时时，批量 JSON 仍会把该项列入 `failed`。
 

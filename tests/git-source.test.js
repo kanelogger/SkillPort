@@ -184,6 +184,41 @@ test("Git remote inspection and clone caches reuse one repository snapshot", asy
   cleanupGitSourceCache(cloneCache);
 });
 
+test("Git source mirrors persist across cache instances and fetch only new revisions", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-git-mirror-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const source = join(root, "repo");
+  const staging = join(root, "staging");
+  const mirrorRoot = join(root, "git-cache");
+  mkdirSync(source);
+  mkdirSync(staging);
+  makeSkill(source, "mirror-skill", "Before");
+  git(["init"], source);
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], source);
+  const sourceUrl = pathToFileURL(source).href;
+  const { cleanupGitSourceCache, createGitSourceCache, prepareSource } = await import("../dist/infrastructure/sources.js");
+
+  const firstCache = createGitSourceCache(mirrorRoot);
+  const first = prepareSource(sourceUrl, staging, {}, firstCache);
+  assert.match(readFileSync(join(first.root, "SKILL.md"), "utf8"), /Before/);
+  first.cleanup();
+  cleanupGitSourceCache(firstCache);
+  assert.ok(readdirSync(mirrorRoot).length > 0);
+  const mirrorPath = join(mirrorRoot, readdirSync(mirrorRoot)[0]);
+  writeFileSync(join(mirrorPath, ".reuse-marker"), "keep");
+
+  makeSkill(source, "mirror-skill", "After");
+  git(["add", "."], source);
+  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", "update"], source);
+  const secondCache = createGitSourceCache(mirrorRoot);
+  const second = prepareSource(sourceUrl, staging, {}, secondCache);
+  assert.match(readFileSync(join(second.root, "SKILL.md"), "utf8"), /After/);
+  assert.equal(readFileSync(join(mirrorPath, ".reuse-marker"), "utf8"), "keep");
+  second.cleanup();
+  cleanupGitSourceCache(secondCache);
+});
+
 test("Git update check keeps explicit tag selections pinned", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-git-check-tag-"));
   const hub = join(root, "hub");

@@ -111,7 +111,7 @@ sklp update my-skill --track-tags "skill-v*"
 
 Tag-pattern Skills update like branch-tracked ones: `update --check` reports the resolved tag as `remoteRef`, and a normal update moves to the newest matching release. Switching back to `--ref` clears the pattern. `--track-tags` cannot be combined with `--ref`, `--check`, or `--dry-run`, and is rejected for registry sources, GitHub tree URLs, and local directories.
 
-The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Batch checks and updates reuse one remote query and clone per repository/ref during the command.
+The batch form changes every Git-installed Skill to the requested ref and skips local copied or linked Skills. Update and sync operations use a persistent bare mirror per repository, while checks reuse remote queries; later mutations fetch only changes instead of cloning the repository again.
 
 Git commands allow 60 seconds per attempt and retry once after a timeout. Set `SKLP_GIT_TIMEOUT_MS` to a larger positive millisecond value for an unusually large or slow repository; an exhausted retry remains a normal failed item in batch JSON output.
 

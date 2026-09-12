@@ -2,6 +2,7 @@ import {
   cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync
 } from "node:fs";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { createHash } from "node:crypto";
 import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import type { GitSourceTracking } from "../domain/models.js";
@@ -48,7 +49,13 @@ export type GitUpdateInspection = {
 type GitRemoteCacheEntry = { stdout: string; failure: string | null };
 export type GitRemoteCache = Map<string, GitRemoteCacheEntry>;
 type CachedGitClone = { root: string; revision: string };
-export type GitSourceCache = { clones: Map<string, CachedGitClone> };
+type CachedGitMirror = { root: string; fetched: boolean };
+export type GitSourceCache = {
+  clones: Map<string, CachedGitClone>;
+  mirrors: Map<string, CachedGitMirror>;
+  /** Optional persistent directory for bare mirrors. */
+  root?: string;
+};
 type GitCommandResult = SpawnSyncReturns<string>;
 
 type PrepareOptions = { ref?: string; gitPath?: string; tagPattern?: string };
@@ -62,7 +69,12 @@ type GitSourceSpec = {
 const defaultGitTimeoutMs = 60_000;
 const gitTimeoutAttempts = 2;
 
-export function prepareInstallSources(input: string, staging: string, options: PrepareOptions = {}): PreparedSource[] {
+export function prepareInstallSources(
+  input: string,
+  staging: string,
+  options: PrepareOptions = {},
+  cache?: GitSourceCache
+): PreparedSource[] {
   const local = resolve(input);
   if (existsSync(local) && lstatSync(local).isFile() && basename(local) === "sources.json") {
     if (options.ref) throw new CliError("--ref cannot be used with registry sources.");
@@ -70,7 +82,7 @@ export function prepareInstallSources(input: string, staging: string, options: P
     if (options.gitPath) throw new CliError("--path cannot be used with registry sources.");
     return prepareRegistrySources(local);
   }
-  return prepareSources(input, staging, options);
+  return prepareSources(input, staging, options, cache);
 }
 
 export function prepareSource(
@@ -375,9 +387,14 @@ function prepareGitSourceSet(
   const stagedRoots: string[] = [];
   let revisionValue = cached?.revision ?? null;
   if (!cached) {
-    const args = ["clone"];
-    if (!spec.ref) args.push("--depth", "1");
-    args.push("--", spec.cloneUrl, cloneRoot);
+    // Never persist credential-bearing URLs in a mirror's remote config.
+    const safeSource = sanitizeSource(spec.cloneUrl);
+    const persistentCache = cache?.root && safeSource === spec.cloneUrl;
+    const mirrorSource = persistentCache ? normalizeGitCollectionLocation(spec.cloneUrl) : spec.cloneUrl;
+    const cloneSource = persistentCache ? ensureGitMirror(mirrorSource, cache) : spec.cloneUrl;
+    const args = persistentCache
+      ? ["clone", "--shared", "--no-checkout", "--", cloneSource, cloneRoot]
+      : ["clone", ...(spec.ref ? [] : ["--depth", "1"]), "--", cloneSource, cloneRoot];
     const result = runGit(args, () => {
       rmSync(cloneRoot, { recursive: true, force: true });
       mkdirSync(cloneRoot, { recursive: true });
@@ -391,6 +408,13 @@ function prepareGitSourceSet(
       if (checkout.error || checkout.status !== 0) {
         rmSync(cloneRoot, { recursive: true, force: true });
         throw gitCommandError("Git ref", checkout);
+      }
+    }
+    if (!spec.ref) {
+      const checkout = runGit(["-C", cloneRoot, "checkout", "--detach", "HEAD"]);
+      if (checkout.error || checkout.status !== 0) {
+        rmSync(cloneRoot, { recursive: true, force: true });
+        throw gitCommandError("Git default branch", checkout);
       }
     }
     const revision = runGit(["-C", cloneRoot, "rev-parse", "HEAD"]);
@@ -475,13 +499,47 @@ function prepareGitSourceSet(
   }
 }
 
-export function createGitSourceCache(): GitSourceCache {
-  return { clones: new Map() };
+export function createGitSourceCache(root?: string): GitSourceCache {
+  if (root) mkdirSync(root, { recursive: true });
+  return { clones: new Map(), mirrors: new Map(), root };
 }
 
 export function cleanupGitSourceCache(cache: GitSourceCache): void {
   for (const clone of cache.clones.values()) rmSync(clone.root, { recursive: true, force: true });
   cache.clones.clear();
+  cache.mirrors.clear();
+}
+
+function ensureGitMirror(source: string, cache?: GitSourceCache): string {
+  if (!cache?.root) return source;
+  const key = createHash("sha256").update(source).digest("hex").slice(0, 32);
+  const existing = cache.mirrors.get(source);
+  const mirrorRoot = existing?.root ?? join(cache.root, key);
+  if (!existing) {
+    mkdirSync(cache.root, { recursive: true });
+    if (
+      existsSync(join(mirrorRoot, "HEAD"))
+      && existsSync(join(mirrorRoot, "config"))
+      && existsSync(join(mirrorRoot, "objects"))
+    ) {
+      cache.mirrors.set(source, { root: mirrorRoot, fetched: false });
+    } else {
+      rmSync(mirrorRoot, { recursive: true, force: true });
+      const result = runGit(["clone", "--mirror", "--", source, mirrorRoot], () => {
+        rmSync(mirrorRoot, { recursive: true, force: true });
+      });
+      if (result.error || result.status !== 0) throw gitCommandError("Git source", result);
+      cache.mirrors.set(source, { root: mirrorRoot, fetched: true });
+      return mirrorRoot;
+    }
+  }
+  const mirror = cache.mirrors.get(source)!;
+  if (!mirror.fetched) {
+    const result = runGit(["-C", mirror.root, "remote", "update", "--prune"]);
+    if (result.error || result.status !== 0) throw gitCommandError("Git source", result);
+    mirror.fetched = true;
+  }
+  return mirror.root;
 }
 
 function runGit(args: string[], beforeRetry?: () => void): GitCommandResult {
