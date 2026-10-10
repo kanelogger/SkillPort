@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8 - 2026-10-10
+
+### Changes
+
+- Release summary
+
 ## 0.9.7 - 2026-09-12
 
 ### Changes
