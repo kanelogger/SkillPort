@@ -59,12 +59,15 @@ for (let attempt = 1; attempt <= retries; attempt += 1) {
 }
 
 assert.equal(install.status, 0, install.stderr ?? install.error?.message);
-const agentIntegration = join(root, ".agents", "skills", "skill-port");
+const agentIntegrations = [
+  join(root, ".agents", "skills", "skill-port"),
+  join(root, ".agents", "skills", "skill-port-report")
+];
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
   : join(prefix, "bin", "sklp");
 const setupIfNeeded = () => {
-  if (existsSync(join(agentIntegration, "SKILL.md"))) return;
+  if (agentIntegrations.every((entry) => existsSync(join(entry, "SKILL.md")))) return;
   const setup = spawnSync(executable, ["agent", "setup", "--json"], {
     encoding: "utf8",
     shell: process.platform === "win32",
@@ -73,7 +76,7 @@ const setupIfNeeded = () => {
   assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
 };
 setupIfNeeded();
-assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
+assert.equal(agentIntegrations.every((entry) => existsSync(join(entry, "SKILL.md"))), true);
 
 const runExecutable = (args, options = {}) => spawnSync(executable, args, {
   ...options,
@@ -127,6 +130,6 @@ const uninstall = run(["uninstall"], {
 assert.equal(uninstall.status, 0, uninstall.stderr);
 assert.equal(existsSync(hub), false);
 assert.equal(existsSync(executable), false);
-assert.equal(existsSync(agentIntegration), false);
+assert.equal(agentIntegrations.every((entry) => !existsSync(entry)), true);
 
 console.log(`Published CLI installation, core loop, and self-uninstallation verified for skill-port-cli@${version}.`);

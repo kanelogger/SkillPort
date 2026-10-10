@@ -17,6 +17,7 @@ test("uninstall cancels unless confirmation is an exact y", (t) => {
   assert.equal(existsSync(fixture.projectEntry), true);
   assert.equal(existsSync(fixture.globalEntry), true);
   assert.equal(existsSync(fixture.agentIntegration), true);
+  assert.equal(existsSync(fixture.agentReportIntegration), true);
   assert.equal(existsSync(fixture.npmMarker), false);
 });
 
@@ -30,6 +31,7 @@ test("uninstall cancels when standard input closes", (t) => {
   assert.match(result.stdout, /Uninstall cancelled/);
   assert.equal(existsSync(fixture.hub), true);
   assert.equal(existsSync(fixture.agentIntegration), true);
+  assert.equal(existsSync(fixture.agentReportIntegration), true);
   assert.equal(existsSync(fixture.npmMarker), false);
 });
 
@@ -63,6 +65,7 @@ test("uninstall removes managed state and preserves linked source directories", 
   assert.equal(existsSync(fixture.projectEntry), false);
   assert.equal(existsSync(fixture.globalEntry), false);
   assert.equal(existsSync(fixture.agentIntegration), false);
+  assert.equal(existsSync(fixture.agentReportIntegration), false);
   assert.equal(existsSync(fixture.hub), false);
   assert.equal(existsSync(fixture.locator), false);
   assert.equal(existsSync(join(fixture.linkedSource, "SKILL.md")), true);
@@ -102,7 +105,10 @@ test("uninstall removes the CLI when the Hub is already missing", (t) => {
   const npmMarker = join(root, "npm-args.txt");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFakeNpm(npmCli);
-  const agentIntegration = join(root, ".agents", "skills", "skill-port");
+  const agentIntegrations = [
+    join(root, ".agents", "skills", "skill-port"),
+    join(root, ".agents", "skills", "skill-port-report")
+  ];
   assert.equal(cli(["agent", "setup"], { cwd: root, hub, home: root }).status, 0);
 
   const result = cli(["uninstall"], {
@@ -115,7 +121,7 @@ test("uninstall removes the CLI when the Hub is already missing", (t) => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(hub), false);
-  assert.equal(existsSync(agentIntegration), false);
+  assert.equal(agentIntegrations.every((entry) => !existsSync(entry)), true);
   assert.equal(readMarker(npmMarker), "uninstall --global skill-port-cli");
 });
 
@@ -149,6 +155,7 @@ test("uninstall preserves an Agent integration entry that is no longer owned", (
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Refusing to remove unmanaged Agent integration/);
   assert.equal(readFileSync(marker, "utf8"), "user content");
+  assert.equal(existsSync(fixture.agentReportIntegration), false);
   assert.equal(existsSync(fixture.hub), false);
   assert.equal(readMarker(fixture.npmMarker), "uninstall --global skill-port-cli");
 });
@@ -206,6 +213,7 @@ function setupFixture() {
     projectEntry: join(project, ".agents", "skills", "copied-skill"),
     globalEntry: join(root, ".agents", "skills", "copied-skill"),
     agentIntegration: join(root, ".agents", "skills", "skill-port"),
+    agentReportIntegration: join(root, ".agents", "skills", "skill-port-report"),
     linkedSource,
     locator,
     npmCli,

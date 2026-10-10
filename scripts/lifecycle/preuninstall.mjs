@@ -8,6 +8,6 @@ if (process.env.npm_config_global === "true") {
     formatError = errors.sanitizeError;
     removeAgentIntegration();
   } catch (error) {
-    console.warn(`Skill Port Agent integration was preserved: ${formatError(error)}`);
+    console.warn(`Skill Port Agent integrations were preserved: ${formatError(error)}`);
   }
 }

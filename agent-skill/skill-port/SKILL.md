@@ -7,7 +7,7 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 <!-- sklp-cli-surface-sha256: aa3570f25a1382403ea61aa7b13bfb44338d1ce9dbf3ba97bfc07754cf0c5367 -->
 
-使用 `sklp` 管理 Agent Skill 生命周期。不要手工编辑 Hub、项目内的 `.agents/skills/`、全局 `~/.agents/skills/` 或 `~/.agents/skills/skill-port`。
+使用 `sklp` 管理 Agent Skill 生命周期。不要手工编辑 Hub、项目内的 `.agents/skills/`、全局 `~/.agents/skills/`，或包保留的 `~/.agents/skills/skill-port` 与 `~/.agents/skills/skill-port-report`。
 
 ## 执行原则
 
@@ -19,7 +19,7 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 ## 初始化与 Agent 集成
 
 - 使用 `sklp init --json` 初始化默认 Hub 并注册当前项目；需要其他项目或 Hub 时分别使用 `--project <path>`、`--hub <path>`。
-- npm 全局安装后 Agent 仍无法发现本管理 Skill 时，运行 `sklp agent setup --json`。该命令不要求 Hub 已初始化，可重复执行，并拒绝覆盖非 Skill Port 管理的 `~/.agents/skills/skill-port`；不要改写 `AGENTS.md` 作为替代方案。
+- npm 全局安装后 Agent 仍无法发现本管理 Skill 或 `skill-port-report` 时，运行 `sklp agent setup --json`。该命令不要求 Hub 已初始化，可重复执行，并会注册全部包内置 Skill；任一保留入口被非 Skill Port 管理对象占用时整次拒绝覆盖。不要改写 `AGENTS.md` 作为替代方案。
 
 ## 安装与链接
 

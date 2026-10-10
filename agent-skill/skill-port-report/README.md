@@ -2,18 +2,15 @@
 
 调用后生成 Hub 已登记本地项目的单文件 HTML，不是已安装 Skill 清册。展示名称、完整项目路径、登记时间和项目 enablement 数量；全局 enablement 单独汇总。零启用项目仍显示，未登记当前目录不添加。
 
-## 注册并让 Agent 可调用
+## 随 CLI 全局安装
 
-从仓库根目录执行：
+`skill-port-cli` 全局安装或 `sklp agent setup` 会把本 Skill 注册到 `~/.agents/skills/skill-port-report`（与 `skill-port` 同属包级 Agent integration，不是 Hub enablement）。Agent 已缓存技能列表时，刷新技能发现或开启新会话，然后说“调用 skill-port-report，生成本地项目列表”。
+
+从源码检出开发本 Skill 时，也可用同一命令补建入口（无需 `link` / `enable`）：
 
 ```sh
-sklp install ./agent-skill/skill-port-report --dry-run --json
-sklp link ./agent-skill/skill-port-report --json
-sklp enable skill-port-report --global --json
-sklp info skill-port-report --json
+sklp agent setup --json
 ```
-
-全局 enablement 使技能出现在 ~/.agents/skills/skill-port-report，无需登记当前仓库。link 保留源码目录并即时跟随修改。Agent 已缓存技能列表时，刷新技能发现或开启新会话，然后说“调用 skill-port-report，生成本地项目列表”。
 
 ## 手动生成
 

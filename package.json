@@ -21,6 +21,7 @@
   },
   "files": [
     "agent-skill/skill-port",
+    "agent-skill/skill-port-report",
     "dist",
     "scripts/lifecycle",
     "docs/supported-targets.md",

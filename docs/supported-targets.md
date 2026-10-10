@@ -14,6 +14,13 @@ macOS and Linux use directory symlinks. Windows first attempts a directory symli
 
 ## Bundled Agent integration
 
-The npm-global package reserves `~/.agents/skills/skill-port` for its bundled management Skill. A global install registers that exact entry automatically; `sklp agent setup` provides an idempotent fallback when npm lifecycle scripts are disabled. Registration never writes `AGENTS.md` and refuses to overwrite an existing unmanaged entry.
+The npm-global package reserves these paths for bundled Skills:
 
-This bootstrap entry is separate from Hub enablements. Ownership is verified by resolving the entry to the bundled `agent-skill/skill-port` directory in the installed npm package. Uninstall removes only that verified link or junction and does not scan the Agent directory.
+| Bundled Skill | Reserved entry | Package source |
+| --- | --- | --- |
+| `skill-port` | `~/.agents/skills/skill-port` | `agent-skill/skill-port` |
+| `skill-port-report` | `~/.agents/skills/skill-port-report` | `agent-skill/skill-port-report` |
+
+A global install registers every reserved entry automatically; `sklp agent setup` provides an idempotent fallback when npm lifecycle scripts are disabled. Registration never writes `AGENTS.md` and refuses to overwrite an existing unmanaged entry at any reserved path.
+
+These bootstrap entries are separate from Hub enablements. Ownership is verified by resolving each entry to the matching bundled directory in the installed npm package. Uninstall removes only verified links or junctions at those reserved paths and does not scan the Agent directory.

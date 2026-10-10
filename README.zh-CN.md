@@ -31,9 +31,9 @@ sklp --version
 sklp agent setup
 ```
 
-安装时还会把内置管理 Skill 注册到 `~/.agents/skills/skill-port`。它负责告诉兼容的 Agent 如何操作 `sklp`，与之后由你加入的 Skill 相互独立。
+安装时还会把内置 Skill 注册到 `~/.agents/skills/skill-port` 和 `~/.agents/skills/skill-port-report`。前者告诉兼容的 Agent 如何操作 `sklp`，后者生成 Hub 已登记本地项目的私有 HTML 列表；二者都与之后由你加入 Hub 的 Skill 相互独立。
 
-`sklp --version` 输出版本号，并且 `sklp agent setup` 提示 Agent 集成已注册，说明安装成功。`setup` 可以重复执行；如果 npm 没有完成自动注册，它会补建该入口。npm 12 可能在全局安装时阻止生命周期脚本；此时直接运行 `sklp agent setup`，无需放开其他依赖的安装脚本。
+`sklp --version` 输出版本号，并且 `sklp agent setup` 提示 Agent 集成已注册，说明安装成功。`setup` 可以重复执行；如果 npm 没有完成自动注册，它会补建缺失的保留入口。npm 12 可能在全局安装时阻止生命周期脚本；此时直接运行 `sklp agent setup`，无需放开其他依赖的安装脚本。
 
 ### 2. 初始化 Skill Port 并注册项目
 
@@ -83,7 +83,7 @@ sklp doctor
 
 启用后打开一个新的 Agent 会话，兼容的 Agent 就能发现这个 Skill。
 
-除了新增的 `~/.agents/skills/skill-port` 管理 Skill，`~/.agents/skills` 中原有的 Skill 不会被改动，可以继续使用。它们不会自动导入 Hub，因此无需处理。
+除了新增的保留内置 Skill，`~/.agents/skills` 中原有的 Skill 不会被改动，可以继续使用。它们不会自动导入 Hub，因此无需处理。
 
 ### 更新 Git Skill
 

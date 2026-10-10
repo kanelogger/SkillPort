@@ -286,7 +286,7 @@ program.command("uninstall")
       removeAgentIntegration();
     } catch (error) {
       failures.push(human(
-        `Could not remove Skill Port Agent integration: ${sanitizeError(error)}`,
+        `Could not remove Skill Port Agent integrations: ${sanitizeError(error)}`,
         `无法移除 Skill Port Agent 集成：${sanitizeError(error)}`
       ));
     }
@@ -316,11 +316,21 @@ agentCommand.command("setup")
   .description(human("Make sklp discoverable through the shared Agent Skill directory", "通过共享 Agent Skill 目录让 Agent 发现 sklp"))
   .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
   .action(run((options) => {
-    const integration = setupAgentIntegration();
-    if (options.json) printJson({ agentIntegration: integration });
-    else console.log(human(
-      `${integration.created ? "Registered" : "Agent integration already registered"}\nEntry: ${integration.entryPath}`,
-      `${integration.created ? "已注册 Agent 集成" : "Agent 集成已注册"}\n入口: ${integration.entryPath}`
+    const result = setupAgentIntegration();
+    const primary = result.integrations.find((item) => item.name === "skill-port") ?? result.integrations[0];
+    if (options.json) {
+      printJson({
+        agentIntegration: primary
+          ? { status: primary.status, entryPath: primary.entryPath, created: primary.created }
+          : undefined,
+        agentIntegrations: result.integrations
+      });
+      return;
+    }
+    const lines = result.integrations.map((item) => item.entryPath);
+    console.log(human(
+      `${result.created ? "Registered" : "Agent integrations already registered"}\nEntries:\n${lines.join("\n")}`,
+      `${result.created ? "已注册 Agent 集成" : "Agent 集成已注册"}\n入口:\n${lines.join("\n")}`
     ));
   }));
 

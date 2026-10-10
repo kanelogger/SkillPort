@@ -31,6 +31,8 @@ const filename = packed.filename;
 const files = packed.files.map((file) => file.path);
 assert.ok(files.includes("dist/cli.js"));
 assert.ok(files.includes("agent-skill/skill-port/SKILL.md"));
+assert.ok(files.includes("agent-skill/skill-port-report/SKILL.md"));
+assert.ok(files.includes("agent-skill/skill-port-report/scripts/generate-report.mjs"));
 assert.ok(files.includes("scripts/lifecycle/postinstall.mjs"));
 assert.ok(files.includes("scripts/lifecycle/preuninstall.mjs"));
 assert.ok(files.includes("docs/supported-targets.md"));
@@ -38,33 +40,31 @@ assert.equal(files.some((path) => path.startsWith("src/") || path.startsWith("te
 const prefix = join(root, "prefix");
 const install = runNpm(["install", "--global", "--prefix", prefix, join(root, filename)]);
 assert.equal(install.status, 0, install.stderr ?? install.error?.message);
-const agentIntegration = join(root, ".agents", "skills", "skill-port");
+const agentIntegrations = [
+  join(root, ".agents", "skills", "skill-port"),
+  join(root, ".agents", "skills", "skill-port-report")
+];
 const executable = process.platform === "win32"
   ? join(prefix, "sklp.cmd")
   : join(prefix, "bin", "sklp");
-if (!existsSync(join(agentIntegration, "SKILL.md"))) {
+const setupIfNeeded = () => {
+  if (agentIntegrations.every((entry) => existsSync(join(entry, "SKILL.md")))) return;
   const setup = spawnSync(executable, ["agent", "setup", "--json"], {
     encoding: "utf8",
     shell: process.platform === "win32",
     env
   });
   assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
-}
-assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
+};
+setupIfNeeded();
+assert.equal(agentIntegrations.every((entry) => existsSync(join(entry, "SKILL.md"))), true);
 const directUninstall = runNpm(["uninstall", "--global", "--prefix", prefix, "skill-port-cli"]);
 assert.equal(directUninstall.status, 0, directUninstall.stderr ?? directUninstall.error?.message);
-assert.equal(existsSync(agentIntegration), false);
+assert.equal(agentIntegrations.every((entry) => !existsSync(entry)), true);
 const reinstall = runNpm(["install", "--global", "--prefix", prefix, join(root, filename)]);
 assert.equal(reinstall.status, 0, reinstall.stderr ?? reinstall.error?.message);
-if (!existsSync(join(agentIntegration, "SKILL.md"))) {
-  const setup = spawnSync(executable, ["agent", "setup", "--json"], {
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    env
-  });
-  assert.equal(setup.status, 0, setup.stderr ?? setup.error?.message);
-}
-assert.equal(existsSync(join(agentIntegration, "SKILL.md")), true);
+setupIfNeeded();
+assert.equal(agentIntegrations.every((entry) => existsSync(join(entry, "SKILL.md"))), true);
 const runExecutable = (args, options = {}) => spawnSync(executable, args, {
   ...options,
   encoding: "utf8",
@@ -110,7 +110,7 @@ assert.equal(uninstall.status, 0, uninstall.stderr);
 assert.match(uninstall.stdout, /Uninstalled sklp/);
 assert.equal(existsSync(hub), false);
 assert.equal(existsSync(executable), false);
-assert.equal(existsSync(agentIntegration), false);
+assert.equal(agentIntegrations.every((entry) => !existsSync(entry)), true);
 
 console.log("Packed CLI installation, core loop, and self-uninstallation verified.");
 rmSync(root, { recursive: true, force: true });

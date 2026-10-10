@@ -31,9 +31,9 @@ sklp --version
 sklp agent setup
 ```
 
-The install also registers a bundled management Skill at `~/.agents/skills/skill-port`. It teaches compatible Agents how to operate `sklp`; it is separate from the Skills you add later.
+The install also registers bundled Skills at `~/.agents/skills/skill-port` and `~/.agents/skills/skill-port-report`. The first teaches compatible Agents how to operate `sklp`; the second generates a private HTML list of Hub-registered local projects. Both are separate from the Skills you add later through the Hub.
 
-Installation succeeded when `sklp --version` prints a version number and `sklp agent setup` reports that the Agent integration is registered. `setup` is safe to repeat and creates the entry if npm did not run the automatic setup. npm 12 may block lifecycle scripts during global installs; in that case, run `sklp agent setup` explicitly instead of enabling unrelated package scripts.
+Installation succeeded when `sklp --version` prints a version number and `sklp agent setup` reports that the Agent integrations are registered. `setup` is safe to repeat and creates any missing reserved entries if npm did not run the automatic setup. npm 12 may block lifecycle scripts during global installs; in that case, run `sklp agent setup` explicitly instead of enabling unrelated package scripts.
 
 ### 2. Initialize Skill Port and register a project
 
@@ -83,7 +83,7 @@ sklp doctor
 
 Open a new Agent session after enabling the Skill so that a compatible Agent can discover it.
 
-Apart from the new `~/.agents/skills/skill-port` management Skill, existing Skills under `~/.agents/skills` remain unchanged and continue to work. They are not automatically imported into the Hub, so no action is required.
+Apart from the new reserved bundled Skills under `~/.agents/skills`, existing Skills in that directory remain unchanged and continue to work. They are not automatically imported into the Hub, so no action is required.
 
 ### Update Git Skills
 

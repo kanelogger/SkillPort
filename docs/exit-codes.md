@@ -23,7 +23,7 @@ Removing or pruning the last member of a source collection automatically deregis
 
 `sklp uninstall` exits `0` after a cancellation or complete cleanup. It exits `1` after attempting every cleanup step it can perform when a managed entry, Hub resource, or npm package cannot be removed.
 
-`sklp agent setup` exits `0` when it creates the bundled Agent integration or finds the correct integration already present. It exits `1` when the reserved entry is occupied by unmanaged content or the bundled Skill cannot be verified.
+`sklp agent setup` exits `0` when it creates every bundled Agent integration or finds each correct integration already present. It exits `1` when any reserved entry is occupied by unmanaged content or a bundled Skill cannot be verified. JSON includes compatibility field `agentIntegration` for `skill-port` and `agentIntegrations` for every bundled entry.
 
 `sklp prune --dry-run` is read-only and exits `0` after returning its `planned` and `skipped` arrays. Mutating prune requires `--yes`; omitting both `--dry-run` and `--yes` exits `1` without changing state. `sklp prune --yes` continues after individual removal failures and exits `1` when its `failed` array is non-empty. Linked Skills and unverified copies appear in `skipped` and do not make the command fail.
 
@@ -38,7 +38,7 @@ Removing or pruning the last member of a source collection automatically deregis
 - `warning`: state should be reviewed, but the CLI can still operate. Exit code stays `0` when all diagnostics are warnings.
 - `error`: state is broken or unsafe for the related operation. Exit code is `1` when any diagnostic is an error.
 
-A missing bundled Agent integration is a warning with the suggestion to run `sklp agent setup`. An unmanaged object at the reserved integration path is an error and remains untouched.
+Each missing bundled Agent integration is a warning with the suggestion to run `sklp agent setup`. An unmanaged object at any reserved integration path is an error and remains untouched.
 
 Use JSON output for automation:
 

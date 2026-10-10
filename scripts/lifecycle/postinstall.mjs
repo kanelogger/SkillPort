@@ -6,12 +6,13 @@ if (process.env.npm_config_global === "true") {
       import("../../dist/application/agent-integration.js")
     ]);
     formatError = errors.sanitizeError;
-    const integration = setupAgentIntegration();
-    if (integration.created) {
-      console.log(`Registered Skill Port Agent integration at ${integration.entryPath}`);
+    const result = setupAgentIntegration();
+    if (result.created) {
+      const entries = result.integrations.map((item) => item.entryPath).join(", ");
+      console.log(`Registered Skill Port Agent integrations at ${entries}`);
     }
   } catch (error) {
-    console.warn(`Skill Port CLI installed, but Agent integration was not registered: ${formatError(error)}`);
+    console.warn(`Skill Port CLI installed, but Agent integrations were not registered: ${formatError(error)}`);
     console.warn("Run `sklp agent setup` after resolving the reported conflict.");
   }
 }
