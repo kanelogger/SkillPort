@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, symlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Script } from 'node:vm';
+import { readProjects, resolveHub, renderReport, main } from './generate-report.mjs';
+const template = readFileSync(new URL('../assets/report.template.html',import.meta.url),'utf8');
+function fixture(fn){const dir=mkdtempSync(join(tmpdir(),'sklp-project-report-'));try{const db=new DatabaseSync(join(dir,'state.db'));db.exec("CREATE TABLE projects(path TEXT PRIMARY KEY,created_at TEXT);CREATE TABLE enablements(id INTEGER PRIMARY KEY,target_type TEXT,target_key TEXT);INSERT INTO projects VALUES('/local/zero','2026-08-01'),('/local/active','2026-08-02');INSERT INTO enablements VALUES(1,'project','/local/active'),(2,'project','/local/active'),(3,'global','global'),(4,'project','/unregistered');");db.close();fn(dir);}finally{rmSync(dir,{recursive:true,force:true});}}
+test('registered projects include zero enablements and exclude unregistered targets',()=>fixture(dir=>{const data=readProjects(dir);assert.equal(data.projects.length,2);assert.deepEqual(data.projects.map(p=>p.enablementCount),[0,2]);assert.equal(data.globalEnablementCount,1);assert.equal(data.projects[0].name,'zero');}));
+test('read-only snapshot leaves database contents unchanged',()=>fixture(dir=>{const before=readFileSync(join(dir,'state.db'));readProjects(dir);assert.deepEqual(readFileSync(join(dir,'state.db')),before);}));
+test('Hub resolution precedence and locator validation',()=>fixture(dir=>{assert.equal(resolveHub(dir,{SKLP_HOME:'/ignored'},dir),dir);writeFileSync(join(dir,'.skill-port.json'),JSON.stringify({hubPath:dir}));assert.equal(resolveHub(undefined,{},dir),dir);writeFileSync(join(dir,'.skill-port.json'),'bad');assert.throws(()=>resolveHub(undefined,{},dir));}));
+test('single-file HTML escapes script injection and preserves paths',()=>{const data={projects:[],note:'</script><script>bad</script> $&'};const html=renderReport(template,data);assert.doesNotMatch(html,/<script[^>]+src=|@import|fonts.googleapis/);const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);assert.equal(scripts.length,2);for(const script of scripts)new Script(script);const context={window:{}};new Script(scripts[0]).runInNewContext(context);assert.equal(context.window.SKILL_PORT_DATA.note,data.note);});
+test('generation and overwrite rejection use only isolated fixtures',()=>fixture(dir=>{const output=join(dir,'report.html');main(['--hub',dir,'--output',output]);assert.ok(existsSync(output));writeFileSync(output,'sentinel');assert.throws(()=>main(['--hub',dir,'--output',output]));assert.equal(readFileSync(output,'utf8'),'sentinel');assert.throws(()=>main(['--output']));assert.throws(()=>main(['--output',join(dir,'bad.txt')]));assert.throws(()=>renderReport('no marker',{}));}));
+test('Agent discovery junction entry actually executes generation',()=>fixture(dir=>{const entry=join(dir,'skill-entry');symlinkSync(fileURLToPath(new URL('../',import.meta.url)),entry,process.platform==='win32'?'junction':'dir');const output=join(dir,'junction-report.html');const result=spawnSync(process.execPath,[join(entry,'scripts/generate-report.mjs'),'--hub',dir,'--output',output],{encoding:'utf8',shell:false});assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).projects,2);assert.ok(existsSync(output));}));
+test('missing database is not created',()=>{const dir=mkdtempSync(join(tmpdir(),'sklp-missing-'));try{assert.throws(()=>readProjects(dir));assert.equal(existsSync(join(dir,'state.db')),false);}finally{rmSync(dir,{recursive:true,force:true});}});
+test('empty registration table produces an empty project list',()=>fixture(dir=>{const db=new DatabaseSync(join(dir,'state.db'));db.exec('DELETE FROM projects');db.close();assert.deepEqual(readProjects(dir).projects,[]);}));
