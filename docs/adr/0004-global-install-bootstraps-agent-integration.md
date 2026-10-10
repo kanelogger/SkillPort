@@ -7,7 +7,7 @@ An npm-global `skill-port-cli` install registers the package's bundled Agent Ski
 | `skill-port` | `~/.agents/skills/skill-port` |
 | `skill-port-report` | `~/.agents/skills/skill-port-report` |
 
-`skill-port` teaches compatible Agents how to operate `sklp`. `skill-port-report` generates a private HTML list of Hub-registered local projects. Neither writes persistent instructions into a user's `AGENTS.md`.
+`skill-port` teaches compatible Agents how to operate `sklp`. `skill-port-report` generates a private HTML inventory of Hub-installed Skills. Neither writes persistent instructions into a user's `AGENTS.md`.
 
 Each bootstrap entry is a special package integration, not a Hub-installed Skill or enablement. Ownership is verified only when the entry resolves to the current package's matching bundled directory under `agent-skill/`. Setup is idempotent, never overwrites a conflicting file, directory, link, or junction, and is available explicitly through `sklp agent setup` when npm lifecycle scripts are disabled or automatic setup cannot complete. Setup registers every bundled entry in one pass and refuses the whole pass when any reserved path is occupied by unmanaged content.
 

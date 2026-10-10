@@ -1,10 +1,10 @@
-# Skill Port 本地项目报告
+# Skill Port 已安装 Skill 清册
 
-调用后生成 Hub 已登记本地项目的单文件 HTML，不是已安装 Skill 清册。展示名称、完整项目路径、登记时间和项目 enablement 数量；全局 enablement 单独汇总。零启用项目仍显示，未登记当前目录不添加。
+调用后生成 Hub 已安装 Skill 的单文件 HTML。页面模板是 `assets/report.template.html`（已确认清册页的定稿）：展示名称、中文描述、展示分类、安装时间与私有标签；顶部汇总启用统计。不含来源路径、项目路径、安装类型列或类型筛选。零启用 Skill 仍显示。不要另起视觉设计。
 
 ## 随 CLI 全局安装
 
-`skill-port-cli` 全局安装或 `sklp agent setup` 会把本 Skill 注册到 `~/.agents/skills/skill-port-report`（与 `skill-port` 同属包级 Agent integration，不是 Hub enablement）。Agent 已缓存技能列表时，刷新技能发现或开启新会话，然后说“调用 skill-port-report，生成本地项目列表”。
+`skill-port-cli` 全局安装或 `sklp agent setup` 会把本 Skill 注册到 `~/.agents/skills/skill-port-report`（与 `skill-port` 同属包级 Agent integration，不是 Hub enablement）。Agent 已缓存技能列表时，刷新技能发现或开启新会话，然后说“调用 skill-port-report，生成已安装技能清单”。
 
 从源码检出开发本 Skill 时，也可用同一命令补建入口（无需 `link` / `enable`）：
 
@@ -23,9 +23,9 @@ node agent-skill/skill-port-report/scripts/generate-report.mjs --hub "<Hub 目�
 
 ## 数据与隐私
 
-sklp 暂无项目列表命令；脚本直接以 readOnly: true 连接 SQLite，在只读事务里读取 projects(path, created_at) 和 enablements(target_type, target_key)。不执行迁移、不写数据库，不调用 Desktop 初始化/恢复。Hub 顺序与 CLI 一致：--hub > SKLP_HOME > ~/.skill-port.json > ~/.skill-port。表结构不兼容时失败，不使用旧快照。项目启用数是登记数量，不是链接健康检查。
+脚本以 readOnly: true 连接 SQLite，在只读事务里读取 skills、enablements，并在表存在时读取 skill_tags。不执行迁移、不写数据库，不调用 Desktop 初始化/恢复。Hub 顺序与 CLI 一致：--hub > SKLP_HOME > ~/.skill-port.json > ~/.skill-port。表结构不兼容时失败，不使用旧快照。启用统计是登记数量，不是链接健康检查。展示分类来自 assets/categories.json。中文描述优先 assets/descriptions.zh.json，再被 skill-port-reports/descriptions.zh.json 覆盖。写出页面前做中文自查：汉字少于 8 个，或英文字母多于汉字时，退出码为 2，打印 needsChinese，并且不写 HTML。不修改 Hub。
 
-这是包含本地项目路径的私有报告，不是公开 catalog；请勿上传或公开发布。HTML 使用系统字体且无任何外部请求。
+这是本地私有报告，不是公开 catalog；请勿上传或公开发布。HTML 使用系统字体且无任何外部请求。
 
 ## 验证
 

@@ -17,7 +17,7 @@ A filesystem object whose Skill Port ownership is established either by Hub stat
 _Avoid_: manually managed Agent entry, Hub-external linked source, unverified file
 
 **Bundled Agent integration**:
-The package-owned Skills registered at reserved `~/.agents/skills/` paths by an npm-global install or `sklp agent setup`: `skill-port` (CLI management guidance) and `skill-port-report` (private Hub project HTML report). They teach or assist compatible Agents without modifying `AGENTS.md`. They are separate from Hub state and are owned only while each entry resolves to the current package's matching bundled Skill directory.
+The package-owned Skills registered at reserved `~/.agents/skills/` paths by an npm-global install or `sklp agent setup`: `skill-port` (CLI management guidance) and `skill-port-report` (private installed-Skill HTML inventory). They teach or assist compatible Agents without modifying `AGENTS.md`. They are separate from Hub state and are owned only while each entry resolves to the current package's matching bundled Skill directory.
 _Avoid_: global Hub enablement, persistent Agent instructions, unmanaged same-name entry
 
 **Uninstall discovery boundary**:

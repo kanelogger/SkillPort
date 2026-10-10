@@ -36,6 +36,7 @@
 
 ### Changes
 
+- Retarget `skill-port-report` from Hub-registered local projects to a private offline HTML inventory of Hub-installed Skills (name, Chinese description overlay, display category, tags; KPI enablement summary; no source/project paths or install-kind column)
 - Bundle `skill-port-report` with npm-global installs and `sklp agent setup`, registering `~/.agents/skills/skill-port-report` alongside the existing `skill-port` Agent integration; JSON adds `agentIntegrations` while keeping compatibility field `agentIntegration` for `skill-port`
 - Add `--track-tags <glob>` to `install`, `update`, and `sync`: track the highest stable semver release tag matching a glob (pre-release suffixes excluded) and follow new releases through ordinary updates, with per-Skill and per-collection pattern persistence (schema migration v7)
 - Automatically deregister a source collection when `remove` or sync prune deletes its last member, so `sync --all` no longer fetches orphaned registrations or reinstalls removed Skills; remove checkpoints now snapshot the source collection and recovery restores source → Skill → membership

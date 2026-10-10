@@ -31,7 +31,7 @@ sklp --version
 sklp agent setup
 ```
 
-The install also registers bundled Skills at `~/.agents/skills/skill-port` and `~/.agents/skills/skill-port-report`. The first teaches compatible Agents how to operate `sklp`; the second generates a private HTML list of Hub-registered local projects. Both are separate from the Skills you add later through the Hub.
+The install also registers bundled Skills at `~/.agents/skills/skill-port` and `~/.agents/skills/skill-port-report`. The first teaches compatible Agents how to operate `sklp`; the second generates a private HTML inventory of Hub-installed Skills. Both are separate from the Skills you add later through the Hub.
 
 Installation succeeded when `sklp --version` prints a version number and `sklp agent setup` reports that the Agent integrations are registered. `setup` is safe to repeat and creates any missing reserved entries if npm did not run the automatic setup. npm 12 may block lifecycle scripts during global installs; in that case, run `sklp agent setup` explicitly instead of enabling unrelated package scripts.
 
