@@ -103,6 +103,35 @@ test('approved template keeps the confirmed inventory layout', () => {
   assert.equal(template.includes('>启用数<'), false);
 });
 
+test('tertiary text keeps WCAG AA contrast in both color schemes', () => {
+  const [light, dark] = [...template.matchAll(/:root\{([^}]*)\}/g)].map((m) => m[1]);
+  const token = (block, name) => block.match(new RegExp('--' + name + ':\\s*([^;]+)'))[1].trim();
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const luminance = (hex) => {
+    const [r, g, b] = rgb(hex).map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (fg, bg) => {
+    const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const over = (fg, bg, alpha) => '#' + rgb(fg).map((v, i) =>
+    Math.round(v * alpha + rgb(bg)[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('');
+  const cases = [
+    [token(light, 'text-tertiary'), token(light, 'surface')],
+    [token(light, 'text-tertiary'), token(light, 'bg-deep')],
+    [token(dark, 'text-tertiary'), token(dark, 'surface')],
+    [token(dark, 'text-tertiary'), over('#ffffff', token(dark, 'surface'), 0.05)]
+  ];
+  for (const [fg, bg] of cases) {
+    const ratio = contrast(fg, bg);
+    assert.ok(ratio >= 4.5, fg + ' on ' + bg + ' = ' + ratio.toFixed(2));
+  }
+});
+
 test('single-file HTML escapes script injection and preserves skill fields', () => {
   const data = { skills: [], note: '</script><script>bad</script> $&' };
   const html = renderReport(template, data);

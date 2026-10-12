@@ -51,6 +51,7 @@
 
 ### Fixes
 
+- Raise `skill-port-report` tertiary text (install date, tags, header labels) to WCAG AA contrast in both light and dark schemes, and let the viewport observer own the first-paint reveal instead of the initial filter pass marking every row as already shown; filtered results still appear immediately.
 - Retry Git commands once after a timeout and raise the default per-attempt limit from 30 to 60 seconds, while preserving `SKLP_GIT_TIMEOUT_MS` overrides and isolated batch failures.
 - Add `sync --skip-existing` so multi-source Hubs can retain same-name Skills under their current owner without turning an otherwise successful fleet reconciliation into a failure.
 - Stop recursive collection discovery below the first directory containing `SKILL.md`, preventing embedded fixtures from being installed as standalone Skills.

@@ -17,7 +17,7 @@
   --bg:#f5f3ed;--bg-deep:#ece8df;
   --surface:#fffdf9;--surface-alt:#f7f4ec;--surface-hover:#eef4f0;
   --border:#e2dccf;--border-strong:#c8c0af;--border-hover:#a49b88;
-  --text:#1d1c1a;--text-secondary:#57534b;--text-tertiary:#8b8478;
+  --text:#1d1c1a;--text-secondary:#57534b;--text-tertiary:#6b675c;
   --accent:#b8562f;--accent-rgb:184,86,47;
   --cool:#2f7d75;--cool-rgb:47,125,117;--cool-soft:rgba(47,125,117,.10);
   --error:#a3463a;
@@ -37,7 +37,7 @@
     --bg:#121215;--bg-deep:#0d0d10;
     --surface:#191a1f;--surface-alt:#16171b;--surface-hover:rgba(255,255,255,.05);
     --border:rgba(255,255,255,.10);--border-strong:rgba(255,255,255,.20);--border-hover:rgba(255,255,255,.32);
-    --text:#efebe4;--text-secondary:#a8a29a;--text-tertiary:#736e66;
+    --text:#efebe4;--text-secondary:#a8a29a;--text-tertiary:#918c85;
     --accent:#e0805a;--accent-rgb:224,128,90;
     --cool:#6fbcb2;--cool-rgb:111,188,178;--cool-soft:rgba(111,188,178,.14);
     --error:#e0836f;
@@ -467,6 +467,8 @@ noscript{display:block;margin-top:12px;color:var(--error)}
   const empty = byId('empty');
   const result = byId('result');
   const chips = [...catnav.querySelectorAll('.chip')];
+  /* 首次渲染交给 IntersectionObserver 逐组浮现；筛选结果则直接显现，不等视口 */
+  let revealByFilter = false;
   function run() {
     const term = q.value.trim().toLowerCase();
     const category = select.value;
@@ -474,7 +476,7 @@ noscript{display:block;margin-top:12px;color:var(--error)}
     for (const row of rows) {
       const match = (!term || row.hay.includes(term)) && (!category || row.category === category);
       row.tr.hidden = !match;
-      if (match) { shown += 1; row.tr.classList.add('in-view'); }
+      if (match) { shown += 1; if (revealByFilter) row.tr.classList.add('in-view'); }
     }
     for (const group of groups) {
       let visible = 0;
@@ -482,7 +484,7 @@ noscript{display:block;margin-top:12px;color:var(--error)}
       const head = group.querySelector('.grp-head');
       head.hidden = visible === 0;
       head.querySelector('.gh-n b').textContent = String(visible);
-      if (visible) head.classList.add('in-view');
+      if (visible && revealByFilter) head.classList.add('in-view');
     }
     empty.hidden = shown !== 0;
     result.innerHTML = '显示 <b>' + shown + '</b> / ' + rows.length + ' 个 Skill · ' + (shown === rows.length ? '无筛选' : '已筛选');
@@ -534,6 +536,7 @@ noscript{display:block;margin-top:12px;color:var(--error)}
   });
 
   run();
+  revealByFilter = true;
 })();
 </script>
 </body>
