@@ -33,4 +33,4 @@ node agent-skill/skill-port-report/scripts/generate-report.mjs --hub "<Hub 目�
 node --test agent-skill/skill-port-report/scripts/generate-report.test.mjs
 ```
 
-测试使用临时 SQLite fixture，不读取真实 Hub，不依赖源码目录里存在报告，也不会在技能目录写产物。浏览器验证脚本接受已安装 Playwright 的 index.mjs 路径和报告路径，使用临时 HTTP 服务并自动关闭。
+测试使用临时 SQLite fixture，不读取真实 Hub，不依赖源码目录里存在报告，也不会在技能目录写产物。
