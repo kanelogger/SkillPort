@@ -16,32 +16,68 @@ try {
   page.on('request', (r) => { if (!r.url().startsWith('http://127.0.0.1:')) external.push(r.url()); });
   await page.goto('http://127.0.0.1:' + server.address().port);
   const data = await page.evaluate(() => window.SKILL_PORT_DATA);
-  assert.equal(await page.locator('tr[data-skill]').count(), data.skills.length);
+  const rows = page.locator('tr[data-skill]');
+  assert.equal(await rows.count(), data.skills.length);
   for (const skill of data.skills) {
-    const row = page.locator('tr[data-skill]').filter({ hasText: skill.name });
+    const row = page.locator(`tr[data-skill="${skill.name}"]`);
     assert.equal(await row.count(), 1);
-    assert.ok((await row.innerText()).includes(skill.description.slice(0, 12)));
-    assert.ok((await row.innerText()).includes(skill.installedAt.slice(0, 10)));
+    const text = await row.innerText();
+    assert.ok(text.includes(skill.name));
+    assert.ok(text.includes(skill.description.slice(0, 12)));
+    assert.ok(text.includes(skill.installedAt.slice(0, 10)));
   }
   assert.equal(await page.locator('#skillCount').innerText(), String(data.skills.length));
+  assert.equal(await page.locator('#enabledCount').innerText(), String(data.skills.filter((s) => s.enablementCount > 0).length));
+  assert.equal(await page.locator('#enablementCount').innerText(), String(data.skills.reduce((n, s) => n + s.enablementCount, 0)));
+  assert.equal(await page.locator('thead th').count(), 3);
+  const usedCats = data.categories
+    .filter((c) => data.skills.some((s) => s.category === c.key))
+    .map((c) => c.key);
+  assert.equal(await page.locator('tbody.grp').count(), usedCats.length);
+  assert.equal(await page.locator('#catnav .chip').count(), usedCats.length);
+  assert.equal(await page.locator('.grp-head:visible').count(), usedCats.length);
+  assert.equal(await page.locator('#category option').count(), usedCats.length + 1);
   await page.fill('#q', 'NO_SUCH_SKILL_123');
   assert.equal(await page.locator('tr[data-skill]:visible').count(), 0);
   assert.equal(await page.locator('#empty').isVisible(), true);
+  assert.equal(await page.locator('.grp-head:visible').count(), 0);
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('tr[data-skill]:visible').count(), data.skills.length);
+  assert.equal(await page.locator('#empty').isVisible(), false);
   if (data.skills.length) {
     await page.fill('#q', data.skills[0].name);
+    const visible = page.locator('tr[data-skill]:visible');
+    assert.ok(await visible.count() > 0);
+    assert.equal(await visible.first().getAttribute('data-skill'), data.skills[0].name);
+    const cat = await visible.first().getAttribute('data-category');
+    assert.equal(await page.locator('#category').inputValue(), '');
+    assert.equal(await page.locator('#catnav .chip[aria-pressed="true"]').count(), 0);
+    const chip = page.locator(`#catnav .chip[data-cat="${cat}"]`);
+    await chip.click();
+    assert.equal(await page.locator('#category').inputValue(), cat);
+    assert.equal(await page.locator('.grp-head:visible').count(), 1);
+    assert.equal(await page.locator(`.grp-head[data-cat="${cat}"]`).isVisible(), true);
     assert.ok(await page.locator('tr[data-skill]:visible').count() > 0);
+    await page.fill('#q', '');
+    assert.equal(await page.locator('.grp-head:visible').count(), 1);
+    await chip.click();
+    assert.equal(await page.locator('#category').inputValue(), '');
+    assert.equal(await page.locator('.grp-head:visible').count(), usedCats.length);
+    assert.equal(await page.locator('tr[data-skill]:visible').count(), data.skills.length);
   }
   await page.click('#reset');
+  assert.equal(await page.locator('tr[data-skill]:visible').count(), data.skills.length);
+  const sticky = await page.evaluate(() => document.documentElement.style.getPropertyValue('--thead-h'));
+  assert.match(sticky, /^\d+(\.\d+)?px$/);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.locator('tr[data-skill]:visible').count(), data.skills.length);
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   console.log(JSON.stringify({
     skills: data.skills.map((skill) => skill.name),
     enablementCount: data.skills.reduce((n, skill) => n + skill.enablementCount, 0),
-    checks: ['skill rows', 'descriptions', 'dates', 'search', 'reset', 'mobile', 'no external requests', 'no JS errors']
+    checks: ['skill rows', 'descriptions', 'dates', 'stats', 'columns', 'category groups', 'chips', 'empty state', 'search', 'escape', 'reset', 'sticky header', 'mobile', 'no external requests', 'no JS errors']
   }, null, 2));
 } finally {
   if (browser) await browser.close();

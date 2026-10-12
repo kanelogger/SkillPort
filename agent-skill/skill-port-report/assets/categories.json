@@ -60,7 +60,7 @@
       "key": "other",
       "label": "其他",
       "en": "OTHER",
-      "color": "var(--c7)",
+      "color": "var(--c8)",
       "title": "其他 · 待分类",
       "desc": "新安装或尚未指定分类的 Skill；分类仅用于展示，不修改 Hub 标签。"
     }

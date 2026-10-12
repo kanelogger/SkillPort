@@ -3,151 +3,264 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Skill Port Hub 已安装 Skill 的本地离线清册：名称、中文描述、展示分类、安装时间与启用汇总。">
 <title>Skill Port · 已安装 Skill 清册</title>
 <style>
+/* =====================================================================
+   纸感浅底清册（可随系统转暗色）
+   颜色全部走变量；动效只用 opacity/transform；窄屏折叠为卡片
+   页面只保留清册本体：三枚统计 + 分类筛选 + 分组表格
+   ===================================================================== */
 :root{
   color-scheme:light;
-  --bg:#f3f1eb;--bg-accent:#e7efe9;--surface:#fffcf7;--surface-alt:#f7f4ee;--surface-hover:#eef6f2;--surface-muted:#ebe6dc;
-  --border:#d8d2c6;--border-strong:#b9b2a4;--border-hover:#5f8f86;
-  --text:#1c1b19;--text-secondary:#5c574e;--text-tertiary:#8a8376;
-  --accent:#2f6f66;--accent-hover:#245851;--accent-soft:#d7ebe6;--accent-ink:#1f4f48;
-  --bg-rgb:243,241,235;--surface-rgb:255,252,247;--accent-rgb:47,111,102;--text-rgb:28,27,25;
-  --success:#2f6f66;--warning:#9a6b2f;--error:#a3463a;--focus-ring:rgba(47,111,102,.35);
-  --font-display:"Songti SC","Noto Serif CJK SC","Source Han Serif SC","STSong",serif;
-  --font-body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
-  --font-mono:"SF Mono",Menlo,Consolas,"Sarasa Mono SC",monospace;
+  --bg:#f5f3ed;--bg-deep:#ece8df;
+  --surface:#fffdf9;--surface-alt:#f7f4ec;--surface-hover:#eef4f0;
+  --border:#e2dccf;--border-strong:#c8c0af;--border-hover:#a49b88;
+  --text:#1d1c1a;--text-secondary:#57534b;--text-tertiary:#8b8478;
+  --accent:#b8562f;--accent-rgb:184,86,47;
+  --cool:#2f7d75;--cool-rgb:47,125,117;--cool-soft:rgba(47,125,117,.10);
+  --error:#a3463a;
+  --grain:rgba(29,28,26,.05);--focus-ring:rgba(47,125,117,.34);
+  --radius:14px;--radius-sm:9px;--radius-pill:999px;
+  --ease:cubic-bezier(.16,1,.3,1);
+  /* 分类色谱：八类各一色，供 categories.json 的 var(--cN) 引用 */
+  --c1:#b8562f;--c2:#2f7d75;--c3:#9a7420;--c4:#6f539e;--c5:#a04a63;--c6:#4f6197;--c7:#5f7040;--c8:#8b8478;
+  --thead-h:40px;
+  --font-serif:"Songti SC","Noto Serif CJK SC","Source Han Serif SC","STSong",serif;
+  --font-sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
+  --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,"Sarasa Mono SC",monospace;
 }
-*{box-sizing:border-box}
+@media (prefers-color-scheme:dark){
+  :root{
+    color-scheme:dark;
+    --bg:#121215;--bg-deep:#0d0d10;
+    --surface:#191a1f;--surface-alt:#16171b;--surface-hover:rgba(255,255,255,.05);
+    --border:rgba(255,255,255,.10);--border-strong:rgba(255,255,255,.20);--border-hover:rgba(255,255,255,.32);
+    --text:#efebe4;--text-secondary:#a8a29a;--text-tertiary:#736e66;
+    --accent:#e0805a;--accent-rgb:224,128,90;
+    --cool:#6fbcb2;--cool-rgb:111,188,178;--cool-soft:rgba(111,188,178,.14);
+    --error:#e0836f;
+    --grain:rgba(255,255,255,.035);--focus-ring:rgba(111,188,178,.34);
+    --c1:#e0805a;--c2:#6fbcb2;--c3:#d2a95c;--c4:#a98fd6;--c5:#d98ba4;--c6:#8fa2d6;--c7:#a3b478;--c8:#948e84;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
 body{
-  margin:0;
-  color:var(--text);
-  font:15px/1.75 var(--font-body);
-  letter-spacing:.02em;
-  background:
-    radial-gradient(1200px 520px at 12% -10%,var(--bg-accent),transparent 60%),
-    radial-gradient(900px 480px at 100% 0%,#efe8dc,transparent 55%),
-    var(--bg);
+  margin:0;color:var(--text);background:var(--bg);
+  font:400 .9375rem/1.75 var(--font-sans);letter-spacing:.02em;
+  -webkit-font-smoothing:antialiased;
 }
-main{max-width:1120px;margin:0 auto;padding:48px 24px}
-header{padding-bottom:24px;border-bottom:1px solid var(--border)}
-.brand{
-  display:inline-flex;align-items:center;gap:10px;
-  color:var(--accent);font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
-}
-.brand::before{content:"";width:18px;height:2px;background:var(--accent)}
-h1{
-  margin:10px 0 8px;font-family:var(--font-display);font-size:clamp(28px,4vw,40px);
-  font-weight:700;line-height:1.25;letter-spacing:.02em;color:var(--text);
-}
-.lead{margin:0;max-width:46em;color:var(--text-secondary);font-size:15px;line-height:1.75}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:28px 0 24px}
-.stat{
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:18px 20px;box-shadow:0 1px 0 rgba(28,27,25,.04);
-  transition:border-color 160ms ease,background-color 160ms ease;
-}
-.stat:hover{border-color:var(--border-hover);background:var(--surface-hover)}
-.stat strong{
-  display:block;font-family:var(--font-mono);font-size:clamp(28px,3vw,36px);
-  font-weight:600;line-height:1.2;letter-spacing:-.02em;color:var(--accent-ink);
-}
-.stat span{display:block;margin-top:6px;color:var(--text-secondary);font-size:12px;font-weight:500;letter-spacing:.04em}
-.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:0 0 20px}
-.field,.btn{
-  font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;padding:10px 14px;min-height:44px;
-  transition:border-color 160ms ease,box-shadow 160ms ease,background-color 160ms ease,color 160ms ease;
-}
-.field{flex:1 1 280px;min-width:min(100%,240px)}
-.field-narrow{flex:0 1 200px}
-.field::placeholder{color:var(--text-tertiary)}
-.field:hover,.btn:hover{border-color:var(--border-hover);background:var(--surface-hover);color:var(--accent-ink)}
-.field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring);background:var(--surface)}
-.btn{cursor:pointer;padding-inline:16px}
-.btn:active{background:var(--accent-soft);transform:translateY(1px)}
-.btn:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.btn:disabled,.field:disabled{opacity:.45;cursor:not-allowed}
-.table-shell{
-  border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface);
-  box-shadow:0 1px 0 rgba(28,27,25,.04);
-}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-th,td{text-align:left;padding:16px 18px;vertical-align:top}
-th{
-  font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--text-tertiary);background:var(--surface-alt);border-bottom:1px solid var(--border);white-space:nowrap;
-}
-td{border-bottom:1px solid var(--border)}
-tbody tr{transition:background-color 140ms ease}
-tbody tr:hover{background:var(--surface-hover)}
-tbody tr:last-child td{border-bottom:0}
-.skill-name{display:block;font-size:16px;font-weight:650;line-height:1.4;color:var(--text)}
-.desc{margin-top:4px;color:var(--text-secondary);font-size:13px;line-height:1.7}
-.cat{font-family:var(--font-mono);font-size:12px;color:var(--accent-ink);white-space:nowrap}
-.date{white-space:nowrap;color:var(--text-tertiary);font-size:13px}
-.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.tag{
-  display:inline-flex;padding:1px 8px;border-radius:4px;border:1px solid var(--border);
-  color:var(--text-tertiary);font-size:12px;background:var(--surface);
-}
-#empty{padding:40px 24px;text-align:center;color:var(--text-secondary);background:var(--surface-alt)}
+h1,h2,h3{font-family:var(--font-serif);margin:0}
 [hidden]{display:none!important}
-#result{margin-top:12px;font-size:13px;color:var(--text-tertiary)}
-footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--border);color:var(--text-tertiary);font-size:12px;line-height:1.7}
+:focus-visible{outline:2px solid var(--cool);outline-offset:2px;border-radius:3px}
+::selection{background:var(--cool-soft)}
+*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border:3px solid var(--bg);border-radius:var(--radius-pill)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- 氛围层：极轻纸纹 + 两处暖冷光晕（固定层，非滚动区） ---------- */
+.grain,.halo{position:fixed;inset:0;pointer-events:none}
+.grain{z-index:-2;background-image:
+  linear-gradient(var(--grain) 1px,transparent 1px),
+  linear-gradient(90deg,var(--grain) 1px,transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(74% 56% at 50% 0%,#000 0%,transparent 100%);
+  mask-image:radial-gradient(74% 56% at 50% 0%,#000 0%,transparent 100%);}
+.halo{z-index:-1;background:
+  radial-gradient(46vw 34vw at 6% -6%,rgba(var(--accent-rgb),.10),transparent 62%),
+  radial-gradient(42vw 32vw at 96% 6%,rgba(var(--cool-rgb),.10),transparent 64%);}
+
+.wrap{max-width:1140px;margin:0 auto;padding:52px 24px 72px}
+
+/* ---------- Masthead：一行标题 + 一行说明（不是 hero） ---------- */
+.brand{display:flex;align-items:center;gap:9px;
+  font:600 .6875rem/1 var(--font-sans);letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.brand .seal{width:9px;height:9px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+h1{margin:12px 0 10px;font-size:clamp(1.625rem,3.4vw,2.25rem);font-weight:700;line-height:1.35;letter-spacing:.04em}
+.lead{margin:0;max-width:46em;color:var(--text-secondary);font-size:.9375rem}
+.mast{border-bottom:1px solid var(--border);padding-bottom:24px}
+
+/* ---------- 统计 ---------- */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:26px 0 0}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 18px 15px;transition:border-color .22s ease,background-color .22s ease}
+.stat:hover{border-color:var(--border-hover);background:var(--surface-alt)}
+.stat strong{display:block;font-family:var(--font-mono);font-size:clamp(1.75rem,3vw,2.125rem);
+  font-weight:600;line-height:1.15;letter-spacing:-.02em;color:var(--accent)}
+.stat span{display:block;margin-top:6px;color:var(--text-secondary);font-size:.75rem;letter-spacing:.06em}
+
+/* ---------- 分类筛选条 ---------- */
+.cat-nav{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0}
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 13px;
+  font:500 .78125rem/1 var(--font-sans);letter-spacing:.03em;color:var(--text-secondary);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);cursor:pointer;
+  transition:color .22s ease,background-color .22s ease,border-color .22s ease,transform .18s ease}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--cat);opacity:.9}
+.chip:hover{color:var(--text);border-color:var(--border-hover);background:var(--surface-alt)}
+.chip:active{transform:translateY(1px)}
+.chip[aria-pressed="true"]{color:var(--cat);border-color:var(--cat);background:var(--surface)}
+.chip .n{font-family:var(--font-mono);font-size:.6875rem;color:var(--text-tertiary)}
+.chip[aria-pressed="true"] .n{color:var(--cat)}
+
+/* ---------- 工具条 ---------- */
+.tools{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 16px}
+.field,.btn{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);min-height:44px;padding:10px 14px;
+  transition:border-color .22s ease,background-color .22s ease,color .22s ease}
+.field:hover,.btn:hover{border-color:var(--border-hover);background:var(--surface-alt)}
+.field:focus{outline:none;border-color:var(--cool);box-shadow:0 0 0 3px var(--focus-ring);background:var(--surface)}
+.field::placeholder{color:var(--text-tertiary)}
+#q{flex:1 1 280px;min-width:min(100%,240px)}
+#category{flex:0 1 240px}
+.btn{cursor:pointer;padding-inline:18px;color:var(--text-secondary)}
+.btn:active{transform:translateY(1px);background:var(--cool-soft);color:var(--text)}
+
+/* ---------- 清册表格（表头与分组头随页面吸顶；容器不设 overflow，否则会变成吸顶的滚动容器） ---------- */
+.table-shell{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  box-shadow:0 1px 0 rgba(var(--accent-rgb),.04)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:.875rem}
+thead th{position:sticky;top:0;z-index:3;text-align:left;white-space:nowrap;
+  padding:11px 18px;font:500 .6875rem/1.5 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-tertiary);background:var(--bg-deep);border-bottom:1px solid var(--border-strong)}
+thead th:first-child{border-top-left-radius:13px}
+thead th:last-child{border-top-right-radius:13px}
+tbody tr[data-skill]{border-bottom:1px solid var(--border)}
+tbody tr[data-skill]:hover{background:var(--surface-hover)}
+table > tbody.grp:last-of-type > tr[data-skill]:last-child{border-bottom:0}
+table > tbody.grp:last-of-type > tr[data-skill]:last-child > td:first-child{border-bottom-left-radius:13px}
+table > tbody.grp:last-of-type > tr[data-skill]:last-child > td:last-child{border-bottom-right-radius:13px}
+tbody td{padding:13px 18px;vertical-align:top;line-height:1.7;color:var(--text-secondary)}
+.nm{min-width:280px}
+.idx{display:block;font:400 .625rem/1.6 var(--font-mono);letter-spacing:.12em;color:var(--cat);opacity:.85}
+.skill-name{font-size:1rem;font-weight:650;line-height:1.45;color:var(--text);overflow-wrap:anywhere}
+.desc{margin-top:4px;font-size:.8125rem;line-height:1.75;color:var(--text-secondary)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{display:inline-flex;padding:2px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface-alt);color:var(--text-tertiary);font-size:.6875rem;line-height:1.6}
+.cat{white-space:nowrap;font-family:var(--font-mono);font-size:.75rem;color:var(--text-secondary)}
+.cat .dot{display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:var(--cat);vertical-align:middle}
+.date{white-space:nowrap;font-family:var(--font-mono);font-size:.75rem;color:var(--text-tertiary)}
+/* 未在任何位置启用：整行降一档亮度，扫读时启用态自然浮出（不新增启用数列） */
+tbody tr[data-state="idle"] td{color:var(--text-tertiary)}
+tbody tr[data-state="idle"] .skill-name{color:var(--text-secondary)}
+tbody tr[data-state="idle"] .idx{opacity:.55}
+/* ---------- 分类分组头（吸顶在表头之下） ---------- */
+.grp-head td{position:sticky;top:var(--thead-h);z-index:2;padding:14px 18px 13px;
+  background:var(--surface-alt);border-top:1px solid var(--border-strong);border-bottom:1px solid var(--border);
+  box-shadow:inset 3px 0 0 var(--cat)}
+.grp-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.grp-h h3{font-size:1rem;font-weight:700;letter-spacing:.04em;color:var(--text)}
+.gh-en{font:400 .625rem/1.6 var(--font-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+.gh-n{margin-left:auto;white-space:nowrap;font:400 .75rem/1.6 var(--font-mono);color:var(--text-tertiary)}
+.gh-n b{font-size:.875rem;color:var(--cat)}
+.gh-n i{font-style:normal;opacity:.6}
+.meter{flex:0 0 110px;height:3px;border-radius:var(--radius-pill);background:var(--border);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--w,0%);background:var(--cat);border-radius:inherit;
+  transition:width .8s var(--ease)}
+.gh-desc{margin:6px 0 0;max-width:52em;font-size:.75rem;line-height:1.75;color:var(--text-tertiary)}
+/* ---------- 复制技能名 ---------- */
+.cp{position:relative;width:26px;height:26px;margin-left:6px;padding:0;display:inline-flex;
+  align-items:center;justify-content:center;vertical-align:middle;background:transparent;
+  border:1px solid transparent;border-radius:var(--radius-sm);color:var(--text-tertiary);cursor:pointer;opacity:0;
+  transition:opacity .2s ease,color .2s ease,border-color .2s ease,transform .2s var(--ease)}
+.cp svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+tr[data-skill]:hover .cp,.cp:focus-visible{opacity:1}
+.cp:hover{color:var(--text);border-color:var(--border-hover);background:var(--surface-alt)}
+.cp:active{transform:scale(.9)}
+.cp.done{opacity:1;color:var(--cool)}
+.cp::after{content:attr(data-tip);position:absolute;left:0;bottom:calc(100% + 4px);padding:3px 8px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-deep);color:var(--text);
+  font:500 .6875rem/1.6 var(--font-mono);letter-spacing:.04em;white-space:nowrap;opacity:0;pointer-events:none;
+  transition:opacity .2s ease,transform .28s var(--ease);transform:translateY(4px)}
+.cp.done::after{opacity:1;transform:translateY(0)}
+/* ---------- 结果 / 空态 / 页脚 ---------- */
+#empty{padding:44px 20px;text-align:center;color:var(--text-tertiary);font-family:var(--font-serif)}
+#result{margin-top:12px;font:400 .75rem/1.7 var(--font-mono);letter-spacing:.06em;color:var(--text-tertiary)}
+#result b{color:var(--text);font-weight:600}
+footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--border);
+  color:var(--text-tertiary);font-size:.75rem;line-height:1.9}
 footer div+div{margin-top:4px}
-noscript{color:var(--error)}
-.enter-1{animation:rise-in 420ms ease both}
-.enter-2{animation:rise-in 420ms ease 80ms both}
-.enter-3{animation:rise-in 420ms ease 140ms both}
-@keyframes rise-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+footer code{color:var(--text-secondary);font-family:var(--font-mono)}
+kbd{padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:var(--surface-alt);
+  color:var(--text-secondary);font-family:var(--font-mono);font-size:.6875rem}
+noscript{display:block;margin-top:12px;color:var(--error)}
+/* ---------- 入场：分组头与数据行随视口浮现 ---------- */
+.grp-head td,tbody tr[data-skill]{opacity:0;transform:translateY(10px);
+  transition:opacity .5s var(--ease),transform .5s var(--ease),background-color .2s ease}
+.grp-head.in-view td,tbody tr[data-skill].in-view{opacity:1;transform:none}
+.grid-in{animation:rise-in .45s var(--ease) both}
+@keyframes rise-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
-@media (max-width:700px){
-  main{padding:24px 16px}
-  h1{font-size:28px}
-  .stats{grid-template-columns:1fr;gap:12px}
+.reduce .grp-head td,.reduce tbody tr[data-skill],.reduce .grp-head td *{opacity:1;transform:none}
+.reduce .meter i{width:var(--w,0%)}
+/* ---------- 窄屏：表格折叠为卡片，名称/分类/时间始终保留 ---------- */
+@media (max-width:767px){
+  .wrap{padding:28px 16px 56px}
+  .stats{grid-template-columns:1fr;gap:10px}
   .tools{flex-direction:column;align-items:stretch}
-  .field,.btn{width:100%;flex:none}
-  .date{white-space:normal}
-  table{min-width:520px}
-  th,td{padding:12px 14px}
+  #q,#category,.btn{width:100%;flex:none}
+  thead{display:none}
+  table,tbody,tr,td{display:block;width:100%}
+  .table-shell{border:0;background:transparent;box-shadow:none}
+  tbody tr[data-skill]{padding:12px 12px 12px 14px;border:1px solid var(--border);border-left:3px solid var(--cat);
+    border-radius:var(--radius-sm);margin-bottom:10px;background:var(--surface)}
+  tbody td{padding:2px 0;max-width:none}
+  .nm{min-width:0}
+  .cat,.date{font-size:.75rem}
+  .cat::before,.date::before{content:attr(data-label) " ";color:var(--text-tertiary);letter-spacing:.08em}
+  .grp-head td{position:static;padding:20px 0 10px;background:transparent;border:0;
+    box-shadow:inset 3px 0 0 var(--cat);padding-left:12px}
+  .gh-n{margin-left:0}
+  .cp{opacity:1;width:44px;height:44px;margin-right:-14px}
+  .cp::after{display:none}
+}
+@media (max-width:419px){
+  h1{font-size:1.4375rem}
+  table{font-size:.8125rem}
+  .desc,.tags{overflow-wrap:anywhere}
 }
 </style>
 </head>
-<body><main>
-<header class="enter-1">
-  <div class="brand">Skill Port / Installed Skills</div>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<div class="halo" aria-hidden="true"></div>
+<main class="wrap">
+<header class="mast grid-in">
+  <div class="brand"><span class="seal" aria-hidden="true"></span>Skill Port / Installed Skills</div>
   <h1>已安装 Skill 清册</h1>
-  <p class="lead">只读快照 Hub 已安装 Skill；不含来源路径与项目路径。</p>
+  <p class="lead">只读快照 Hub 已安装 Skill；不含来源路径、项目路径与凭据。</p>
 </header>
-<section class="stats enter-2" aria-label="安装与启用统计">
+<section class="stats grid-in" aria-label="安装与启用统计">
   <div class="stat"><strong id="skillCount">—</strong><span>已安装 Skill</span></div>
   <div class="stat"><strong id="enabledCount">—</strong><span>至少一处启用</span></div>
   <div class="stat"><strong id="enablementCount">—</strong><span>启用点合计</span></div>
 </section>
-<div class="tools enter-3">
+<nav class="cat-nav" id="catnav" aria-label="按分类筛选"></nav>
+<div class="tools">
   <input id="q" class="field" type="search" placeholder="搜索名称、描述或标签…" aria-label="搜索 Skill">
-  <select id="category" class="field field-narrow" aria-label="按分类筛选"><option value="">全部分类</option></select>
+  <select id="category" class="field" aria-label="按分类筛选"><option value="">全部分类</option></select>
   <button id="reset" class="btn" type="button">重置</button>
 </div>
 <div class="table-shell">
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr><th>技能</th><th>分类</th><th>安装时间</th></tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
-  <div id="empty" hidden>没有匹配的已安装 Skill。</div>
+  <table>
+    <thead>
+      <tr><th>技能</th><th>分类</th><th>安装时间</th></tr><!-- 列契约：技能 / 分类 / 安装时间（无来源路径、无项目路径、无安装类型、无启用数列） -->
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty" hidden>没有匹配的已安装 Skill。按 <kbd>Esc</kbd> 清空筛选。</div>
 </div>
 <div id="result" aria-live="polite"></div>
 <noscript>请允许 JavaScript 以显示内联的 Skill 快照。</noscript>
 <footer>
   <div id="updated"></div>
-  <div>数据来源：Hub state.db 的只读事务快照 · 顶部启用统计是登记数量，不是实时健康诊断 · 展示分类与中文描述来自报告内置映射，不修改 Hub。</div>
+  <div>数据来源：Hub <code>state.db</code> 的只读事务快照 · 顶部启用统计是登记数量，不是实时健康诊断 · 展示分类与中文描述来自报告内置映射，不修改 Hub。</div>
+  <div>按 <kbd>/</kbd> 聚焦搜索 · <kbd>Esc</kbd> 清空筛选 · 悬停技能名可复制名称。</div>
   <div>本页面属于本地私有报告，仅供本机查看，请勿公开发布。单文件离线页面，无外部依赖。</div>
 </footer>
 </main>
@@ -155,94 +268,272 @@ noscript{color:var(--error)}
 <script>
 (() => {
   'use strict';
-  const data = window.SKILL_PORT_DATA;
-  const $ = id => document.getElementById(id);
-  const categoryByKey = Object.fromEntries((data.categories || []).map(c => [c.key, c]));
-  document.title = data.meta.title;
-  $('skillCount').textContent = data.skills.length;
-  $('enabledCount').textContent = data.skills.filter(s => s.enablementCount > 0).length;
-  $('enablementCount').textContent = data.skills.reduce((n, s) => n + s.enablementCount, 0);
-  $('updated').textContent = '快照时间：' + data.meta.updated;
-  const categorySelect = $('category');
-  for (const cat of data.categories || []) {
+  const REDUCE = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (REDUCE) document.documentElement.classList.add('reduce');
+  const byId = (id) => document.getElementById(id);
+  const data = (typeof window.SKILL_PORT_DATA === 'object' && window.SKILL_PORT_DATA) || {};
+  const skills = Array.isArray(data.skills) ? data.skills : [];
+  const cats = Array.isArray(data.categories) ? data.categories : [];
+  const catByKey = new Map(cats.map((c) => [c.key, c]));
+  const catStyle = (key) => { const c = catByKey.get(key); return (c && c.color) || 'var(--c8)'; };
+  const catLabel = (key) => { const c = catByKey.get(key); return (c && c.label) || key || '其他'; };
+  const enabledOf = (s) => Number(s.enablementCount) || 0;
+  const SVG_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+
+  if (data.meta && data.meta.title) document.title = data.meta.title;
+  byId('updated').textContent = '快照时间：' + ((data.meta && data.meta.updated) || '未知');
+  byId('skillCount').textContent = String(skills.length);
+  byId('enabledCount').textContent = String(skills.filter((s) => enabledOf(s) > 0).length);
+  byId('enablementCount').textContent = String(skills.reduce((n, s) => n + enabledOf(s), 0));
+
+  /* ---------- 分类筛选条 + 下拉（只列出当前确实有 Skill 的分类，避免空筛选项） ---------- */
+  const countIn = (key) => skills.filter((s) => s.category === key).length;
+  const usedCats = cats.filter((c) => countIn(c.key) > 0);
+  const catnav = byId('catnav');
+  const select = byId('category');
+  for (const c of usedCats) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.dataset.cat = c.key;
+    chip.style.setProperty('--cat', catStyle(c.key));
+    chip.setAttribute('aria-pressed', 'false');
+    const dot = document.createElement('i');
+    dot.className = 'dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const num = document.createElement('span');
+    num.className = 'n';
+    num.textContent = String(countIn(c.key));
+    chip.append(dot, document.createTextNode(catLabel(c.key)), num);
+    catnav.append(chip);
     const option = document.createElement('option');
-    option.value = cat.key;
-    option.textContent = cat.label;
-    categorySelect.append(option);
+    option.value = c.key;
+    option.textContent = catLabel(c.key) + ' · ' + countIn(c.key);
+    select.append(option);
   }
-  const rows = data.skills.map(skill => {
-    const tr = document.createElement('tr');
-    tr.dataset.skill = skill.name;
-    tr.dataset.category = skill.category;
 
-    const title = document.createElement('td');
-    const name = document.createElement('strong');
-    name.className = 'skill-name';
-    name.textContent = skill.name;
-    const desc = document.createElement('div');
-    desc.className = 'desc';
-    desc.textContent = skill.description;
-    title.append(name, desc);
-    if (skill.tags && skill.tags.length) {
-      const tags = document.createElement('div');
-      tags.className = 'tags';
-      for (const value of skill.tags) {
-        const tag = document.createElement('span');
-        tag.className = 'tag';
-        tag.textContent = value;
-        tags.append(tag);
-      }
-      title.append(tags);
+  /* ---------- 分组表格：一个分类一个 tbody（与筛选条一致，只渲染有 Skill 的分类） ---------- */
+  const table = document.querySelector('table');
+  const rowsHost = byId('rows');
+  const groups = [];
+  const rows = [];
+  let seq = 0;
+  for (const c of usedCats) {
+    const list = skills.filter((s) => s.category === c.key);
+    const total = list.length;
+    const tb = document.createElement('tbody');
+    tb.className = 'grp';
+    tb.dataset.cat = c.key;
+    tb.style.setProperty('--cat', catStyle(c.key));
+
+    const head = document.createElement('tr');
+    head.className = 'grp-head';
+    head.dataset.cat = c.key;
+    const cell = document.createElement('td');
+    cell.colSpan = 3;
+    const box = document.createElement('div');
+    box.className = 'grp-h';
+    const title = document.createElement('h3');
+    title.textContent = c.title || catLabel(c.key);
+    const en = document.createElement('span');
+    en.className = 'gh-en';
+    en.textContent = c.en || '';
+    const stat = document.createElement('span');
+    stat.className = 'gh-n';
+    const now = document.createElement('b');
+    now.textContent = String(total);
+    const all = document.createElement('i');
+    all.textContent = '/ ' + total;
+    stat.append(now, all);
+    const meter = document.createElement('span');
+    meter.className = 'meter';
+    const share = (skills.length ? (total / skills.length * 100) : 0).toFixed(1) + '%';
+    meter.style.setProperty('--w', share);
+    meter.title = '占已安装 Skill 的 ' + share;
+    meter.setAttribute('role', 'img');
+    meter.setAttribute('aria-label', '占已安装 Skill 的 ' + share);
+    meter.append(document.createElement('i'));
+    box.append(title, en, stat, meter);
+    cell.append(box);
+    if (c.desc) {
+      const desc = document.createElement('p');
+      desc.className = 'gh-desc';
+      desc.textContent = c.desc;
+      cell.append(desc);
     }
+    head.append(cell);
+    tb.append(head);
+    groups.push(tb);
 
-    const cat = document.createElement('td');
-    cat.className = 'cat';
-    const catInfo = categoryByKey[skill.category];
-    cat.textContent = catInfo ? catInfo.label : skill.category;
-    cat.title = catInfo ? catInfo.title : skill.category;
+    for (const skill of list) {
+      seq += 1;
+      const tr = document.createElement('tr');
+      tr.dataset.skill = skill.name;
+      tr.dataset.category = skill.category;
+      tr.dataset.state = enabledOf(skill) > 0 ? 'enabled' : 'idle';
 
-    const date = document.createElement('td');
-    date.className = 'date';
-    date.textContent = skill.installedAt.slice(0, 10);
-    date.title = skill.installedAt;
+      const nm = document.createElement('td');
+      nm.className = 'nm';
+      const idx = document.createElement('span');
+      idx.className = 'idx';
+      idx.textContent = String(seq).padStart(2, '0');
+      const name = document.createElement('span');
+      name.className = 'skill-name';
+      name.textContent = skill.name;
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'cp';
+      copy.dataset.copy = skill.name;
+      copy.dataset.tip = '已复制';
+      copy.setAttribute('aria-label', '复制技能名称 ' + skill.name);
+      copy.title = '复制技能名称';
+      copy.innerHTML = SVG_COPY;
+      const desc = document.createElement('div');
+      desc.className = 'desc';
+      desc.textContent = skill.description;
+      nm.append(idx, name, copy, desc);
+      const tags = Array.isArray(skill.tags) ? skill.tags : [];
+      if (tags.length) {
+        const holder = document.createElement('div');
+        holder.className = 'tags';
+        for (const value of tags) {
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = value;
+          holder.append(tag);
+        }
+        nm.append(holder);
+      }
 
-    tr.append(title, cat, date);
-    $('rows').append(tr);
-    return {
-      tr,
-      hay: (skill.name + ' ' + skill.description + ' ' + (skill.tags || []).join(' ')).toLowerCase(),
-      category: skill.category
-    };
-  });
+      const cat = document.createElement('td');
+      cat.className = 'cat';
+      cat.dataset.label = '分类';
+      const cdot = document.createElement('i');
+      cdot.className = 'dot';
+      cdot.setAttribute('aria-hidden', 'true');
+      cat.append(cdot, document.createTextNode(catLabel(skill.category)));
+      cat.title = (catByKey.get(skill.category) || {}).title || catLabel(skill.category);
 
-  function filter() {
-    const term = $('q').value.trim().toLowerCase();
-    const category = $('category').value;
-    let count = 0;
+      const date = document.createElement('td');
+      date.className = 'date';
+      date.dataset.label = '安装时间';
+      date.textContent = String(skill.installedAt || '').slice(0, 10);
+      date.title = String(skill.installedAt || '');
+
+      tr.append(nm, cat, date);
+      tb.append(tr);
+      rows.push({
+        tr,
+        category: skill.category,
+        state: tr.dataset.state,
+        hay: [skill.name, skill.description, catLabel(skill.category), tags.join(' ')].join(' ').toLowerCase()
+      });
+    }
+    table.insertBefore(tb, rowsHost);
+  }
+  rowsHost.remove();
+
+  /* ---------- 入场：分组头与数据行随视口浮现 ---------- */
+  const blocks = [...table.querySelectorAll('.grp-head'), ...rows.map((r) => r.tr)];
+  if (REDUCE || typeof IntersectionObserver !== 'function') {
+    for (const el of blocks) el.classList.add('in-view');
+  } else {
+    const io = new IntersectionObserver((entries, obs) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add('in-view');
+        obs.unobserve(entry.target);
+      }
+    }, { threshold: 0.05, rootMargin: '0px 0px -5% 0px' });
+    for (const el of blocks) io.observe(el);
+  }
+
+  /* ---------- 吸顶对齐：实测表头高度写入 --thead-h ---------- */
+  const thead = table.querySelector('thead');
+  const syncThead = () => {
+    if (thead) document.documentElement.style.setProperty('--thead-h', thead.offsetHeight + 'px');
+  };
+  syncThead();
+  addEventListener('resize', syncThead, { passive: true });
+
+  const byGroup = new Map(groups.map((group) => [group, []]));
+  for (const row of rows) {
+    const group = row.tr.parentNode;
+    if (byGroup.has(group)) byGroup.get(group).push(row);
+  }
+
+  /* ---------- 筛选：搜索 + 分类（分类条与下拉双向同步） ---------- */
+  const q = byId('q');
+  const empty = byId('empty');
+  const result = byId('result');
+  const chips = [...catnav.querySelectorAll('.chip')];
+  function run() {
+    const term = q.value.trim().toLowerCase();
+    const category = select.value;
+    let shown = 0;
     for (const row of rows) {
       const match = (!term || row.hay.includes(term)) && (!category || row.category === category);
       row.tr.hidden = !match;
-      if (match) count++;
+      if (match) { shown += 1; row.tr.classList.add('in-view'); }
     }
-    $('empty').hidden = count !== 0;
-    $('result').textContent = '显示 ' + count + ' / ' + rows.length + ' 个 Skill';
+    for (const group of groups) {
+      let visible = 0;
+      for (const row of byGroup.get(group) || []) if (!row.tr.hidden) visible += 1;
+      const head = group.querySelector('.grp-head');
+      head.hidden = visible === 0;
+      head.querySelector('.gh-n b').textContent = String(visible);
+      if (visible) head.classList.add('in-view');
+    }
+    empty.hidden = shown !== 0;
+    result.innerHTML = '显示 <b>' + shown + '</b> / ' + rows.length + ' 个 Skill · ' + (shown === rows.length ? '无筛选' : '已筛选');
+    for (const chip of chips) chip.setAttribute('aria-pressed', String(chip.dataset.cat === category));
   }
   function reset() {
-    $('q').value = '';
-    $('category').value = '';
-    filter();
+    q.value = '';
+    select.value = '';
+    run();
   }
-  $('q').addEventListener('input', filter);
-  $('category').addEventListener('change', filter);
-  $('reset').addEventListener('click', reset);
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') reset();
-    if (e.key === '/' && document.activeElement !== $('q')) {
-      e.preventDefault();
-      $('q').focus();
+  for (const chip of chips) {
+    chip.addEventListener('click', () => {
+      select.value = select.value === chip.dataset.cat ? '' : chip.dataset.cat;
+      run();
+      const group = groups.find((g) => g.dataset.cat === select.value);
+      if (group && !group.querySelector('.grp-head').hidden) {
+        group.querySelector('.grp-head').scrollIntoView({ block: 'start', behavior: REDUCE ? 'auto' : 'smooth' });
+      }
+    });
+  }
+  q.addEventListener('input', run);
+  select.addEventListener('change', run);
+  byId('reset').addEventListener('click', () => { reset(); scrollTo({ top: 0, behavior: REDUCE ? 'auto' : 'smooth' }); });
+
+  /* ---------- 复制技能名 ---------- */
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest ? event.target.closest('.cp') : null;
+    if (!button) return;
+    event.preventDefault();
+    try {
+      if (!navigator.clipboard) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(button.dataset.copy);
+    } catch {
+      prompt('自动复制不可用，请手动复制技能名称：', button.dataset.copy);
+      return;
+    }
+    button.classList.add('done');
+    setTimeout(() => button.classList.remove('done'), 1400);
+  });
+
+  /* ---------- 键盘：/ 聚焦 · Esc 清空 ---------- */
+  document.addEventListener('keydown', (event) => {
+    const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (event.key === '/' && !typing) { event.preventDefault(); q.focus(); q.select(); return; }
+    if (event.key === 'Escape') {
+      reset();
+      if (typing) document.activeElement.blur();
     }
   });
-  filter();
+
+  run();
 })();
 </script>
 </body>
