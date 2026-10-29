@@ -45,7 +45,7 @@ Status keys:
 | R32 disable removes only matching managed entry | core lifecycle, force remove, conflict tests | Passed |
 | R33 remove refuses active enablements and lists blockers | core lifecycle remove refusal | Passed |
 | R34 forced remove disables managed targets first | force remove and interrupted forced removal recovery tests | Passed |
-| R35 doctor checks Hub, DB, content, meta, catalogs, projects, entries, links, types, drift | doctor tests for removed links, metadata, invalid catalog, read-only DB, corrupt DB, missing Hub skills, link type, target record, orphan entries, operations, and missing/conflicting bundled Agent integration | Passed |
+| R35 doctor checks Hub, DB, content, meta, catalogs, projects, entries, links, types, drift | doctor tests for removed links, metadata, invalid catalog, read-only DB, corrupt DB, missing Hub skills, unreadable targets, dangling entries, link type, target record, orphan entries, operations, and missing/conflicting bundled Agent integration | Passed |
 | R36 doctor is read-only and actionable | read-only SQLite hash test; drift tests preserve files | Passed |
 | R37 list shows installed names/descriptions | core lifecycle test; read-only Hub regression proves `list --json` works when the Hub directory/database cannot be opened read-write | Passed |
 | R38 info shows identity/source/timestamps/enablements/health | global lifecycle and health drift tests; read-only Hub regression proves `info` uses the snapshot path without mutating the source database | Passed |

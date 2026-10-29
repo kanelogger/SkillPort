@@ -426,3 +426,37 @@ test("doctor reports a missing Hub skills directory without crashing", () => {
   assert.match(result.stderr, /HUB_SKILLS_UNAVAILABLE/);
   assert.equal(existsSync(join(hub, "skills")), false);
 });
+
+test("doctor reports an unreadable target instead of aborting", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-unreadable-target-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  mkdirSync(project);
+  cli(["init"], { cwd: project, hub, home: root });
+  mkdirSync(join(project, ".agents"), { recursive: true });
+  writeFileSync(join(project, ".agents", "skills"), "not a directory");
+
+  const result = cli(["doctor", "--json"], { cwd: project, hub, home: root });
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.healthy, false);
+  assert.ok(report.diagnostics.some((item) => item.code === "TARGET_UNREADABLE"
+    && item.severity === "error"
+    && item.message.includes(join(".agents", "skills"))
+    && item.message.includes("ENOTDIR")));
+});
+
+test("doctor reports a dangling entry in a managed target", () => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-dangling-entry-"));
+  const hub = join(root, "hub");
+  const project = join(root, "project");
+  mkdirSync(project);
+  cli(["init"], { cwd: project, hub, home: root });
+  mkdirSync(join(project, ".agents", "skills"), { recursive: true });
+  symlinkSync(join(root, "missing-source"), join(project, ".agents", "skills", "ghost-skill"), "dir");
+
+  const result = cli(["doctor"], { cwd: project, hub, home: root });
+  assert.equal(result.status, 0);
+  assert.match(result.stderr, /DANGLING_ENTRY/);
+  assert.match(result.stderr, /ghost-skill/);
+});

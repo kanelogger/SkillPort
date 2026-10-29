@@ -40,6 +40,8 @@ Removing or pruning the last member of a source collection automatically deregis
 
 Each missing bundled Agent integration is a warning with the suggestion to run `sklp agent setup`. An unmanaged object at any reserved integration path is an error and remains untouched.
 
+A registered project or global target that cannot be listed — for example a protected directory the current process may only `stat` — produces an error `TARGET_UNREADABLE` diagnostic for that target instead of aborting the whole report. An entry inside a managed target that points to a missing target produces a warning `DANGLING_ENTRY`. `doctor` reports both without removing anything; entries outside Skill Port management must be cleaned up manually.
+
 Use JSON output for automation:
 
 ```bash
@@ -67,6 +69,8 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 | `1` | 命令失败，或 `sklp doctor` 发现至少一个 error 级诊断。 | 参数错误、不支持的目标、Skill 同名、Hub 缺失、启用入口损坏、数据库损坏。 |
 
 `sklp doctor --json` 适合自动化，字段名不会因为 `SKLP_LANG=zh-CN` 改变。
+
+已注册项目或全局目标目录无法列出时（例如当前进程只能 `stat`、不能读取受保护目录），该目标记为 error 级 `TARGET_UNREADABLE`，其余诊断照常输出，不会中断整轮检查。受管目标内指向不存在位置的文件或链接记为 warning 级 `DANGLING_ENTRY`。两种情况 `doctor` 都只报告、不删除；不属于 Skill Port 管理的入口需要手动清理。
 
 `sklp update --all --check` 只要有任一 Git source 为 `unknown` 就返回 `1`。`sklp update <skill> --dry-run`、`sklp update --all --dry-run` 和 `sklp update --all` 只要 `failed` 数组非空就返回 `1`；跳过条目不会导致失败。
 

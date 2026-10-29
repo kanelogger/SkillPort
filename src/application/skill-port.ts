@@ -1,5 +1,6 @@
 import {
-  existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, unlinkSync
+  existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, unlinkSync,
+  type Dirent
 } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -1671,9 +1672,29 @@ export class SkillPort {
     if (!skillsDirectoryAvailable) return diagnostics.map(withDiagnosticSuggestion);
     const canonicalSkills = realpathSync(this.paths.skills);
     for (const target of knownTargets) {
-      if (!existsSync(target)) continue;
-      for (const entry of readdirSync(target)) {
-        const path = join(target, entry);
+      let entries: Dirent[];
+      try {
+        entries = readdirSync(target, { withFileTypes: true });
+      } catch (error) {
+        if (!isMissingTargetError(error)) {
+          diagnostics.push({
+            code: "TARGET_UNREADABLE",
+            severity: "error",
+            message: `${target}: ${sanitizeError(error)}`
+          });
+        }
+        continue;
+      }
+      for (const entry of entries) {
+        const path = join(target, entry.name);
+        if (entry.isSymbolicLink() && !existsSync(path)) {
+          diagnostics.push({
+            code: "DANGLING_ENTRY",
+            severity: "warning",
+            message: `${path}: entry points to a missing target`
+          });
+          continue;
+        }
         let resolved: string;
         try {
           resolved = realpathSync(path);
@@ -2311,11 +2332,19 @@ function diagnosticSuggestion(code: string): string {
       return "Run `sklp init` from an existing project directory to register a valid project.";
     case "OPERATION_INTERRUPTED":
       return "Run any normal mutating command to trigger startup recovery; inspect the Hub manually if this repeats.";
+    case "TARGET_UNREADABLE":
+      return "Grant the current process read access to the target directory, then rerun `sklp doctor`.";
+    case "DANGLING_ENTRY":
     case "UNREGISTERED_ENTRY":
-      return "Remove the unmanaged entry manually or run `sklp enable <skill>` again after confirming the target is safe.";
+      return "Remove the unmanaged or dangling entry manually after confirming nothing else needs it, then rerun `sklp doctor`.";
     default:
       return "Inspect the reported path or state, then rerun `sklp doctor` after making changes.";
   }
+}
+
+function isMissingTargetError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT";
 }
 
 function enablementPathMatchesTarget(item: Omit<Enablement, "id">, skill: Skill, home?: string): boolean {
