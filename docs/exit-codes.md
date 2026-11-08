@@ -55,7 +55,9 @@ The JSON payload includes:
 
 `sklp list --status --json` adds `installationKind`, `enablementCount`, and `health` to each public Skill entry without exposing source or project paths. `sklp tag add --json` returns `tag` and the updated public `skills`; its preview also returns `dryRun: true`. `sklp prune --dry-run --json` returns `dryRun`, `planned`, and `skipped`; confirmed prune returns `removed`, `skipped`, and `failed`. `sklp export --json` returns the absolute `output` path and `skillCount`.
 
-`sklp sync --json` returns `sources` plus top-level source-fetch `failed` entries. Each source contains its normalized `location`, `ref`, scan `path`, resolved `revision`, and the stable arrays `added`, `updated`, `unchanged`, `skipped`, `missing`, `removed`, and `failed`. Each skipped entry has the language-stable reason `already-installed`; each missing entry includes the action code `retain`, `remove`, or `skip-enabled`. Preview adds `dryRun: true` without changing Hub state.
+`sklp sync --json` returns `sources` and a top-level `failed` array. In a sync summary, exit code `1` means that top-level array is non-empty. Source-level failures keep the fields `source` and `reason`. Failures from `sources[].failed` also appear at the top level, with `source` (repository URL), `scanPath`, and `ref` alongside the original `reason` and any `name` or `path`. A single-source sync that aborts before producing a summary returns the runtime error envelope below.
+
+Each item in `sources` contains the normalized `location`, `ref`, scan `path`, and resolved `revision` under `source`, alongside the stable arrays `added`, `updated`, `unchanged`, `skipped`, `missing`, `removed`, and `failed`. Each skipped entry has the language-stable reason `already-installed`; each missing entry includes the action code `retain`, `remove`, or `skip-enabled`. Preview adds `dryRun: true` without changing Hub state.
 
 For runtime command failures invoked with `--json`, stdout contains `{ "error": { "code", "message" } }` and stderr stays empty. `code` is `COMMAND_FAILED` for expected CLI failures and `INTERNAL_ERROR` for unexpected failures.
 
@@ -96,6 +98,8 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 
 `sklp list --status --json` 会给每个公开 Skill 条目增加 `installationKind`、`enablementCount` 和 `health`，但不暴露来源或项目路径。`sklp tag add --json` 返回 `tag` 和更新后的公开 `skills`；预览还会返回 `dryRun: true`。`sklp prune --dry-run --json` 返回 `dryRun`、`planned` 和 `skipped`；确认清理后返回 `removed`、`skipped` 和 `failed`。`sklp export --json` 返回绝对 `output` 路径与 `skillCount`。
 
-`sklp sync --json` 返回 `sources` 和顶层来源拉取 `failed`。每个来源包含规范化后的 `location`、`ref`、扫描 `path`、解析出的 `revision`，以及稳定的 `added`、`updated`、`unchanged`、`skipped`、`missing`、`removed`、`failed` 数组。每个 skipped 项包含不随语言改变的原因 `already-installed`；每个缺失项包含 action：`retain`、`remove` 或 `skip-enabled`。预览额外返回 `dryRun: true`，且不修改 Hub 状态。
+`sklp sync --json` 返回 `sources` 和顶层 `failed`。命令返回同步汇总时，退出码 `1` 对应顶层 `failed` 非空。来源级失败保留 `source` 和 `reason` 字段。`sources[].failed` 中的失败也会出现在顶层，在原有 `reason` 及可用的 `name`、`path` 之外，附带 `source`（仓库 URL）、`scanPath` 和 `ref`。单来源同步在生成汇总前中止时，返回下文的运行时错误结构。
+
+`sources` 中每项的 `source` 包含规范化后的 `location`、`ref`、扫描 `path` 和解析出的 `revision`，同级有 `added`、`updated`、`unchanged`、`skipped`、`missing`、`removed`、`failed` 数组。每个 skipped 项包含不随语言改变的原因 `already-installed`；每个缺失项包含 action `retain`、`remove` 或 `skip-enabled`。预览额外返回 `dryRun: true`，且不修改 Hub 状态。
 
 其他带 `--json` 的运行时命令失败时，stdout 会输出 `{ "error": { "code", "message" } }`，stderr 保持为空。预期的 CLI 失败使用 `COMMAND_FAILED`，未预期失败使用 `INTERNAL_ERROR`。

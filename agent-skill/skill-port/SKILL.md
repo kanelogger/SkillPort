@@ -39,11 +39,12 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 - 检查单个或全部 Git Skill：`sklp update <skill> --check --json` 或 `sklp update --all --check --json`。查看实际更新计划可改用 `--dry-run`；`--check` 与 `--dry-run` 不能组合。
 - 用户要求“更新并同步所有 Skill”时必须顺序执行：先用 `sklp update --all --dry-run --json` 预览并运行 `sklp update --all --json`，再用 `sklp sync --all --skip-existing --dry-run --json` 预览并运行 `sklp sync --all --skip-existing --json`；最后运行 `sklp update --all --check --json`、`sklp list --status --json` 和 `sklp doctor --json` 核验。不要并发 update 与 sync。
-- 批量 update/sync 即使成功处理部分 Skill，只要 `failed` 非空仍会返回退出码 `1`。必须读取 JSON 中的 `failed`，只重试失败项，不能把部分成功报告为全部成功。Git 命令每次默认限时 60 秒，超时会自动重试一次；两次仍超时时，可对失败项设置更大的 `SKLP_GIT_TIMEOUT_MS` 后重试。
+- 批量 update/sync 返回退出码 `1` 时，读取 JSON 顶层 `error` 或 `failed`。使用旧版 CLI 时，同步还需检查 `sources[].failed`。报告部分成功和具体失败，按原因处理失败项。Git 命令每次默认限时 60 秒，超时会自动重试一次；两次仍超时时，可对失败项设置更大的 `SKLP_GIT_TIMEOUT_MS` 后重试。
 - 普通 `update` 只跟进分支、默认分支或 `--track-tags` 安装时的 tag 模式。tag/commit 固定的 Skill 会保持 pinned；用户明确要改跟踪版本时运行 `sklp update <skill> --ref <ref> --json` 或 `sklp update --all --ref <ref> --json`。`--ref` 不能与 `--check` 或 `--dry-run` 组合，批量更新会跳过本地 copied 和 linked Skill。
 - 用户要把已有 Git Skill 改为跟踪最新 release tag 时运行 `sklp update <skill> --track-tags "<glob>" --json`（或 `update --all --track-tags`）；规则与 `--ref` 相同：不能与 `--ref`、`--check` 或 `--dry-run` 组合。改回分支或固定版本用 `--ref`，会清除 tag 模式。tag-pattern Skill 的 `--check` 输出会附带解析出的 `remoteRef`。
 - `update` 只刷新已安装 Skill；Git 仓库目录可能新增或移除 Skill 时使用 `sync`。先以同样的范围、`--skip-existing` 和删除选项运行预览，确认结果后再移除 `--dry-run`。
 - `sklp sync <source> [--ref <ref>] [--track-tags "<glob>"] [--path <path>] [--skip-existing]` 同步一个集合；`sklp sync --all [--skip-existing]` 同步已登记的全部集合，且不能与 `--ref`、`--track-tags` 或 `--path` 组合。`--force` 必须与 `--prune` 组合。
+- 已安装 Git Skill 因目录移动而无法更新时，先用 `sklp info <skill> --json` 核对仓库和跟踪设置，再用 `sklp sync <repo> --path <new-skill-path> --dry-run --json` 预览。沿用原有 `--ref` 或 `--track-tags`（如有），确认目标出现在 `updated` 后执行同一命令并去掉 `--dry-run`。再用 `info` 核对新来源、标签和 enablements。只有希望安装并持续跟踪同仓其他 Skill 时才扩大扫描范围。
 - `sync --skip-existing` 会把已由其他来源安装或管理的同名 Skill 放入 `skipped`，不覆盖、不改绑来源，也不因此返回失败；上游内部重名、无效 metadata、来源损坏和拉取失败仍进入 `failed`。全量多来源同步默认使用该选项，并向用户报告所有 skipped 项。
 - 普通 sync 会新增、更新并记录 upstream-missing Skill，但保留本地副本。只有 `--prune` 才删除可安全移除的 missing Skill；已启用项仍会跳过，除非用户明确授权 `--force` 先停用受管目标再删除。无效或重复的上游 metadata 只能记为失败，不能作为删除依据。
 - 删除或 prune 掉来源集合的最后一个成员时，集合登记会自动注销，之后的 `sklp sync --all` 不会访问它或重新安装该 Skill。多成员集合仍按集合级同步管理，被单独 remove 的成员可能被再次发现。
@@ -53,5 +54,5 @@ description: 使用 sklp CLI 管理本地 Agent Skills。适用于初始化 Skil
 
 - `sklp export [output] --json` 生成只含名称和描述的离线 catalog，不包含标签、项目、来源、凭据或启用状态。已有输出必须保留，除非用户明确授权 `--force` 覆盖。
 - 仅停用目标入口使用 `disable`。删除 copied/Git 安装使用 `remove`，取消 linked 注册使用 `unlink`；不确定安装类型时先运行 `info` 或 `list --status`。`remove --force` 和 `unlink --force` 会先停用受管目标，只能在用户明确授权后使用。
-- 批量清理先运行 `sklp prune --dry-run --json`；只有用户确认计划后才运行 `sklp prune --yes --json`。prune 仅删除未启用且所有权可验证的 copied/Git Skill，保留 linked 和无法验证的副本。
+- 批量清理先运行 `sklp prune --dry-run --json`；只有用户确认计划后才运行 `sklp prune --yes --json`。prune 仅删除未启用且所有权可验证的 copied/Git Skill，保留 linked 和无法验证的副本。仍由已登记集合发现的 Skill 可能在下次同步时重新安装。
 - 只有用户明确要求卸载 Skill Port 时才运行交互式 `sklp uninstall`。它只接受精确的小写 `y` 确认，并保留 Hub 外的 linked 源目录。

@@ -222,9 +222,15 @@ program.command("sync")
       : withApp((app) => options.all
         ? app.syncAllSources(syncOptions)
         : app.syncSource(source!, syncOptions));
-    if (options.json) printJson(options.dryRun ? { dryRun: true, ...result } : result);
+    const failed = [
+      ...result.failed,
+      ...result.sources.flatMap(({ source, failed }) => failed.map((item) => ({
+        source: source.location, scanPath: source.path, ref: source.ref, ...item
+      })))
+    ];
+    if (options.json) printJson({ ...(options.dryRun ? { dryRun: true } : {}), ...result, failed });
     else printSyncSummary(result, Boolean(options.dryRun));
-    if (syncHasFailures(result)) process.exitCode = 1;
+    if (failed.length > 0) process.exitCode = 1;
   }));
 
 program.command("remove")
@@ -794,10 +800,6 @@ function syncMissingAction(action: "retain" | "remove" | "skip-enabled", chinese
   if (action === "remove") return chinese ? "将移除" : "remove";
   if (action === "skip-enabled") return chinese ? "已启用，跳过移除" : "skip removal because it is enabled";
   return chinese ? "保留本地副本" : "retain local copy";
-}
-
-function syncHasFailures(summary: SyncSummary): boolean {
-  return summary.failed.length > 0 || summary.sources.some((source) => source.failed.length > 0);
 }
 
 function printSkippedAndFailed(summary: Pick<UpdateSummary, "skipped" | "failed">): void {

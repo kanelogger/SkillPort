@@ -1,0 +1,28 @@
+id: sync-moved-skill
+
+title: 原地同步移出扫描范围的 Git Skill
+
+description: 验证 Agent 会沿用跟踪设置，定向预览新路径并在执行后核对标签和 enablements。
+
+input:
+  prompt: |
+    editing-skill 已从 https://github.com/owner/skills.git 的 main 分支安装，原路径已移到 skills/editing/editing-skill。
+    保留现有标签和 enablements，只修复这一个 Skill。列出核对来源、预览、执行和回读的 JSON 命令。
+
+expect:
+  must_contain:
+    - sklp info editing-skill --json
+    - sklp sync https://github.com/owner/skills.git
+    - --path skills/editing/editing-skill
+    - --ref main
+    - --dry-run
+  must_not_contain:
+    - sklp remove
+    - sklp install
+    - sklp sync --all
+    - --prune
+
+judge:
+  type: rule_based
+  rule:
+    operator: all

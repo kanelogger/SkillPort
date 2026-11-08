@@ -21,6 +21,7 @@ cases:
     - evals/cases/agent-setup.yaml
     - evals/cases/sync-forget-source.yaml
     - evals/cases/update-sync-all.yaml
+    - evals/cases/sync-moved-skill.yaml
   defaults:
     timeout_seconds: 120
     max_turns: 2

@@ -139,7 +139,11 @@ sklp sync --all --prune --force
 
 新的 Git 安装会把仓库 URL、ref 和扫描目录登记为来源集合，之后 `sklp sync --all` 可以对账全部已登记集合。升级前已经安装的 Git Skill，需要执行一次显式的 `sklp sync <repo> --path <path>`；只有来源匹配的现有 Skill 才会被安全收编。
 
+按希望持续跟踪的 Skill 选择扫描目录。Skill 移动后仍在扫描范围内时，集合对账可以发现新路径。移出扫描范围时，先用 `sklp info <skill> --json` 核对仓库及跟踪设置，再用 `sklp sync <repo> --path <new-skill-path> --dry-run --json` 预览，并沿用原有的 `--ref` 或 `--track-tags`（如有）。确认目标 Skill 出现在 `updated` 后，去掉 `--dry-run` 执行。仓库、跟踪范围和 Skill 名称匹配时，迁移会保留安装实例、标签和 enablements。GitHub HTTPS URL 有无 `.git` 后缀都可匹配同一仓库。只有希望跟踪并安装其他发现的 Skill 时，才扩大扫描范围。
+
 同步结果会分别列出 `added`、`updated`、`unchanged`、`skipped`、`missing`、`removed` 和 `failed`。`--skip-existing` 会保留已由其他来源安装或管理的同名 Skill，并把它们列入 `skipped`；该选项不会隐藏无效 metadata、上游集合内部重名、损坏的来源所有权或拉取失败。普通同步只记录上游缺失状态，保留本地副本。`--prune` 是删除边界：已启用的缺失 Skill 默认跳过，只有同时传入 `--force` 才会先停用再移除。上游 metadata 无效或名称重复时会报告失败，绝不会把它当成删除依据。扫描发现包含 `SKILL.md` 的目录后会停止向下递归，不会把该 Skill 内嵌的 fixtures 提升成独立 Skill。没有稳定 manifest 标识时，Skill 改名会表现为一个新增项和一个缺失项。
+
+`sync --json` 和 `sync --all --json` 的同步汇总在顶层 `failed` 列出来源级失败和各集合内的失败。各集合自己的 `failed` 也保留明细。字段见[退出码文档](docs/exit-codes.md)。
 
 删除某个集合的最后一个成员时，会自动注销该空来源，之后的 `sklp sync --all` 既不会访问它，也不会重新安装该 Skill。自动清理只作用于因成员删除而变空的来源；首次显式同步发现零个 Skill、或安装候选全部失败时，仍按登记语义保留空来源，清理入口是 `sync --forget`。
 

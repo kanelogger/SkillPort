@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {
-  existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
+  cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -208,6 +208,108 @@ test("explicit broader sync replaces a narrower source membership", (t) => {
   db.close();
 });
 
+test("explicit sync repairs a moved single-path Git Skill without reinstalling it", (t) => {
+  const fixture = setup("moved-skill");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  const oldPath = "skills/moved";
+  const newPath = "skills/editing/moved";
+  const github = "https://github.com/owner/moved-skills";
+  writeFileSync(join(fixture.root, ".gitconfig"), [
+    `[url "${fixture.url}"]`, `  insteadOf = ${github}.git`, `  insteadOf = ${github}`, ""
+  ].join("\n"));
+  makeSkill(join(fixture.repo, oldPath), "moved-skill", "Before move");
+  commit(fixture.repo, "initial");
+  assert.equal(cli(["install", github, "--path", oldPath], fixture.options).status, 0);
+  assert.equal(cli(["tag", "add", "editing", "moved-skill"], fixture.options).status, 0);
+  assert.equal(cli(["enable", "moved-skill"], fixture.options).status, 0);
+  assert.equal(cli(["enable", "moved-skill", "--global"], fixture.options).status, 0);
+  const before = JSON.parse(cli(["info", "moved-skill"], fixture.options).stdout);
+
+  mkdirSync(join(fixture.repo, "skills", "editing"));
+  renameSync(join(fixture.repo, oldPath), join(fixture.repo, newPath));
+  makeSkill(join(fixture.repo, newPath), "moved-skill", "After move");
+  makeSkill(join(fixture.repo, "skills", "sibling"), "untouched-sibling", "Outside requested scope");
+  const revision = commit(fixture.repo, "move to a category");
+  assert.equal(cli(["update", "moved-skill"], fixture.options).status, 1);
+  const oldScope = cli(["sync", "--all", "--dry-run", "--json"], fixture.options);
+  assert.equal(oldScope.status, 0, oldScope.stdout || oldScope.stderr);
+  assert.deepEqual(JSON.parse(oldScope.stdout).sources[0].missing, [{
+    name: "moved-skill", path: oldPath, enabled: true, action: "retain"
+  }]);
+
+  const args = ["sync", `${github}.git`, "--path", newPath, "--json"];
+  const differentRef = cli([...args, "--ref", "main", "--dry-run"], fixture.options);
+  assert.equal(differentRef.status, 1, differentRef.stdout || differentRef.stderr);
+  assert.match(JSON.parse(differentRef.stdout).failed[0].reason, /another source/);
+  const preview = cli([...args, "--dry-run"], fixture.options);
+  assert.equal(preview.status, 0, preview.stdout || preview.stderr);
+  const plan = JSON.parse(preview.stdout).sources[0];
+  assert.deepEqual(plan.updated, [{ name: "moved-skill", path: newPath, revision }]);
+  assert.deepEqual(plan.added, []);
+  assert.deepEqual(JSON.parse(cli(["info", "moved-skill"], fixture.options).stdout), before);
+
+  const db = new DatabaseSync(join(fixture.hub, "state.db"));
+  db.exec(`
+    CREATE TRIGGER fail_membership BEFORE INSERT ON source_memberships
+    WHEN NEW.skill_path = 'skills/editing/moved' BEGIN
+      SELECT RAISE(ABORT, 'membership write failed');
+    END
+  `);
+  const rejected = cli(args, fixture.options);
+  assert.equal(rejected.status, 1, rejected.stdout || rejected.stderr);
+  assert.match(JSON.parse(rejected.stdout).failed[0].reason, /membership write failed/);
+  assert.deepEqual(JSON.parse(cli(["info", "moved-skill"], fixture.options).stdout), before);
+  assert.match(readFileSync(join(fixture.hub, "skills", "moved-skill", "SKILL.md"), "utf8"), /Before move/);
+  db.exec("DROP TRIGGER fail_membership");
+
+  const savedBackup = join(fixture.root, "saved-backup");
+  cpSync(join(fixture.hub, "skills", "moved-skill"), savedBackup, { recursive: true });
+  const applied = cli(args, fixture.options);
+  assert.equal(applied.status, 0, applied.stdout || applied.stderr);
+  assert.deepEqual(JSON.parse(applied.stdout).sources[0].updated, plan.updated);
+  const after = JSON.parse(cli(["info", "moved-skill"], fixture.options).stdout);
+  assert.equal(after.skill.instanceId, before.skill.instanceId);
+  assert.deepEqual(after.skill.tags, ["editing"]);
+  assert.deepEqual(after.enablements, before.enablements);
+  assert.equal(after.skill.sourceLocation, `${github}.git#sklp-path=${encodeURIComponent(newPath)}`);
+  assert.deepEqual(db.prepare("SELECT scan_path FROM sources").all().map((row) => row.scan_path), [newPath]);
+  assert.equal(db.prepare("SELECT skill_path FROM source_memberships").get().skill_path, newPath);
+
+  const operation = db.prepare("SELECT id, payload_json FROM operations WHERE kind='update' AND status='completed'").get();
+  const recovery = JSON.parse(operation.payload_json);
+  assert.equal(recovery.committed, true);
+  renameSync(savedBackup, recovery.backup);
+  db.prepare("UPDATE operations SET status='started', finished_at=NULL WHERE id=?").run(operation.id);
+  const recovered = cli(["info", "moved-skill"], fixture.options);
+  assert.equal(recovered.status, 0, recovered.stdout || recovered.stderr);
+  assert.deepEqual(JSON.parse(recovered.stdout), after);
+  assert.equal(existsSync(recovery.backup), false);
+  assert.equal(db.prepare("SELECT status FROM operations WHERE id=?").get(operation.id).status, "completed");
+  db.close();
+
+  makeSkill(join(fixture.repo, newPath), "moved-skill", "Subsequent update");
+  commit(fixture.repo, "update moved Skill");
+  assert.equal(cli(["update", "moved-skill"], fixture.options).status, 0);
+  const fleet = cli(["sync", "--all", "--json"], fixture.options);
+  assert.equal(fleet.status, 0, fleet.stdout || fleet.stderr);
+  assert.deepEqual(JSON.parse(fleet.stdout).sources[0].unchanged.map((item) => item.name), ["moved-skill"]);
+});
+
+test("explicit sync updates the selected path even at the same Git revision", (t) => {
+  const fixture = setup("same-revision");
+  t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
+  makeSkill(join(fixture.repo, "old"), "same-revision", "Same metadata");
+  makeSkill(join(fixture.repo, "new"), "same-revision", "Same metadata");
+  writeFileSync(join(fixture.repo, "new", "content.txt"), "Content from the selected path");
+  const revision = commit(fixture.repo, "both paths");
+  assert.equal(cli(["install", fixture.url, "--path", "old", "--ref", revision], fixture.options).status, 0);
+  assert.equal(cli(["sync", "--forget", fixture.url, "--path", "old", "--ref", revision], fixture.options).status, 0);
+  const result = cli(["sync", fixture.url, "--path", "new", "--ref", revision, "--json"], fixture.options);
+  assert.equal(result.status, 0, result.stdout || result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).sources[0].updated, [{ name: "same-revision", path: "new", revision }]);
+  assert.equal(readFileSync(join(fixture.hub, "skills", "same-revision", "content.txt"), "utf8"), "Content from the selected path");
+});
+
 test("sync --skip-existing preserves Skills managed outside the collection", (t) => {
   const fixture = setup("skip-existing");
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
@@ -226,7 +328,12 @@ test("sync --skip-existing preserves Skills managed outside the collection", (t)
 
   const strict = cli(["sync", "--all", "--dry-run", "--json"], fixture.options);
   assert.equal(strict.status, 1);
-  assert.deepEqual(JSON.parse(strict.stdout).sources[0].failed.map((item) => item.name), ["shared-skill"]);
+  const strictSummary = JSON.parse(strict.stdout);
+  assert.deepEqual(strictSummary.sources[0].failed.map((item) => item.name), ["shared-skill"]);
+  assert.deepEqual(strictSummary.failed, [{
+    source: strictSummary.sources[0].source.location, scanPath: "skills", ref: null,
+    ...strictSummary.sources[0].failed[0]
+  }]);
 
   const preview = cli(["sync", "--all", "--skip-existing", "--dry-run", "--json"], fixture.options);
   assert.equal(preview.status, 0, preview.stderr);
@@ -273,13 +380,21 @@ test("sync all continues after one registered source cannot be fetched", (t) => 
     .run(pathToFileURL(join(fixture.root, "missing-repo")).href, brokenUrl);
   db.close();
   makeSkill(join(fixture.repo, "skills", "healthy"), "fleet-healthy", "After update");
+  const invalidRoot = join(fixture.repo, "skills", "invalid");
+  makeSkill(invalidRoot, "fleet-invalid", "Placeholder");
+  writeFileSync(join(invalidRoot, "SKILL.md"), "---\nname: fleet-invalid\ndescription: Invalid YAML: detail\n---\n");
   commit(fixture.repo, "update healthy");
 
   const result = cli(["sync", "--all", "--json"], fixture.options);
   assert.equal(result.status, 1);
   const value = JSON.parse(result.stdout);
-  assert.equal(value.failed.length, 1);
+  assert.equal(value.failed.length, 2);
   assert.match(value.failed[0].reason, /Git source failed/);
+  assert.deepEqual(value.failed[1], {
+    source: value.sources[0].source.location, scanPath: "skills", ref: null,
+    ...value.sources[0].failed[0]
+  });
+  assert.equal(value.failed[1].path, "skills/invalid");
   assert.deepEqual(value.sources[0].updated.map((item) => item.name), ["fleet-healthy"]);
   assert.match(readFileSync(join(fixture.hub, "skills", "fleet-healthy", "SKILL.md"), "utf8"), /After update/);
   assert.match(readFileSync(join(fixture.hub, "skills", "fleet-broken", "SKILL.md"), "utf8"), /Broken source/);
