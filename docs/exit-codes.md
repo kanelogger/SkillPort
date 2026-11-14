@@ -31,6 +31,12 @@ Removing or pruning the last member of a source collection automatically deregis
 
 `sklp tag add <tag> <skills...>` exits `0` after atomically adding the tag to every named Skill. It exits `1` without changing any tags when a Skill is missing, the tag is invalid, or any merged tag set exceeds 32 entries. `--dry-run` is read-only and exits `0` with the proposed Skill representations.
 
+## Project Unregistration
+
+`sklp project unregister <path>` exits `0` after removing one exact project registration. `--dry-run` opens the Hub read-only, performs the same validation, and does not run recovery or change state. An unknown path or any recorded project enablement for that project exits `1`; no project files, Skills, enablements, or catalogs are removed. Restore a missing directory and disable its Skills before retrying if it has project enablements. Global enablements and other projects do not block unregistration. There is no `--force` option.
+
+`sklp project unregister --json` returns `{ "unregistered": { "path": "<registered canonical path>" } }`; preview adds top-level `dryRun: true`. JSON keys remain stable across languages and displayed paths are sanitized. Missing project directories are supported. Relative paths and existing symlinked ancestors are resolved, but an unregistered child never selects a registered ancestor. The command uses the Hub mutation lock and an SQLite transaction; no schema migration is needed.
+
 ## Doctor Severity
 
 `sklp doctor` reports each diagnostic with a `severity`:
@@ -71,6 +77,10 @@ Skill Port CLI 的退出码保持简单稳定，方便脚本和 Agent 调用。
 | `1` | 命令失败，或 `sklp doctor` 发现至少一个 error 级诊断。 | 参数错误、不支持的目标、Skill 同名、Hub 缺失、启用入口损坏、数据库损坏。 |
 
 `sklp doctor --json` 适合自动化，字段名不会因为 `SKLP_LANG=zh-CN` 改变。
+
+`sklp project unregister <path>` 在注销精确匹配的项目登记后返回 `0`。`--dry-run` 只读打开 Hub、执行相同校验，不运行恢复或改写状态。路径未登记或该项目还有已记录的 project enablement 时返回 `1`，不删除项目文件、Skill、enablement 或 catalog。目录缺失且仍有 project enablement 时，需要先恢复目录并停用对应 Skill；global enablement 和其他项目不会阻止注销。命令不提供 `--force`。
+
+JSON 返回 `{ "unregistered": { "path": "<已登记的规范路径>" } }`，预览额外包含 `dryRun: true`；字段不随语言变化，展示路径经过脱敏。支持缺失目录、相对路径及现有符号链接父目录解析，不会为未登记子目录选择已登记祖先。实际注销使用 Hub mutation lock 和 SQLite 事务，无需 schema migration。
 
 已注册项目或全局目标目录无法列出时（例如当前进程只能 `stat`、不能读取受保护目录），该目标记为 error 级 `TARGET_UNREADABLE`，其余诊断照常输出，不会中断整轮检查。受管目标内指向不存在位置的文件或链接记为 warning 级 `DANGLING_ENTRY`。两种情况 `doctor` 都只报告、不删除；不属于 Skill Port 管理的入口需要手动清理。
 

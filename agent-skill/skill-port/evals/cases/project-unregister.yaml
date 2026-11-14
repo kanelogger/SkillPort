@@ -1,0 +1,27 @@
+id: project-unregister
+title: 注销失效项目登记并复查健康状态
+description: 验证 Agent 使用项目注销命令先预览后执行，再运行只读 doctor，不直接修改数据库或删除 Skill。
+
+input:
+  prompt: |
+    doctor 报告 /workspace/kit-test 项目目录已经不存在，已确认该项目没有 project enablement。帮我清理项目登记，保留所有 Skill 和全局启用。只输出三条依次执行的命令：先预览，再注销，最后检查健康状态；每行一条，全部使用 JSON 输出。
+
+expect:
+  must_contain:
+    - "sklp project unregister /workspace/kit-test --dry-run --json"
+    - "sklp project unregister /workspace/kit-test --json"
+    - "sklp doctor --json"
+  must_not_contain:
+    - "sqlite"
+    - "sklp remove"
+    - "sklp init"
+    - "--force"
+
+judge:
+  type: rule_based
+  success:
+    - output_contains:
+        all:
+          - "sklp project unregister /workspace/kit-test --dry-run --json"
+          - "sklp project unregister /workspace/kit-test --json"
+          - "sklp doctor --json"

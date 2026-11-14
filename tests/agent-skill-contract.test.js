@@ -18,6 +18,7 @@ test("bundled Agent Skill matches the built CLI command surface", () => {
   assert.equal(recordedCliSurfaceDigest(contract.skillDocument), contract.digest);
   assert.ok(contract.entries.some((entry) => entry.command === "sklp tag add"));
   assert.ok(contract.entries.some((entry) => entry.command === "sklp agent setup"));
+  assert.ok(contract.entries.some((entry) => entry.command === "sklp project unregister"));
 });
 
 test("Agent Skill contract rejects stale digests and updates only its marker", () => {

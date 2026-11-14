@@ -3,7 +3,7 @@ import {
   type Dirent
 } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { CliError, sanitizeError } from "../domain/errors.js";
 import { isValidSkillName, readSkillMetadata } from "../domain/metadata.js";
 import type {
@@ -197,6 +197,10 @@ export type UninstallResult = {
   failures: string[];
 };
 
+export type ProjectUnregistration = {
+  path: string;
+};
+
 export class SkillPortOpenError extends Error {
   readonly causeError: unknown;
 
@@ -284,6 +288,35 @@ export class SkillPort {
 
   close(): void {
     this.store.close();
+  }
+
+  previewUnregisterProject(path: string): ProjectUnregistration {
+    if (path.length === 0) throw new CliError("Project path must not be empty.");
+    const projects = this.store.projects();
+    const resolved = resolve(path);
+    let registered = projects.find((project) => samePath(project, resolved));
+    if (!registered) {
+      const canonical = resolveProjectRegistrationPath(resolved);
+      registered = projects.find((project) => samePath(project, canonical));
+    }
+    if (!registered) throw new CliError(`Project is not registered: ${path}`);
+    const targetPath = join(registered, ".agents", "skills");
+    if (this.store.enablements().some((item) => item.targetType === "project"
+      && (samePath(item.targetKey, registered) || samePath(item.targetPath, targetPath)
+        || isInside(targetPath, item.entryPath)))) {
+      throw new CliError(
+        `Project still has project enablements: ${registered}. Disable its Skills with \`sklp disable <skill> --project <path>\` first; restore the project directory if it is missing.`
+      );
+    }
+    return { path: registered };
+  }
+
+  unregisterProject(path: string): ProjectUnregistration {
+    return this.mutate("project-unregister", () => this.store.transaction(() => {
+      const project = this.previewUnregisterProject(path);
+      this.store.deleteProject(project.path);
+      return project;
+    }));
   }
 
   install(source: string, ref?: string): Skill {
@@ -2171,6 +2204,25 @@ function canonicalDirectory(path: string): string {
   return realpathSync(resolved);
 }
 
+// Resolve existing symlinked ancestors even when the registered directory has disappeared.
+function resolveProjectRegistrationPath(path: string): string {
+  let ancestor = path;
+  const missing: string[] = [];
+  for (;;) {
+    try {
+      return resolve(realpathSync(ancestor), ...missing);
+    } catch (error: any) {
+      if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") {
+        throw new CliError(`Cannot resolve project path: ${sanitizeError(error)}`);
+      }
+      const parent = dirname(ancestor);
+      if (parent === ancestor) throw new CliError(`Cannot resolve project path: ${path}`);
+      missing.unshift(relative(parent, ancestor));
+      ancestor = parent;
+    }
+  }
+}
+
 function readEnablementsForUninstall(paths: HubPaths, failures: string[]): Enablement[] {
   if (!existsSync(paths.database)) return [];
   try {
@@ -2368,7 +2420,7 @@ function diagnosticSuggestion(code: string): string {
     case "CATALOG_MARKDOWN_INVALID":
       return "Run a successful mutating command such as `sklp install`, `sklp update`, or `sklp remove` to regenerate catalogs.";
     case "PROJECT_MISSING":
-      return "Run `sklp init` from an existing project directory to register a valid project.";
+      return "Run `sklp project unregister <path> --dry-run` to preview removing the stale project registration, then repeat without --dry-run. Projects with project enablements must be restored and disabled first.";
     case "OPERATION_INTERRUPTED":
       return "Run any normal mutating command to trigger startup recovery; inspect the Hub manually if this repeats.";
     case "TARGET_UNREADABLE":

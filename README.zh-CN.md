@@ -85,6 +85,20 @@ sklp doctor
 
 除了新增的保留内置 Skill，`~/.agents/skills` 中原有的 Skill 不会被改动，可以继续使用。它们不会自动导入 Hub，因此无需处理。
 
+### 注销项目登记
+
+项目目录已经删除时，也可以清理其登记：
+
+```bash
+sklp project unregister /path/to/project --dry-run --json
+sklp project unregister /path/to/project --json
+sklp doctor --json
+```
+
+命令只移除精确匹配的项目登记，保留项目文件、非受管入口、已安装 Skill、其他项目登记、global enablement 和 catalog。相对路径基于当前目录解析；现有符号链接别名，以及位于现有符号链接父目录下的缺失目录，会解析为登记的规范路径。指定未登记的子目录不会自动选中其已登记祖先。
+
+项目仍有已记录的 project enablement 时会拒绝注销，即使目录已经删除。先使用 `sklp disable <skill> --project /path/to/project` 停用；如果目录已消失，需要先恢复目录再停用。命令不提供强制选项。预览只读，路径未登记时返回退出码 `1`。现有项目注销后可用 `sklp init` 重新登记。
+
 ### 更新 Git Skill
 
 先检查，再更新单个 Skill 或整个 Hub：

@@ -85,6 +85,20 @@ Open a new Agent session after enabling the Skill so that a compatible Agent can
 
 Apart from the new reserved bundled Skills under `~/.agents/skills`, existing Skills in that directory remain unchanged and continue to work. They are not automatically imported into the Hub, so no action is required.
 
+### Unregister a project
+
+To remove a project registration, including one whose directory no longer exists:
+
+```bash
+sklp project unregister /path/to/project --dry-run --json
+sklp project unregister /path/to/project --json
+sklp doctor --json
+```
+
+The command removes only the exact project registration. It keeps project files, unmanaged entries, installed Skills, other project registrations, global enablements, and catalogs. Relative paths resolve from the current directory; existing symlink aliases and missing directories under existing symlinked ancestors resolve to the registered canonical path. It never selects a registered ancestor for an unregistered child path.
+
+Projects with recorded project enablements are refused, even when their directory is missing. Disable those Skills with `sklp disable <skill> --project /path/to/project` first; restore the directory before disabling if it has disappeared. There is no force option. Preview is read-only, and an unregistered path exits with code `1`. An existing project can be registered again with `sklp init`.
+
 ### Update Git Skills
 
 Check first, then update one Skill or the whole Hub:

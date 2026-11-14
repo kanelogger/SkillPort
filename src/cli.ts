@@ -43,6 +43,25 @@ program.command("init")
     app.close();
   }));
 
+const projectCommand = program.command("project")
+  .description(human("Manage Hub project registrations", "管理 Hub 项目登记"));
+
+projectCommand.command("unregister")
+  .description(human("Unregister a project with no project enablements; keep its files", "注销没有 project enablement 的项目登记，保留项目文件"))
+  .argument("<path>", human("Registered project path, including a missing directory", "已登记项目路径，允许目录已不存在"))
+  .option("--dry-run", human("Preview project unregistration without changing state", "预览注销项目登记，不改写状态"))
+  .option("--json", human("Write machine-readable JSON", "输出机器可读 JSON"))
+  .action(run((path, options) => {
+    const result = options.dryRun
+      ? withApp((app) => app.previewUnregisterProject(path), { recover: false, readOnly: true })
+      : withApp((app) => app.unregisterProject(path));
+    const project = { path: sanitizeError(result.path) };
+    if (options.json) printJson({ ...(options.dryRun ? { dryRun: true } : {}), unregistered: project });
+    else console.log(options.dryRun
+      ? human(`Would unregister project ${project.path}`, `将注销项目登记 ${project.path}`)
+      : human(`Unregistered project ${project.path}`, `已注销项目登记 ${project.path}`));
+  }));
+
 program.command("install")
   .description(human("Install a Skill from a local directory or Git URL", "从本地目录、Git URL 或 registry 安装 Skill"))
   .argument("<source>")

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -13,12 +13,23 @@ test("help exposes the v1 command surface without deferred aliases", () => {
   const root = mkdtempSync(join(tmpdir(), "sklp-help-"));
   const result = cli(["--help"], { cwd: root, hub: join(root, "hub"), home: root });
   assert.equal(result.status, 0);
-  for (const command of ["init", "install", "link", "unlink", "update", "sync", "remove", "prune", "uninstall", "list", "tag", "export", "info", "enable", "disable", "doctor", "agent"]) {
+  for (const command of ["init", "project", "install", "link", "unlink", "update", "sync", "remove", "prune", "uninstall", "list", "tag", "export", "info", "enable", "disable", "doctor", "agent"]) {
     assert.match(result.stdout, new RegExp(`\\b${command}\\b`));
   }
   for (const command of ["repair", "catalog", "import"]) {
     assert.doesNotMatch(result.stdout, new RegExp(`^\\s+${command}\\b`, "m"));
   }
+});
+
+test("project unregister help documents the exact project path and read-only preview", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "sklp-project-help-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const result = cli(["project", "unregister", "--help"], { cwd: root, hub: join(root, "hub"), home: root });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /sklp project unregister \[options\] <path>/);
+  assert.match(result.stdout, /--dry-run/);
+  assert.match(result.stdout, /--json/);
+  assert.doesNotMatch(result.stdout, /--force/);
 });
 
 test("sync help documents reconciliation and removal controls", () => {

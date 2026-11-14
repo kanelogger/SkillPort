@@ -226,6 +226,10 @@ export class StateStore {
       .map((row) => String(row.path));
   }
 
+  deleteProject(path: string): void {
+    this.db.prepare("DELETE FROM projects WHERE path=?").run(path);
+  }
+
   skills(): Skill[] {
     return this.hydrateSkills(this.db.prepare("SELECT * FROM skills ORDER BY name COLLATE NOCASE").all() as Row[]);
   }
