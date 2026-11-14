@@ -239,7 +239,7 @@ function setupFixture(name) {
 
 function commitAll(repo, message) {
   git(["add", "."], repo);
-  git(["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", "commit", "-m", message], repo);
+  git(["commit", "-m", message], repo);
 }
 
 function revisionOf(repo, ref) {
@@ -247,7 +247,9 @@ function revisionOf(repo, ref) {
 }
 
 function git(args, cwd) {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8", shell: false });
+  const result = spawnSync("git", ["-c", "user.name=Skill Port Test", "-c", "user.email=test@example.com", ...args], {
+    cwd, encoding: "utf8", shell: false
+  });
   assert.equal(result.status, 0, result.stderr);
   return result;
 }
