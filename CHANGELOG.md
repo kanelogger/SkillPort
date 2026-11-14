@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0 - 2026-11-14
+
+### Changes
+
+- Add project unregister with read-only preview and project enablement protection; preserve project files, installed Skills and global enablements.
+
 ## 0.9.13 - 2026-11-08
 
 ### Changes
